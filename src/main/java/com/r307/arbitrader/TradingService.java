@@ -68,6 +68,7 @@ public class TradingService {
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
             ExchangeSpecification specification = new ExchangeSpecification(exchangeMetadata.getExchangeClass());
 
+            specification.setUserName(exchangeMetadata.getUserName());
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
 

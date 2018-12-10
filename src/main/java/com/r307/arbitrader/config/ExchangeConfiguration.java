@@ -6,6 +6,7 @@ import java.util.Map;
 
 public class ExchangeConfiguration {
     private String exchangeClass;
+    private String userName;
     private String apiKey;
     private String secretKey;
     private Map<String, String> custom = new HashMap<>();
@@ -19,6 +20,14 @@ public class ExchangeConfiguration {
 
     public void setExchangeClass(String exchangeClass) {
         this.exchangeClass = exchangeClass;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public String getApiKey() {
