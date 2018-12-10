@@ -109,60 +109,59 @@ public class TradingService {
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
                 if (longTicker == null || shortTicker == null) {
+                    LOGGER.warn("Ticker was null! long: {}, short: {}", longTicker, shortTicker);
                     return;
                 }
 
                 BigDecimal spreadIn = computeSpreadIn(longTicker, shortTicker);
                 BigDecimal spreadOut = computeSpreadOut(longTicker, shortTicker);
 
-                if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    if (!inMarket) {
-                        LOGGER.warn("Entry opportunity {}/{} {}: {}",
-                                longExchange.getExchangeSpecification().getExchangeName(),
-                                shortExchange.getExchangeSpecification().getExchangeName(),
+                if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                    LOGGER.warn("Entry opportunity {}/{} {}: {}",
+                            longExchange.getExchangeSpecification().getExchangeName(),
+                            shortExchange.getExchangeSpecification().getExchangeName(),
+                            currencyPair,
+                            spreadIn);
+
+                    BigDecimal fees = new BigDecimal(2.0).multiply(
+                            ((BigDecimal) longExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee"))
+                                    .add((BigDecimal) shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee")));
+                    BigDecimal exitTarget = spreadIn
+                            .subtract(tradingConfiguration.getExitTarget())
+                            .subtract(fees);
+
+                    BigDecimal maxExposure = getMaximumExposure(currencyPair);
+
+                    if (maxExposure != null) {
+                        BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
+                        BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), RoundingMode.HALF_EVEN);
+                        BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
+                        BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
+
+                        LOGGER.info("Trade amount would be: {}{}", Currency.USD.getSymbol(), maxExposure);
+                        LOGGER.info("Exit spread target would be: {}", exitTarget);
+                        LOGGER.info("Long entry would be: {} {} @ {} = {}{}",
                                 currencyPair,
-                                spreadIn);
+                                longVolume,
+                                longLimitPrice,
+                                Currency.USD.getSymbol(),
+                                longVolume.multiply(longLimitPrice));
+                        LOGGER.info("Short entry would be: {} {} @ {} = {}{}",
+                                currencyPair,
+                                shortVolume,
+                                shortLimitPrice,
+                                Currency.USD.getSymbol(),
+                                shortVolume.multiply(shortLimitPrice));
 
-                        BigDecimal fees = new BigDecimal(2.0).multiply(
-                                ((BigDecimal) longExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee"))
-                                        .add((BigDecimal) shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee")));
-                        BigDecimal exitTarget = spreadIn
-                                .subtract(tradingConfiguration.getExitTarget())
-                                .subtract(fees);
-
-                        BigDecimal maxExposure = getMaximumExposure(currencyPair);
-
-                        if (maxExposure != null) {
-                            BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
-                            BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), RoundingMode.HALF_EVEN);
-                            BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
-                            BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
-
-                            LOGGER.info("Trade amount would be: {}{}", Currency.USD.getSymbol(), maxExposure);
-                            LOGGER.info("Exit spread target would be: {}", exitTarget);
-                            LOGGER.info("Long entry would be: {} {} @ {} = {}{}",
-                                    currencyPair,
-                                    longVolume,
-                                    longLimitPrice,
-                                    Currency.USD.getSymbol(),
-                                    longVolume.multiply(longLimitPrice));
-                            LOGGER.info("Short entry would be: {} {} @ {} = {}{}",
-                                    currencyPair,
-                                    shortVolume,
-                                    shortLimitPrice,
-                                    Currency.USD.getSymbol(),
-                                    shortVolume.multiply(shortLimitPrice));
-
-                            inMarket = true;
-                            activeCurrencyPair = currencyPair;
-                            activeExitTarget = exitTarget;
-                            activeLongExchange = longExchange;
-                            activeShortExchange = shortExchange;
-                            activeLongVolume = longVolume;
-                            activeShortVolume = shortVolume;
-                            activeLongEntry = longLimitPrice;
-                            activeShortEntry = shortLimitPrice;
-                        }
+                        inMarket = true;
+                        activeCurrencyPair = currencyPair;
+                        activeExitTarget = exitTarget;
+                        activeLongExchange = longExchange;
+                        activeShortExchange = shortExchange;
+                        activeLongVolume = longVolume;
+                        activeShortVolume = shortVolume;
+                        activeLongEntry = longLimitPrice;
+                        activeShortEntry = shortLimitPrice;
                     }
                 } else if (inMarket
                         && currencyPair.equals(activeCurrencyPair)
@@ -216,28 +215,18 @@ public class TradingService {
 
                 String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
 
-                minSpread.put(spreadKey, spreadIn.min(minSpread.getOrDefault(spreadKey, BigDecimal.ZERO)));
-                maxSpread.put(spreadKey, spreadIn.max(maxSpread.getOrDefault(spreadKey, BigDecimal.ZERO)));
-                minSpread.put(spreadKey, spreadOut.min(minSpread.getOrDefault(spreadKey, BigDecimal.ZERO)));
-                maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.ZERO)));
-
-                if ((!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0)
-                        || (inMarket && longExchange.equals(activeLongExchange) && shortExchange.equals(activeShortExchange) && spreadOut.compareTo(activeExitTarget) < 0)) {
-
-                    LOGGER.info("{}/{} {}: {}/{} ({}/{})",
-                            longExchange.getExchangeSpecification().getExchangeName(),
-                            shortExchange.getExchangeSpecification().getExchangeName(),
-                            currencyPair,
-                            spreadIn, spreadOut,
-                            minSpread.get(spreadKey),
-                            maxSpread.get(spreadKey));
-                }
+                minSpread.put(spreadKey, spreadIn.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
+                maxSpread.put(spreadKey, spreadIn.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
+                minSpread.put(spreadKey, spreadOut.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
+                maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
             }));
         });
     }
 
     @Scheduled(initialDelay = 30000, fixedRate = 3600000)
     public void logSpreadMinAndMax() {
+        LOGGER.info("***** SUMMARY *****");
+
         currencyPairs.forEach(currencyPair -> exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             if (longExchange == shortExchange) {
                 return;
