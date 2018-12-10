@@ -11,6 +11,8 @@ import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.exceptions.ExchangeException;
+import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
 import org.knowm.xchange.service.marketdata.params.CurrencyPairsParam;
@@ -28,6 +30,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Component
 public class TradingService {
@@ -66,6 +70,12 @@ public class TradingService {
 
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
+
+            if (!exchangeMetadata.getCustom().isEmpty()) {
+                exchangeMetadata.getCustom().forEach(specification::setExchangeSpecificParametersItem);
+            }
+
+            specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
             specification.setExchangeSpecificParametersItem("makerFee", exchangeMetadata.getMakerFee());
             specification.setExchangeSpecificParametersItem("takerFee", exchangeMetadata.getTakerFee());
 
@@ -74,14 +84,23 @@ public class TradingService {
 
         exchanges.forEach(exchange -> {
             try {
-                if (exchange != null) {
-                    LOGGER.info("{} balance: {}{}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            Currency.USD.getSymbol(),
-                            getAccountBalance(exchange, Currency.USD));
-                }
+                LOGGER.info("{} balance: {}{}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        Currency.USD.getSymbol(),
+                        getAccountBalance(exchange, Currency.USD));
             } catch (IOException e) {
                 LOGGER.error("Unable to fetch account balance: ", e);
+            }
+
+            try {
+                CurrencyPairsParam param = () -> currencyPairs;
+                exchange.getMarketDataService().getTickers(param);
+            } catch (NotYetImplementedForExchangeException e) {
+                LOGGER.warn("{} does not implement MarketDataService.getTickers() and will fetch tickers " +
+                                "individually instead. This may result in API rate limiting.",
+                        exchange.getExchangeSpecification().getExchangeName());
+            } catch (IOException e) {
+                LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }
         });
     }
@@ -96,7 +115,13 @@ public class TradingService {
         currencyPairs.forEach(currencyPair -> {
             LOGGER.debug("Computing trade opportunities...");
             exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+                // bail out if both exchanges are the same
                 if (longExchange == shortExchange) {
+                    return;
+                }
+
+                // if the "short" exchange doesn't support margin, bail out
+                if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
                     return;
                 }
 
@@ -108,8 +133,9 @@ public class TradingService {
                 Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
+                // if we couldn't get a ticker for either exchange, bail out
                 if (longTicker == null || shortTicker == null) {
-                    LOGGER.warn("Ticker was null! long: {}, short: {}", longTicker, shortTicker);
+                    LOGGER.debug("Ticker was null! long: {}, short: {}", longTicker, shortTicker);
                     return;
                 }
 
@@ -232,14 +258,25 @@ public class TradingService {
                 return;
             }
 
+            if (!((Boolean) shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+                return;
+            }
+
             String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
+
+            BigDecimal minSpreadAmount = minSpread.get(spreadKey);
+            BigDecimal maxSpreadAmount = maxSpread.get(spreadKey);
+
+            if (minSpreadAmount == null || maxSpreadAmount == null) {
+                return;
+            }
 
             LOGGER.info("{}/{} {} Min/Max Spreads: {}/{}",
                     longExchange.getExchangeSpecification().getExchangeName(),
                     shortExchange.getExchangeSpecification().getExchangeName(),
                     currencyPair,
-                    minSpread.get(spreadKey),
-                    maxSpread.get(spreadKey));
+                    minSpreadAmount,
+                    maxSpreadAmount);
         })));
     }
 
@@ -281,24 +318,36 @@ public class TradingService {
     private List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         MarketDataService marketDataService = exchange.getMarketDataService();
 
-        if (marketDataService == null) {
-            LOGGER.warn("Market data service is null!");
-            return Collections.emptyList();
-        }
-
         try {
             CurrencyPairsParam param = () -> currencyPairs;
             List<Ticker> tickers = marketDataService.getTickers(param);
 
             tickers.forEach(ticker ->
-            LOGGER.debug("{}: {} {}/{}",
-                    ticker.getCurrencyPair(),
-                    exchange.getExchangeSpecification().getExchangeName(),
-                    ticker.getBid(), ticker.getAsk()));
+                    LOGGER.debug("{}: {} {}/{}",
+                            ticker.getCurrencyPair(),
+                            exchange.getExchangeSpecification().getExchangeName(),
+                            ticker.getBid(), ticker.getAsk()));
 
             return tickers;
-        } catch (IOException ioe) {
-            LOGGER.error("Unexpected IO exception!", ioe);
+        } catch (NotYetImplementedForExchangeException e) {
+            LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
+
+            return currencyPairs.stream()
+                    .map(currencyPair -> {
+                        try {
+                            return marketDataService.getTicker(currencyPair);
+                        } catch (IOException | NullPointerException | ExchangeException ex) {
+                            LOGGER.debug("Unable to fetch ticker for {} {}",
+                                    exchange.getExchangeSpecification().getExchangeName(),
+                                    currencyPair);
+                        }
+
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            LOGGER.error("IOException: ", e);
         }
 
         return Collections.emptyList();
