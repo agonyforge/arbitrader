@@ -1,9 +1,11 @@
 package com.r307.arbitrader.config;
 
+import org.knowm.xchange.currency.CurrencyPair;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @ConfigurationProperties("trading")
@@ -11,6 +13,7 @@ import java.util.List;
 public class TradingConfiguration {
     private BigDecimal entrySpread;
     private BigDecimal exitTarget;
+    private List<CurrencyPair> tradingPairs;
     private List<ExchangeConfiguration> exchanges;
 
     public BigDecimal getEntrySpread() {
@@ -27,6 +30,15 @@ public class TradingConfiguration {
 
     public void setExitTarget(BigDecimal exitTarget) {
         this.exitTarget = exitTarget;
+    }
+
+    public List<CurrencyPair> getTradingPairs() {
+        return tradingPairs;
+    }
+
+    public void setTradingPairs(List<String> pairStrings) {
+        tradingPairs = new ArrayList<>();
+        pairStrings.forEach(pair -> tradingPairs.add(new CurrencyPair(pair)));
     }
 
     public List<ExchangeConfiguration> getExchanges() {
