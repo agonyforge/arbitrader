@@ -10,6 +10,7 @@ import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.marketdata.Ticker;
+import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
@@ -78,7 +79,6 @@ public class TradingService {
 
             specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
             specification.setExchangeSpecificParametersItem("makerFee", exchangeMetadata.getMakerFee());
-            specification.setExchangeSpecificParametersItem("takerFee", exchangeMetadata.getTakerFee());
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
         });
@@ -102,6 +102,16 @@ public class TradingService {
                         exchange.getExchangeSpecification().getExchangeName());
             } catch (IOException e) {
                 LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
+            }
+
+            BigDecimal tradingFee = getExchangeFee(exchange, CurrencyPair.BTC_USD);
+
+            if (tradingFee == null) {
+                LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
+
+                if (exchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee") == null) {
+                    LOGGER.error("{} must be configured with a makerFee", exchange.getExchangeSpecification().getExchangeName());
+                }
             }
         });
     }
@@ -150,9 +160,15 @@ public class TradingService {
                             currencyPair,
                             spreadIn);
 
-                    BigDecimal fees = new BigDecimal(2.0).multiply(
-                            ((BigDecimal) longExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee"))
-                                    .add((BigDecimal) shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee")));
+                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair);
+                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair);
+
+                    LOGGER.info("{} (long) fee: ${}", longExchange.getExchangeSpecification().getExchangeName(), longFees);
+                    LOGGER.info("{} (short) fee: ${}", shortExchange.getExchangeSpecification().getExchangeName(), shortFees);
+
+                    BigDecimal fees = (longFees.add(shortFees))
+                            .multiply(new BigDecimal(2.0));
+
                     BigDecimal exitTarget = spreadIn
                             .subtract(tradingConfiguration.getExitTarget())
                             .subtract(fees);
@@ -251,7 +267,7 @@ public class TradingService {
     }
 
     @Scheduled(initialDelay = 30000, fixedRate = 3600000)
-    public void logSpreadMinAndMax() {
+    public void logPeriodicSummary() {
         LOGGER.info("***** SUMMARY *****");
 
         currencyPairs.forEach(currencyPair -> exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
@@ -265,6 +281,12 @@ public class TradingService {
 
             String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
 
+            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+
+            BigDecimal spreadIn = (longTicker == null || shortTicker == null) ? BigDecimal.ZERO : computeSpreadIn(longTicker, shortTicker);
+            BigDecimal spreadOut = (longTicker == null || shortTicker == null) ? BigDecimal.ZERO : computeSpreadOut(longTicker, shortTicker);
+
             BigDecimal minSpreadAmount = minSpread.get(spreadKey);
             BigDecimal maxSpreadAmount = maxSpread.get(spreadKey);
 
@@ -272,13 +294,27 @@ public class TradingService {
                 return;
             }
 
-            LOGGER.info("{}/{} {} Min/Max Spreads: {}/{}",
+            LOGGER.info("{}/{} {} Min/In/Out/Max Spreads: {}/{}/{}/{}",
                     longExchange.getExchangeSpecification().getExchangeName(),
                     shortExchange.getExchangeSpecification().getExchangeName(),
                     currencyPair,
                     minSpreadAmount,
+                    spreadIn,
+                    spreadOut,
                     maxSpreadAmount);
         })));
+
+        if (inMarket) {
+            LOGGER.info("Active Trade:");
+            LOGGER.info("{}/{} exit @ {}",
+                    activeLongExchange.getExchangeSpecification().getExchangeName(),
+                    activeShortExchange.getExchangeSpecification().getExchangeName(),
+                    activeExitTarget);
+            LOGGER.info("Long entry {} {} @ {}", activeCurrencyPair, activeLongVolume, activeLongEntry);
+            LOGGER.info("Short entry {} {} @ {}", activeCurrencyPair, activeShortVolume, activeShortEntry);
+        } else {
+            LOGGER.info("No active trades.");
+        }
     }
 
     private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
@@ -292,6 +328,16 @@ public class TradingService {
                 longExchange.getExchangeSpecification().getExchangeName(),
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 currencyPair);
+    }
+
+    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair) {
+        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair);
+
+        if (currencyPairMetaData == null) {
+            return (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee");
+        }
+
+        return currencyPairMetaData.getTradingFee();
     }
 
     private BigDecimal computeSpreadIn(Ticker longTicker, Ticker shortTicker) {
@@ -347,8 +393,8 @@ public class TradingService {
                     })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-        } catch (IOException e) {
-            LOGGER.error("IOException: ", e);
+        } catch (ExchangeException | IOException e) {
+            LOGGER.warn("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         }
 
         return Collections.emptyList();
