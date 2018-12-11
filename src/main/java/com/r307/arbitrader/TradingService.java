@@ -78,7 +78,7 @@ public class TradingService {
             }
 
             specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
-            specification.setExchangeSpecificParametersItem("makerFee", exchangeMetadata.getMakerFee());
+            specification.setExchangeSpecificParametersItem("fee", exchangeMetadata.getFee());
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
         });
@@ -109,11 +109,27 @@ public class TradingService {
             if (tradingFee == null) {
                 LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
 
-                if (exchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee") == null) {
-                    LOGGER.error("{} must be configured with a makerFee", exchange.getExchangeSpecification().getExchangeName());
+                BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+
+                if (configuredFee == null) {
+                    LOGGER.error("{} must be configured with a fee", exchange.getExchangeSpecification().getExchangeName());
+                } else {
+                    LOGGER.info("{} configured trading fee for {}: {}",
+                            exchange.getExchangeSpecification().getExchangeName(),
+                            CurrencyPair.BTC_USD,
+                            configuredFee);
                 }
+            } else {
+                LOGGER.info("{} dynamic trading fee for {}: {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        CurrencyPair.BTC_USD,
+                        tradingFee);
             }
         });
+
+        if (tradingConfiguration.getFixedExposure() != null) {
+            LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
+        }
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
@@ -338,7 +354,7 @@ public class TradingService {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair);
 
         if (currencyPairMetaData == null) {
-            return (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("makerFee");
+            return (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
         }
 
         return currencyPairMetaData.getTradingFee();

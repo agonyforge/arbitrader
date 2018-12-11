@@ -11,7 +11,7 @@ public class ExchangeConfiguration {
     private String secretKey;
     private Map<String, String> custom = new HashMap<>();
     private Boolean margin;
-    private BigDecimal makerFee;
+    private BigDecimal fee;
 
     public String getExchangeClass() {
         return exchangeClass;
@@ -61,11 +61,11 @@ public class ExchangeConfiguration {
         this.margin = margin;
     }
 
-    public BigDecimal getMakerFee() {
-        return makerFee;
+    public BigDecimal getFee() {
+        return fee;
     }
 
-    public void setMakerFee(BigDecimal makerFee) {
-        this.makerFee = makerFee;
+    public void setFee(BigDecimal fee) {
+        this.fee = fee;
     }
 }
