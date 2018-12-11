@@ -353,8 +353,16 @@ public class TradingService {
     private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair) {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair);
 
-        if (currencyPairMetaData == null) {
-            return (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+        if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
+            BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+
+            if (configuredFee == null) {
+                LOGGER.error("Cannot determine fees for {}! Defaulting to 0.0030!");
+
+                return new BigDecimal(0.0030);
+            }
+
+            return configuredFee;
         }
 
         return currencyPairMetaData.getTradingFee();
