@@ -154,7 +154,8 @@ public class TradingService {
                 BigDecimal spreadOut = computeSpreadOut(longTicker, shortTicker);
 
                 if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    LOGGER.warn("Entry opportunity {}/{} {}: {}",
+                    LOGGER.info("***** ENTRY *****");
+                    LOGGER.info("Entry opportunity {}/{} {}: {}",
                             longExchange.getExchangeSpecification().getExchangeName(),
                             shortExchange.getExchangeSpecification().getExchangeName(),
                             currencyPair,
@@ -205,6 +206,8 @@ public class TradingService {
                         activeShortVolume = shortVolume;
                         activeLongEntry = longLimitPrice;
                         activeShortEntry = shortLimitPrice;
+                    } else {
+                        LOGGER.warn("Will not trade: exposure could not be computed");
                     }
                 } else if (inMarket
                         && currencyPair.equals(activeCurrencyPair)
@@ -212,7 +215,8 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    LOGGER.warn("Exit opportunity {} {}/{}: {}",
+                    LOGGER.info("***** EXIT *****");
+                    LOGGER.info("Exit opportunity {} {}/{}: {}",
                             currencyPair,
                             longExchange.getExchangeSpecification().getExchangeName(),
                             shortExchange.getExchangeSpecification().getExchangeName(),
@@ -427,28 +431,32 @@ public class TradingService {
     }
 
     private BigDecimal getMaximumExposure(CurrencyPair currencyPair) {
-        BigDecimal smallestBalance = null;
+        if (tradingConfiguration.getFixedExposure() != null) {
+            return tradingConfiguration.getFixedExposure();
+        } else {
+            BigDecimal smallestBalance = null;
 
-        for (Exchange exchange : exchanges) {
-            try {
-                BigDecimal balance = getAccountBalance(exchange, currencyPair.counter);
+            for (Exchange exchange : exchanges) {
+                try {
+                    BigDecimal balance = getAccountBalance(exchange, currencyPair.counter);
 
-                if (smallestBalance == null) {
-                    smallestBalance = balance;
-                } else {
-                    smallestBalance = smallestBalance.min(balance);
+                    if (smallestBalance == null) {
+                        smallestBalance = balance;
+                    } else {
+                        smallestBalance = smallestBalance.min(balance);
+                    }
+                } catch (IOException e) {
+                    LOGGER.error("Unable to fetch account balance: {} {}",
+                            exchange.getExchangeSpecification().getExchangeName(),
+                            currencyPair.counter.getDisplayName(),
+                            e);
                 }
-            } catch (IOException e) {
-                LOGGER.error("Unable to fetch account balance: {} {}",
-                        exchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair.counter.getDisplayName(),
-                        e);
             }
-        }
 
-        return smallestBalance == null ? null : smallestBalance
-                .multiply(new BigDecimal(0.9))
-                .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+            return smallestBalance == null ? null : smallestBalance
+                    .multiply(new BigDecimal(0.9))
+                    .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+        }
     }
 
     private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {

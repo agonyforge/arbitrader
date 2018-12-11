@@ -13,6 +13,7 @@ import java.util.List;
 public class TradingConfiguration {
     private BigDecimal entrySpread;
     private BigDecimal exitTarget;
+    private BigDecimal fixedExposure;
     private List<CurrencyPair> tradingPairs;
     private List<ExchangeConfiguration> exchanges;
 
@@ -30,6 +31,14 @@ public class TradingConfiguration {
 
     public void setExitTarget(BigDecimal exitTarget) {
         this.exitTarget = exitTarget;
+    }
+
+    public BigDecimal getFixedExposure() {
+        return fixedExposure;
+    }
+
+    public void setFixedExposure(BigDecimal fixedExposure) {
+        this.fixedExposure = fixedExposure;
     }
 
     public List<CurrencyPair> getTradingPairs() {
