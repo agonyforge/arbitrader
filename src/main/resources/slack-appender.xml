@@ -1,0 +1,4 @@
+<included>
+    <appender name="SLACK" class="com.r307.arbitrader.SlackAppender">
+    </appender>
+</included>
