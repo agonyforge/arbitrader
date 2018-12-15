@@ -1,0 +1,29 @@
+notifications:
+  slack:
+    accessToken: x
+    botAccessToken: x
+    channel: channel
+
+trading:
+  entrySpread: 0.0080
+  exitTarget: 0.0050
+  fixedExposure: 100.00
+  tradingPairs:
+    - BTC/USD
+    - ETH/USD
+    - LTC/USD
+
+  exchanges:
+    -
+      exchangeClass: org.knowm.xchange.kraken.KrakenExchange
+      apiKey: x
+      secretKey: x
+      margin: true
+      fee: 0.0026
+    -
+      exchangeClass: org.knowm.xchange.quoine.QuoineExchange
+      apiKey: x
+      secretKey: x
+      margin: true
+      fee: 0.0020
+    
