@@ -127,6 +127,34 @@ public class TradingService {
             }
         });
 
+        LOGGER.info("Trading the following exchanges and pairs:");
+
+        allTickers.clear();
+        exchanges.forEach(exchange -> getTickers(exchange, currencyPairs)
+                .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+
+        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> currencyPairs.forEach(currencyPair -> {
+            if (longExchange == shortExchange) {
+                return;
+            }
+
+            if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+                return;
+            }
+
+            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+
+            if (longTicker == null || shortTicker == null) {
+                return;
+            }
+
+            LOGGER.info("{}/{} {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair);
+        })));
+
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
         }
@@ -294,57 +322,6 @@ public class TradingService {
                 maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
             }));
         });
-    }
-
-    @Scheduled(initialDelay = 30000, fixedRate = 3600000)
-    public void logPeriodicSummary() {
-        LOGGER.info("***** SUMMARY *****");
-
-        currencyPairs.forEach(currencyPair -> exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-            if (longExchange == shortExchange) {
-                return;
-            }
-
-            if (!((Boolean) shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
-                return;
-            }
-
-            String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
-
-            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
-
-            BigDecimal spreadIn = (longTicker == null || shortTicker == null) ? BigDecimal.ZERO : computeSpread(longTicker.getAsk(), shortTicker.getBid());
-            BigDecimal spreadOut = (longTicker == null || shortTicker == null) ? BigDecimal.ZERO : computeSpread(longTicker.getBid(), shortTicker.getAsk());
-
-            BigDecimal minSpreadAmount = minSpread.get(spreadKey);
-            BigDecimal maxSpreadAmount = maxSpread.get(spreadKey);
-
-            if (minSpreadAmount == null || maxSpreadAmount == null) {
-                return;
-            }
-
-            LOGGER.info("{}/{} {} Min/In/Out/Max Spreads: {}/{}/{}/{}",
-                    longExchange.getExchangeSpecification().getExchangeName(),
-                    shortExchange.getExchangeSpecification().getExchangeName(),
-                    currencyPair,
-                    minSpreadAmount,
-                    spreadIn,
-                    spreadOut,
-                    maxSpreadAmount);
-        })));
-
-        if (inMarket) {
-            LOGGER.info("Active Trade:");
-            LOGGER.info("{}/{} exit @ {}",
-                    activeLongExchange.getExchangeSpecification().getExchangeName(),
-                    activeShortExchange.getExchangeSpecification().getExchangeName(),
-                    activeExitTarget);
-            LOGGER.info("Long entry {} {} @ {}", activeCurrencyPair, activeLongVolume, activeLongEntry);
-            LOGGER.info("Short entry {} {} @ {}", activeCurrencyPair, activeShortVolume, activeShortEntry);
-        } else {
-            LOGGER.info("No active trades.");
-        }
     }
 
     private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
