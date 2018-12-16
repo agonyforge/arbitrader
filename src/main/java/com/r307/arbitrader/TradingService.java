@@ -198,8 +198,6 @@ public class TradingService {
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
                 if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    LOGGER.info("***** ENTRY *****");
-
                     BigDecimal longFees = getExchangeFee(longExchange, currencyPair);
                     BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair);
 
@@ -218,29 +216,30 @@ public class TradingService {
                         BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
                         BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
 
-                        LOGGER.info("Exit spread target would be: {}", exitTarget);
-                        LOGGER.info("Long entry would be: {} {} {} @ {} ({} ticker) = {}{}",
-                                longExchange.getExchangeSpecification().getExchangeName(),
-                                currencyPair,
-                                longVolume,
-                                longLimitPrice,
-                                longTicker.getAsk(),
-                                Currency.USD.getSymbol(),
-                                longVolume.multiply(longLimitPrice));
-                        LOGGER.info("Short entry would be: {} {} {} @ {} ({} ticker) = {}{}",
-                                shortExchange.getExchangeSpecification().getExchangeName(),
-                                currencyPair,
-                                shortVolume,
-                                shortLimitPrice,
-                                shortTicker.getBid(),
-                                Currency.USD.getSymbol(),
-                                shortVolume.multiply(shortLimitPrice));
-
                         BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
                         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                            LOGGER.error("Not enough liquidity to execute both trades profitably");
+                            LOGGER.debug("Not enough liquidity to execute both trades profitably");
                         } else {
+                            LOGGER.info("***** ENTRY *****");
+                            LOGGER.info("Exit spread target would be: {}", exitTarget);
+                            LOGGER.info("Long entry would be: {} {} {} @ {} ({} ticker) = {}{}",
+                                    longExchange.getExchangeSpecification().getExchangeName(),
+                                    currencyPair,
+                                    longVolume,
+                                    longLimitPrice,
+                                    longTicker.getAsk(),
+                                    Currency.USD.getSymbol(),
+                                    longVolume.multiply(longLimitPrice));
+                            LOGGER.info("Short entry would be: {} {} {} @ {} ({} ticker) = {}{}",
+                                    shortExchange.getExchangeSpecification().getExchangeName(),
+                                    currencyPair,
+                                    shortVolume,
+                                    shortLimitPrice,
+                                    shortTicker.getBid(),
+                                    Currency.USD.getSymbol(),
+                                    shortVolume.multiply(shortLimitPrice));
+
                             inMarket = true;
                             activeCurrencyPair = currencyPair;
                             activeExitTarget = exitTarget;
@@ -260,16 +259,15 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    LOGGER.info("***** EXIT *****");
-
                     BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, activeLongVolume, Order.OrderType.BID);
                     BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, activeShortVolume, Order.OrderType.ASK);
 
                     BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
                     if (spreadVerification.compareTo(activeExitTarget) > 0) {
-                        LOGGER.error("Not enough liquidity to execute both trades profitably");
+                        LOGGER.debug("Not enough liquidity to execute both trades profitably");
                     } else {
+                        LOGGER.info("***** EXIT *****");
                         LOGGER.info("Long close would be: {} {} {} @ {} ({} ticker) = {}{}",
                                 longExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
