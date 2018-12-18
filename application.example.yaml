@@ -24,6 +24,9 @@ trading:
       exchangeClass: org.knowm.xchange.quoine.QuoineExchange
       apiKey: x
       secretKey: x
+      custom:
+        Use_Margin: true
+        Leverage_Level: 2
       margin: true
       fee: 0.0020
     -

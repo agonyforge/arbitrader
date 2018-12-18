@@ -5,8 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @ConfigurationProperties("trading")
 @Configuration
@@ -38,7 +41,7 @@ public class TradingConfiguration {
     }
 
     public void setFixedExposure(BigDecimal fixedExposure) {
-        this.fixedExposure = fixedExposure;
+        this.fixedExposure = fixedExposure.setScale(USD_SCALE, RoundingMode.HALF_EVEN);
     }
 
     public List<CurrencyPair> getTradingPairs() {
