@@ -26,4 +26,19 @@ trading:
       secretKey: x
       margin: true
       fee: 0.0020
+    -
+      exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
+      apiKey: x
+      secretKey: x
+      custom:
+        passphrase: x
+      margin: false
+      fee: 0.0030
+    -
+      exchangeClass: org.knowm.xchange.poloniex.PoloniexExchange
+      apiKey: x
+      secretKey: x
+      margin: false
+      fee: 0.0025
+      homeCurrency: USDT
     

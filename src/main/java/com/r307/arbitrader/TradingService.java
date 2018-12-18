@@ -79,16 +79,20 @@ public class TradingService {
 
             specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
             specification.setExchangeSpecificParametersItem("fee", exchangeMetadata.getFee());
+            specification.setExchangeSpecificParametersItem("homeCurrency", exchangeMetadata.getHomeCurrency());
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
         });
 
         exchanges.forEach(exchange -> {
             try {
+                LOGGER.debug("{} home currency: {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        getExchangeHomeCurrency(exchange));
                 LOGGER.info("{} balance: {}{}",
                         exchange.getExchangeSpecification().getExchangeName(),
-                        Currency.USD.getSymbol(),
-                        getAccountBalance(exchange, Currency.USD));
+                        getExchangeHomeCurrency(exchange).getSymbol(),
+                        getAccountBalance(exchange));
             } catch (IOException e) {
                 LOGGER.error("Unable to fetch account balance: ", e);
             }
@@ -104,7 +108,7 @@ public class TradingService {
                 LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }
 
-            BigDecimal tradingFee = getExchangeFee(exchange, CurrencyPair.BTC_USD);
+            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD));
 
             if (tradingFee == null) {
                 LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
@@ -116,13 +120,13 @@ public class TradingService {
                 } else {
                     LOGGER.info("{} configured trading fee for {}: {}",
                             exchange.getExchangeSpecification().getExchangeName(),
-                            CurrencyPair.BTC_USD,
+                            convertExchangePair(exchange, CurrencyPair.BTC_USD),
                             configuredFee);
                 }
             } else {
                 LOGGER.info("{} dynamic trading fee for {}: {}",
                         exchange.getExchangeSpecification().getExchangeName(),
-                        CurrencyPair.BTC_USD,
+                        convertExchangePair(exchange, CurrencyPair.BTC_USD),
                         tradingFee);
             }
         });
@@ -196,6 +200,13 @@ public class TradingService {
 
                 BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
+
+                LOGGER.debug("{}/{} {} {} {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getExchangeSpecification().getExchangeName(),
+                        currencyPair,
+                        spreadIn,
+                        spreadOut);
 
                 if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                     BigDecimal longFees = getExchangeFee(longExchange, currencyPair);
@@ -325,7 +336,7 @@ public class TradingService {
     private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
         return String.format("%s:%s",
                 exchange.getExchangeSpecification().getExchangeName(),
-                currencyPair);
+                convertExchangePair(exchange, currencyPair));
     }
 
     private static String spreadKey(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
@@ -336,7 +347,7 @@ public class TradingService {
     }
 
     private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair) {
-        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair);
+        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
             BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
@@ -353,6 +364,20 @@ public class TradingService {
         return currencyPairMetaData.getTradingFee();
     }
 
+    private static Currency getExchangeHomeCurrency(Exchange exchange) {
+        return (Currency) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("homeCurrency");
+    }
+
+    private static CurrencyPair convertExchangePair(Exchange exchange, CurrencyPair currencyPair) {
+        if (Currency.USD == currencyPair.base) {
+            return new CurrencyPair(getExchangeHomeCurrency(exchange), currencyPair.counter);
+        } else if (Currency.USD == currencyPair.counter) {
+            return new CurrencyPair(currencyPair.base, getExchangeHomeCurrency(exchange));
+        }
+
+        return currencyPair;
+    }
+
     private BigDecimal computeSpread(BigDecimal longPrice, BigDecimal shortPrice) {
         return (shortPrice.subtract(longPrice)).divide(longPrice, RoundingMode.HALF_EVEN);
     }
@@ -361,7 +386,9 @@ public class TradingService {
         MarketDataService marketDataService = exchange.getMarketDataService();
 
         try {
-            CurrencyPairsParam param = () -> currencyPairs;
+            CurrencyPairsParam param = () -> currencyPairs.stream()
+                    .map(currencyPair -> convertExchangePair(exchange, currencyPair))
+                    .collect(Collectors.toList());
             List<Ticker> tickers = marketDataService.getTickers(param);
 
             tickers.forEach(ticker ->
@@ -377,7 +404,7 @@ public class TradingService {
             return currencyPairs.stream()
                     .map(currencyPair -> {
                         try {
-                            return marketDataService.getTicker(currencyPair);
+                            return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
                         } catch (IOException | NullPointerException | ExchangeException ex) {
                             LOGGER.debug("Unable to fetch ticker for {} {}",
                                     exchange.getExchangeSpecification().getExchangeName(),
@@ -395,7 +422,9 @@ public class TradingService {
         return Collections.emptyList();
     }
 
-    private BigDecimal getLimitPrice(Exchange exchange, CurrencyPair currencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
+    private BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
+        CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
+
         try {
             OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
             List<LimitOrder> orders = orderType.equals(Order.OrderType.ASK) ? orderBook.getAsks() : orderBook.getBids();
@@ -421,15 +450,17 @@ public class TradingService {
         return BigDecimal.ZERO;
     }
 
-    private BigDecimal getMaximumExposure(CurrencyPair currencyPair) {
+    private BigDecimal getMaximumExposure(CurrencyPair rawCurrencyPair) {
         if (tradingConfiguration.getFixedExposure() != null) {
             return tradingConfiguration.getFixedExposure();
         } else {
             BigDecimal smallestBalance = null;
 
             for (Exchange exchange : exchanges) {
+                CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
+
                 try {
-                    BigDecimal balance = getAccountBalance(exchange, currencyPair.counter);
+                    BigDecimal balance = getAccountBalance(exchange);
 
                     if (smallestBalance == null) {
                         smallestBalance = balance;
@@ -450,7 +481,8 @@ public class TradingService {
         }
     }
 
-    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+    private BigDecimal getAccountBalance(Exchange exchange) throws IOException {
+        Currency currency = getExchangeHomeCurrency(exchange);
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {

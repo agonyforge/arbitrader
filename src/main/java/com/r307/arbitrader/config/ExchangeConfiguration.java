@@ -1,5 +1,7 @@
 package com.r307.arbitrader.config;
 
+import org.knowm.xchange.currency.Currency;
+
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,6 +14,7 @@ public class ExchangeConfiguration {
     private Map<String, String> custom = new HashMap<>();
     private Boolean margin;
     private BigDecimal fee;
+    private Currency homeCurrency = Currency.USD;
 
     public String getExchangeClass() {
         return exchangeClass;
@@ -67,5 +70,13 @@ public class ExchangeConfiguration {
 
     public void setFee(BigDecimal fee) {
         this.fee = fee;
+    }
+
+    public Currency getHomeCurrency() {
+        return homeCurrency;
+    }
+
+    public void setHomeCurrency(Currency homeCurrency) {
+        this.homeCurrency = homeCurrency;
     }
 }
