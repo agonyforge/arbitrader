@@ -1,5 +1,6 @@
 package com.r307.arbitrader;
 
+import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 @Component
 public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
+    private static final String METADATA_KEY = "arbitrader-metadata";
 
     private TradingConfiguration tradingConfiguration;
     private List<CurrencyPair> currencyPairs;
@@ -74,20 +76,7 @@ public class TradingService {
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
 
-            if (!exchangeMetadata.getCustom().isEmpty()) {
-                exchangeMetadata.getCustom().forEach((key, value) -> {
-                    if ("true".equals(value) || "false".equals(value)) {
-                        specification.setExchangeSpecificParametersItem(key, Boolean.valueOf(value));
-                    } else {
-                        specification.setExchangeSpecificParametersItem(key, value);
-                    }
-                });
-            }
-
-            specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
-            specification.setExchangeSpecificParametersItem("marginExclude", exchangeMetadata.getMarginExclude());
-            specification.setExchangeSpecificParametersItem("fee", exchangeMetadata.getFee());
-            specification.setExchangeSpecificParametersItem("homeCurrency", exchangeMetadata.getHomeCurrency());
+            specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
         });
@@ -121,7 +110,7 @@ public class TradingService {
             if (tradingFee == null) {
                 LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
 
-                BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+                BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
                 if (configuredFee == null) {
                     LOGGER.error("{} must be configured with a fee", exchange.getExchangeSpecification().getExchangeName());
@@ -146,7 +135,7 @@ public class TradingService {
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> currencyPairs.forEach(currencyPair -> {
-            if (invalidExchangePair(longExchange, shortExchange, currencyPair)) {
+            if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
                 return;
             }
 
@@ -178,7 +167,7 @@ public class TradingService {
         currencyPairs.forEach(currencyPair -> {
             LOGGER.debug("Computing trade opportunities...");
             exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-                if (invalidExchangePair(longExchange, shortExchange, currencyPair)) {
+                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
                     return;
                 }
 
@@ -351,6 +340,10 @@ public class TradingService {
         });
     }
 
+    private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
+        return (ExchangeConfiguration) exchange.getExchangeSpecification().getExchangeSpecificParametersItem(METADATA_KEY);
+    }
+
     private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
         return String.format("%s:%s",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -368,7 +361,7 @@ public class TradingService {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
-            BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+            BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
                 LOGGER.error("Cannot determine fees for {}! Defaulting to 0.0030!");
@@ -383,7 +376,7 @@ public class TradingService {
     }
 
     private static Currency getExchangeHomeCurrency(Exchange exchange) {
-        return (Currency) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("homeCurrency");
+        return getExchangeMetadata(exchange).getHomeCurrency();
     }
 
     private static CurrencyPair convertExchangePair(Exchange exchange, CurrencyPair currencyPair) {
@@ -396,23 +389,20 @@ public class TradingService {
         return currencyPair;
     }
 
-    private static boolean invalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+    private static boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         // both exchanges are the same
         if (longExchange == shortExchange) {
             return true;
         }
 
         // the "short" exchange doesn't support margin
-        if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+        if (!getExchangeMetadata(shortExchange).getMargin()) {
             return true;
         }
 
         // the "short" exchange doesn't support margin on this currency pair
-        //noinspection unchecked
-        if (((List<CurrencyPair>) shortExchange
-                .getExchangeSpecification()
-                .getExchangeSpecificParametersItem("marginExclude"))
-                .contains(currencyPair)) {
+        //noinspection RedundantIfStatement
+        if (getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
             return true;
         }
 
