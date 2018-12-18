@@ -1,9 +1,12 @@
 package com.r307.arbitrader.config;
 
 import org.knowm.xchange.currency.Currency;
+import org.knowm.xchange.currency.CurrencyPair;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ExchangeConfiguration {
@@ -13,6 +16,7 @@ public class ExchangeConfiguration {
     private String secretKey;
     private Map<String, String> custom = new HashMap<>();
     private Boolean margin;
+    private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal fee;
     private Currency homeCurrency = Currency.USD;
 
@@ -62,6 +66,14 @@ public class ExchangeConfiguration {
 
     public void setMargin(Boolean margin) {
         this.margin = margin;
+    }
+
+    public List<CurrencyPair> getMarginExclude() {
+        return marginExclude;
+    }
+
+    public void setMarginExclude(List<CurrencyPair> marginExclude) {
+        this.marginExclude = marginExclude;
     }
 
     public BigDecimal getFee() {

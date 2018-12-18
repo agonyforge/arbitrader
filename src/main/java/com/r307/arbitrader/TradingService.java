@@ -85,6 +85,7 @@ public class TradingService {
             }
 
             specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
+            specification.setExchangeSpecificParametersItem("marginExclude", exchangeMetadata.getMarginExclude());
             specification.setExchangeSpecificParametersItem("fee", exchangeMetadata.getFee());
             specification.setExchangeSpecificParametersItem("homeCurrency", exchangeMetadata.getHomeCurrency());
 
@@ -145,11 +146,7 @@ public class TradingService {
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> currencyPairs.forEach(currencyPair -> {
-            if (longExchange == shortExchange) {
-                return;
-            }
-
-            if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+            if (invalidExchangePair(longExchange, shortExchange, currencyPair)) {
                 return;
             }
 
@@ -181,13 +178,7 @@ public class TradingService {
         currencyPairs.forEach(currencyPair -> {
             LOGGER.debug("Computing trade opportunities...");
             exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-                // bail out if both exchanges are the same
-                if (longExchange == shortExchange) {
-                    return;
-                }
-
-                // if the "short" exchange doesn't support margin, bail out
-                if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+                if (invalidExchangePair(longExchange, shortExchange, currencyPair)) {
                     return;
                 }
 
@@ -403,6 +394,29 @@ public class TradingService {
         }
 
         return currencyPair;
+    }
+
+    private static boolean invalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+        // both exchanges are the same
+        if (longExchange == shortExchange) {
+            return true;
+        }
+
+        // the "short" exchange doesn't support margin
+        if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+            return true;
+        }
+
+        // the "short" exchange doesn't support margin on this currency pair
+        //noinspection unchecked
+        if (((List<CurrencyPair>) shortExchange
+                .getExchangeSpecification()
+                .getExchangeSpecificParametersItem("marginExclude"))
+                .contains(currencyPair)) {
+            return true;
+        }
+
+        return false;
     }
 
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,

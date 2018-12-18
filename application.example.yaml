@@ -19,6 +19,10 @@ trading:
       apiKey: x
       secretKey: x
       margin: true
+      marginPairs:
+        - BTC/USD
+        - ETH/USD
+        - ETC/USD
       fee: 0.0026
     -
       exchangeClass: org.knowm.xchange.quoine.QuoineExchange
@@ -28,6 +32,11 @@ trading:
         Use_Margin: true
         Leverage_Level: 2
       margin: true
+      marginPairs:
+        - BTC/USD
+        - BCH/USD
+        - ETH/USD
+        - XRP/USD
       fee: 0.0020
     -
       exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
