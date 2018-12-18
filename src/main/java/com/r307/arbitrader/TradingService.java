@@ -424,20 +424,20 @@ public class TradingService {
 
         shortLimitOrder.setLeverage("2");
 
-        LOGGER.info("{}: {}",
+        LOGGER.debug("{}: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
                 longLimitOrder);
-        LOGGER.info("{}: {}",
+        LOGGER.debug("{}: {}",
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortLimitOrder);
 
         String longResult = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
         String shortResult = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-        LOGGER.info("{} result: {}",
+        LOGGER.info("{} order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
                 longResult);
-        LOGGER.info("{} result: {}",
+        LOGGER.info("{} order ID: {}",
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortResult);
 
