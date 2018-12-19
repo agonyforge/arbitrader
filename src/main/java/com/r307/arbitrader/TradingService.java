@@ -221,20 +221,20 @@ public class TradingService {
                         } else {
                             LOGGER.info("***** ENTRY *****");
                             LOGGER.info("Exit spread target: {}", exitTarget);
-                            LOGGER.info("Long entry: {} {} {} @ {} ({} ticker) = {}{}",
+                            LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
                                     longVolume,
                                     longLimitPrice,
-                                    longTicker.getAsk(),
+                                    longLimitPrice.subtract(longTicker.getAsk()),
                                     Currency.USD.getSymbol(),
                                     longVolume.multiply(longLimitPrice));
-                            LOGGER.info("Short entry: {} {} {} @ {} ({} ticker) = {}{}",
+                            LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
                                     shortExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
                                     shortVolume,
                                     shortLimitPrice,
-                                    shortTicker.getBid(),
+                                    shortTicker.getBid().subtract(shortLimitPrice),
                                     Currency.USD.getSymbol(),
                                     shortVolume.multiply(shortLimitPrice));
 
@@ -276,20 +276,20 @@ public class TradingService {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
                     } else {
                         LOGGER.info("***** EXIT *****");
-                        LOGGER.info("Long close: {} {} {} @ {} ({} ticker) = {}{}",
+                        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                 longExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 activeLongVolume,
                                 longLimitPrice,
-                                longTicker.getBid(),
+                                longLimitPrice.subtract(longTicker.getBid()),
                                 Currency.USD.getSymbol(),
                                 activeLongVolume.multiply(longTicker.getBid()));
-                        LOGGER.info("Short close: {} {} {} @ {} ({} ticker) = {}{}",
+                        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                 shortExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 activeShortVolume,
                                 shortLimitPrice,
-                                shortTicker.getAsk(),
+                                shortTicker.getAsk().subtract(shortLimitPrice),
                                 Currency.USD.getSymbol(),
                                 activeShortVolume.multiply(shortTicker.getAsk()));
 
