@@ -127,3 +127,7 @@ java -jar build/libs/arbitrader-x.y.z-SNAPSHOT.jar
 When the bot starts up you will see a banner and some log messages while it reads the configuration and connects to the exchanges. Once the initialization is done it will probably do nothing for awhile, while it searches for trade opportunities. Unless you turn on debug mode by giving it a `-debug` on the command line, the only log output after initialization will be when it trades, or when there are problems connecting to the exchanges.
 
 It seemed best to keep it quiet so that you can have it notify a Slack channel and (for instance) buzz your phone when something important happens, but it's not going to bother you constantly with useless notifications.
+
+### Finding Help and Contributing
+
+If you have a question or find a bug, please feel free to submit an issue on GitHub. Pull requests are always welcome.

@@ -1,3 +1,8 @@
+# Sample Arbitrader configuration file
+# Copy this file to "application.yaml" and fill out the settings that you want for your bot.
+# When you run the JAR file, make sure this file is in the current directory so it can be read.
+
+# All the logs you see on the console will also be shipped to Slack.
 notifications:
   slack:
     accessToken: x
@@ -5,29 +10,61 @@ notifications:
     channel: channel
 
 trading:
+  # The percentage difference between the "long" and "short" exchanges before we will open our positions.
   entrySpread: 0.0080
+
+  # The percentage difference *in profit only* before we will close our positions.
+  # Fees will be added to this amount.
   exitTarget: 0.0050
-  fixedExposure: 100.00
+
+  # (Optional)
+  # Specify the amount to use per trade. If this value is missing, the bot will default to 90% of the balance
+  # of the exchange that has the smallest balance. Arbitrader's author highly recommends starting out the bot
+  # with a fixedExposure around 10.00 to avoid risking much money at first.
+  fixedExposure: 10.00
+
+  # The pairs you would like the bot to trade.
   tradingPairs:
     - BTC/USD
     - ETH/USD
     - LTC/USD
 
+  # Connection information for each exchange goes in this list.
+  #
+  # To add a new exchange or remove one that you don't use, either add or remove the configuration from this list.
+  # Arbitrader uses the XChange library to talk to exchanges, so you can try any of the 60+ exchanges implemented in
+  # that project. Not all of them support all the features the bot needs, so you should be careful when you try out
+  # a new exchange for the first time. If you can, consider submitting pull requests to XChange to add better support
+  # for more exchanges!
   exchanges:
     -
+      # This is the name of the class from XChange that implements the connection to the exchange.
       exchangeClass: org.knowm.xchange.kraken.KrakenExchange
+
+      # The API key for Kraken.
       apiKey: x
+
+      # The API secret for Kraken.
       secretKey: x
+
+      # Whether or not this exchange supports margin (aka. leveraged) trades. Kraken does.
       margin: true
+
+      # Pairs to exclude from margin trading on Kraken.
       marginExclude:
         - XRP/USD
         - LTC/USD
         - BCH/USD
+
+      # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
+      # will use that value instead. If not, it will fall back to the configured value.
       fee: 0.0026
     -
       exchangeClass: org.knowm.xchange.quoine.QuoineExchange
       apiKey: x
       secretKey: x
+
+      # Quoine (Liquid) has a couple of custom parameters we need to pass in order to enable margin trading with the API.
       custom:
         Use_Margin: true
         Leverage_Level: 2
@@ -37,6 +74,8 @@ trading:
       exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
       apiKey: x
       secretKey: x
+
+      # Coinbase Pro requires an additional "passphrase" for authentication to the API.
       custom:
         passphrase: x
       margin: false
@@ -47,5 +86,7 @@ trading:
       secretKey: x
       margin: false
       fee: 0.0025
+
+      # Poloniex doesn't support any fiat currencies, so we need to use a USD based stablecoin instead.
       homeCurrency: USDT
     
