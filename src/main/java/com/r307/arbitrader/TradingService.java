@@ -422,6 +422,10 @@ public class TradingService {
                 .originalAmount(shortVolume)
                 .build();
 
+        if (getExchangeMetadata(longExchange).getMargin() && !getExchangeMetadata(longExchange).getMarginExclude().contains(currencyPair)) {
+            longLimitOrder.setLeverage("2");
+        }
+
         shortLimitOrder.setLeverage("2");
 
         LOGGER.debug("{}: {}",
