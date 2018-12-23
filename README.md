@@ -47,27 +47,27 @@ Compare that to opening just a single position. Sure, if it goes your way then y
 
 Not quite. It is possible that two exchanges have prices that are always divergent from one another. If the exchange with the higher price is always higher and never dips below the second exchange's price then the bot could open a pair of trades and never be able to close it profitably.
 
-It is also possible to configure the "spread", or the amount of difference between exchange prices, too narrowly, or for the exchange fees to cost too much. In those cases you could open a pair of trades that never close. However, in this case your potential loss is very limited because you are protected from market movements. As long as you close both trades at the same time and aren't using crazy amounts of leverage, you aren't likely to lose a lot in this scenario.
+It is also possible to configure the "spread", or the amount of difference between exchange prices, too narrowly or for the exchange fees to cost too much. You might want to narrow the entry and exit spreads to make the bot trade more frequently, for example. In those cases you might see your trades close, but the sum of both trades would be negative and you would have lost money overall.
 
 A third scenario is if your short order runs out of *margin*. Short orders are borrowing from the exchange, so they require you to keep some percentage of USD in your account as collateral. If your trade stays open and goes too far against you, the exchange will force your trade to close and you will end up paying most of the money out of your account to cover the difference. It's harsh, but the alternative would be for them to leave your trade open and send you a bill for money above and beyond what's in your account!
 
 **I'd like to see an example, please.**
 
-Ok, let's say there are two exchanges and we have a USD balance in both.
+Ok, let's say there are two exchanges. We have a USD balance in both, and the price of COIN (a cryptocurrency) is $1000.00 on both exchanges. There is no opportunity here yet, since there is no difference between the prices. We'll wait for the prices to change.
 
 ```
           FakeCoins   CryptoTrade
 COIN/USD: 1000.00     1000.00
 ```
 
-There is no opportunity here since the prices are the same. We'd just end up losing the fees.
+Sooner or later, the prices diverge enough to catch the bot's attention.
 
 ```
           FakeCoins   CryptoTrade
 COIN/USD: 950.00      1050.00
 ```
 
-Now we're talking. The prices have diverged. We'll place a short order for $1000 on CryptoTrade and a long order for $1000 on FakeCoins.
+Now we're talking. We'll place a short order for $1000 on CryptoTrade and a long order for $1000 on FakeCoins.
 
 ```
           FakeCoins   CryptoTrade
@@ -76,7 +76,7 @@ COIN/USD: 950.00      1050.00
                       (sold 0.95 COIN for $1000)
 ```
 
-Now the markets both jump up by $500! Somebody is pumping a ton of money into COIN/USD! It's no problem for us though, because we gained money on FakeCoins and lost the same amount of money on CryptoTrade. We're neutral. If the price had dropped by $500 instead, the opposite would have happened and we'd still be fine.
+Suddenly the markets both jump up by $500! Somebody is pumping a ton of money into COIN/USD! Due to our market neutral strategy, we gained money on FakeCoins and lost the same amount of money on CryptoTrade. If the price had dropped by $500 instead, the opposite would have happened and we'd still be fine.
 
 ```
           FakeCoins   CryptoTrade
@@ -90,13 +90,13 @@ Finally, the prices converge and we can exit the trade.
 ```
           FakeCoins   CryptoTrade
 COIN/USD: 1550.00     1550.00
-          (sold 1.05 COIN for $1627.5)
-                      (bought 0.95 COIN for $1472.5)
+          (sold 1.05 COIN @ $1550.00 for $1627.5)
+                      (bought 0.95 COIN @ 1550.00 for $1472.5)
 ```
 
-$1627.50 - $1472.50 = $155.00 profit, minus any fees. Not bad!
+$1627.50 - $1472.50 = $155.00 profit, minus any fees. We survived an unexpected major market shift and came out ahead in the end. Not bad!
 
-Obviously this is a contrived example with fake numbers. Your mileage will vary, but hopefully that illustrates the principle at work in the strategy. If you still aren't convinced, [Blackbird](https://github.com/butor/blackbird/issues/100) has an issue thread that goes into a huge amount of detail and is well worth the read.
+Obviously this is a contrived example with fake numbers. Your mileage will vary, but hopefully that illustrates the principle at work in the strategy. If you still aren't convinced, Blackbird has an [issue thread](https://github.com/butor/blackbird/issues/100) that goes into a huge amount of detail and is well worth the read.
 
 ## How do I use it?
 
