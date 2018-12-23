@@ -1,5 +1,6 @@
 package com.r307.arbitrader;
 
+import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
@@ -12,6 +13,7 @@ import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 @Component
 public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
+    private static final String METADATA_KEY = "arbitrader-metadata";
 
     private TradingConfiguration tradingConfiguration;
     private List<CurrencyPair> currencyPairs;
@@ -73,13 +76,7 @@ public class TradingService {
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
 
-            if (!exchangeMetadata.getCustom().isEmpty()) {
-                exchangeMetadata.getCustom().forEach(specification::setExchangeSpecificParametersItem);
-            }
-
-            specification.setExchangeSpecificParametersItem("margin", exchangeMetadata.getMargin());
-            specification.setExchangeSpecificParametersItem("fee", exchangeMetadata.getFee());
-            specification.setExchangeSpecificParametersItem("homeCurrency", exchangeMetadata.getHomeCurrency());
+            specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
         });
@@ -113,7 +110,7 @@ public class TradingService {
             if (tradingFee == null) {
                 LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
 
-                BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+                BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
                 if (configuredFee == null) {
                     LOGGER.error("{} must be configured with a fee", exchange.getExchangeSpecification().getExchangeName());
@@ -138,11 +135,7 @@ public class TradingService {
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> currencyPairs.forEach(currencyPair -> {
-            if (longExchange == shortExchange) {
-                return;
-            }
-
-            if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+            if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
                 return;
             }
 
@@ -174,13 +167,7 @@ public class TradingService {
         currencyPairs.forEach(currencyPair -> {
             LOGGER.debug("Computing trade opportunities...");
             exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-                // bail out if both exchanges are the same
-                if (longExchange == shortExchange) {
-                    return;
-                }
-
-                // if the "short" exchange doesn't support margin, bail out
-                if (!((Boolean)shortExchange.getExchangeSpecification().getExchangeSpecificParametersItem("margin"))) {
+                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
                     return;
                 }
 
@@ -233,23 +220,33 @@ public class TradingService {
                             LOGGER.debug("Not enough liquidity to execute both trades profitably");
                         } else {
                             LOGGER.info("***** ENTRY *****");
-                            LOGGER.info("Exit spread target would be: {}", exitTarget);
-                            LOGGER.info("Long entry would be: {} {} {} @ {} ({} ticker) = {}{}",
+                            LOGGER.info("Exit spread target: {}", exitTarget);
+                            LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
                                     longVolume,
                                     longLimitPrice,
-                                    longTicker.getAsk(),
+                                    longLimitPrice.subtract(longTicker.getAsk()),
                                     Currency.USD.getSymbol(),
                                     longVolume.multiply(longLimitPrice));
-                            LOGGER.info("Short entry would be: {} {} {} @ {} ({} ticker) = {}{}",
+                            LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
                                     shortExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
                                     shortVolume,
                                     shortLimitPrice,
-                                    shortTicker.getBid(),
+                                    shortTicker.getBid().subtract(shortLimitPrice),
                                     Currency.USD.getSymbol(),
                                     shortVolume.multiply(shortLimitPrice));
+
+                            try {
+                                executeOrderPair(
+                                        longExchange, shortExchange,
+                                        currencyPair,
+                                        longLimitPrice, shortLimitPrice,
+                                        longVolume, shortVolume);
+                            } catch (IOException e) {
+                                LOGGER.error("IOE executing limit orders: ", e);
+                            }
 
                             inMarket = true;
                             activeCurrencyPair = currencyPair;
@@ -279,20 +276,20 @@ public class TradingService {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
                     } else {
                         LOGGER.info("***** EXIT *****");
-                        LOGGER.info("Long close would be: {} {} {} @ {} ({} ticker) = {}{}",
+                        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                 longExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 activeLongVolume,
                                 longLimitPrice,
-                                longTicker.getBid(),
+                                longLimitPrice.subtract(longTicker.getBid()),
                                 Currency.USD.getSymbol(),
                                 activeLongVolume.multiply(longTicker.getBid()));
-                        LOGGER.info("Short close would be: {} {} {} @ {} ({} ticker) = {}{}",
+                        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                 shortExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 activeShortVolume,
                                 shortLimitPrice,
-                                shortTicker.getAsk(),
+                                shortTicker.getAsk().subtract(shortLimitPrice),
                                 Currency.USD.getSymbol(),
                                 activeShortVolume.multiply(shortTicker.getAsk()));
 
@@ -303,13 +300,23 @@ public class TradingService {
                                 .subtract(activeShortVolume.multiply(shortLimitPrice))
                                 .setScale(2, RoundingMode.HALF_EVEN);
 
-                        LOGGER.info("Profit: (long) {}{} + (short) {}{} = {}{}",
+                        LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
                                 Currency.USD.getSymbol(),
                                 longProfit,
                                 Currency.USD.getSymbol(),
                                 shortProfit,
                                 Currency.USD.getSymbol(),
                                 longProfit.add(shortProfit));
+
+                        try {
+                            executeOrderPair(
+                                    shortExchange, longExchange,
+                                    currencyPair,
+                                    shortLimitPrice, longLimitPrice,
+                                    activeShortVolume, activeLongVolume);
+                        } catch (IOException e) {
+                            LOGGER.error("IOE executing limit orders: ", e);
+                        }
 
                         inMarket = false;
                         activeCurrencyPair = null;
@@ -333,6 +340,10 @@ public class TradingService {
         });
     }
 
+    private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
+        return (ExchangeConfiguration) exchange.getExchangeSpecification().getExchangeSpecificParametersItem(METADATA_KEY);
+    }
+
     private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
         return String.format("%s:%s",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -350,7 +361,7 @@ public class TradingService {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
-            BigDecimal configuredFee = (BigDecimal) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("fee");
+            BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
                 LOGGER.error("Cannot determine fees for {}! Defaulting to 0.0030!");
@@ -365,7 +376,7 @@ public class TradingService {
     }
 
     private static Currency getExchangeHomeCurrency(Exchange exchange) {
-        return (Currency) exchange.getExchangeSpecification().getExchangeSpecificParametersItem("homeCurrency");
+        return getExchangeMetadata(exchange).getHomeCurrency();
     }
 
     private static CurrencyPair convertExchangePair(Exchange exchange, CurrencyPair currencyPair) {
@@ -376,6 +387,77 @@ public class TradingService {
         }
 
         return currencyPair;
+    }
+
+    private static boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+        // both exchanges are the same
+        if (longExchange == shortExchange) {
+            return true;
+        }
+
+        // the "short" exchange doesn't support margin
+        if (!getExchangeMetadata(shortExchange).getMargin()) {
+            return true;
+        }
+
+        // the "short" exchange doesn't support margin on this currency pair
+        //noinspection RedundantIfStatement
+        if (getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
+                                  CurrencyPair currencyPair,
+                                  BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
+                                  BigDecimal longVolume, BigDecimal shortVolume) throws IOException {
+        LimitOrder longLimitOrder = new LimitOrder.Builder(Order.OrderType.BID, convertExchangePair(longExchange, currencyPair))
+                .limitPrice(longLimitPrice)
+                .originalAmount(longVolume)
+                .build();
+        LimitOrder shortLimitOrder = new LimitOrder.Builder(Order.OrderType.ASK, convertExchangePair(shortExchange, currencyPair))
+                .limitPrice(shortLimitPrice)
+                .originalAmount(shortVolume)
+                .build();
+
+        shortLimitOrder.setLeverage("2");
+
+        LOGGER.debug("{}: {}",
+                longExchange.getExchangeSpecification().getExchangeName(),
+                longLimitOrder);
+        LOGGER.debug("{}: {}",
+                shortExchange.getExchangeSpecification().getExchangeName(),
+                shortLimitOrder);
+
+        String longResult = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
+        String shortResult = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+
+        LOGGER.info("{} order ID: {}",
+                longExchange.getExchangeSpecification().getExchangeName(),
+                longResult);
+        LOGGER.info("{} order ID: {}",
+                shortExchange.getExchangeSpecification().getExchangeName(),
+                shortResult);
+
+        OpenOrders longOpenOrders = longExchange.getTradeService().getOpenOrders();
+        OpenOrders shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+
+        LOGGER.info("Waiting for limit orders to complete...");
+
+        while (!longOpenOrders.getOpenOrders().isEmpty() && !shortOpenOrders.getOpenOrders().isEmpty()) {
+            longOpenOrders = longExchange.getTradeService().getOpenOrders();
+            shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                LOGGER.trace("Sleep interrupted!", e);
+            }
+        }
+
+        LOGGER.info("Trades executed successfully!");
     }
 
     private BigDecimal computeSpread(BigDecimal longPrice, BigDecimal shortPrice) {
