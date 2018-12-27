@@ -76,6 +76,16 @@ public class TradingService {
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
 
+            if (!exchangeMetadata.getCustom().isEmpty()) {
+                exchangeMetadata.getCustom().forEach((key, value) -> {
+                    if ("true".equals(value) || "false".equals(value)) {
+                        specification.setExchangeSpecificParametersItem(key, Boolean.valueOf(value));
+                    } else {
+                        specification.setExchangeSpecificParametersItem(key, value);
+                    }
+                });
+            }
+
             specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
             exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
@@ -421,6 +431,10 @@ public class TradingService {
                 .limitPrice(shortLimitPrice)
                 .originalAmount(shortVolume)
                 .build();
+
+        if (getExchangeMetadata(longExchange).getMargin() && !getExchangeMetadata(longExchange).getMarginExclude().contains(currencyPair)) {
+            longLimitOrder.setLeverage("2");
+        }
 
         shortLimitOrder.setLeverage("2");
 
