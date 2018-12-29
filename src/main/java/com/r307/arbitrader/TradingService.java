@@ -258,7 +258,8 @@ public class TradingService {
                                         longExchange, shortExchange,
                                         currencyPair,
                                         longLimitPrice, shortLimitPrice,
-                                        longVolume, shortVolume);
+                                        longVolume, shortVolume,
+                                        true);
                             } catch (IOException e) {
                                 LOGGER.error("IOE executing limit orders: ", e);
                             }
@@ -293,32 +294,28 @@ public class TradingService {
                         LOGGER.info("***** EXIT *****");
 
                         try {
-                            Currency crypto = currencyPair.base.equals(Currency.USD) ? currencyPair.counter : currencyPair.base;
-                            BigDecimal longCryptoVolume = getAccountBalance(longExchange, crypto);
-                            BigDecimal shortCryptoVolume = getAccountBalance(shortExchange, crypto);
-
                             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    longCryptoVolume,
+                                    activeLongVolume,
                                     longLimitPrice,
                                     longLimitPrice.subtract(longTicker.getBid()),
                                     Currency.USD.getSymbol(),
-                                    longCryptoVolume.multiply(longTicker.getBid()));
+                                    activeLongVolume.multiply(longTicker.getBid()));
                             LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                     shortExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    shortCryptoVolume,
+                                    activeShortVolume,
                                     shortLimitPrice,
                                     shortTicker.getAsk().subtract(shortLimitPrice),
                                     Currency.USD.getSymbol(),
-                                    shortCryptoVolume.multiply(shortTicker.getAsk()));
+                                    activeShortVolume.multiply(shortTicker.getAsk()));
 
-                            BigDecimal longProfit = longCryptoVolume.multiply(longLimitPrice)
-                                    .subtract(longCryptoVolume.multiply(activeLongEntry))
+                            BigDecimal longProfit = activeLongVolume.multiply(longLimitPrice)
+                                    .subtract(activeLongVolume.multiply(activeLongEntry))
                                     .setScale(2, RoundingMode.HALF_EVEN);
-                            BigDecimal shortProfit = shortCryptoVolume.multiply(activeShortEntry)
-                                    .subtract(shortCryptoVolume.multiply(shortLimitPrice))
+                            BigDecimal shortProfit = activeShortVolume.multiply(activeShortEntry)
+                                    .subtract(activeShortVolume.multiply(shortLimitPrice))
                                     .setScale(2, RoundingMode.HALF_EVEN);
 
                             LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
@@ -330,12 +327,26 @@ public class TradingService {
                                     longProfit.add(shortProfit));
 
                             executeOrderPair(
-                                    shortExchange, longExchange,
+                                    longExchange, shortExchange,
                                     currencyPair,
-                                    shortLimitPrice, longLimitPrice,
-                                    shortCryptoVolume, longCryptoVolume);
+                                    longLimitPrice, shortLimitPrice,
+                                    activeLongVolume, activeShortVolume,
+                                    false);
                         } catch (IOException e) {
                             LOGGER.error("IOE executing limit orders: ", e);
+                        }
+
+                        try {
+                            BigDecimal longBalance = getAccountBalance(longExchange);
+                            BigDecimal shortBalance = getAccountBalance(shortExchange);
+
+                            LOGGER.info("Updated account balances: {} ${} / {} ${}",
+                                    longExchange.getExchangeSpecification().getExchangeName(),
+                                    longBalance,
+                                    shortExchange.getExchangeSpecification().getExchangeName(),
+                                    shortBalance);
+                        } catch (IOException e) {
+                            LOGGER.error("IOE fetching account balances: ", e);
                         }
 
                         inMarket = false;
@@ -432,19 +443,16 @@ public class TradingService {
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
                                   CurrencyPair currencyPair,
                                   BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
-                                  BigDecimal longVolume, BigDecimal shortVolume) throws IOException {
-        LimitOrder longLimitOrder = new LimitOrder.Builder(Order.OrderType.BID, convertExchangePair(longExchange, currencyPair))
+                                  BigDecimal longVolume, BigDecimal shortVolume,
+                                  boolean isPositionOpen) throws IOException {
+        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, convertExchangePair(longExchange, currencyPair))
                 .limitPrice(longLimitPrice)
                 .originalAmount(longVolume)
                 .build();
-        LimitOrder shortLimitOrder = new LimitOrder.Builder(Order.OrderType.ASK, convertExchangePair(shortExchange, currencyPair))
+        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, convertExchangePair(shortExchange, currencyPair))
                 .limitPrice(shortLimitPrice)
                 .originalAmount(shortVolume)
                 .build();
-
-        if (getExchangeMetadata(longExchange).getMargin() && !getExchangeMetadata(longExchange).getMarginExclude().contains(currencyPair)) {
-            longLimitOrder.setLeverage("2");
-        }
 
         shortLimitOrder.setLeverage("2");
 
@@ -504,6 +512,8 @@ public class TradingService {
                             ticker.getBid(), ticker.getAsk()));
 
             return tickers;
+        } catch (ExchangeException | IOException e) {
+            LOGGER.warn("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
@@ -521,8 +531,6 @@ public class TradingService {
                     })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-        } catch (ExchangeException | IOException e) {
-            LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         }
 
         return Collections.emptyList();
