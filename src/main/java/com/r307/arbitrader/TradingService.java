@@ -117,25 +117,10 @@ public class TradingService {
 
             BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD));
 
-            if (tradingFee == null) {
-                LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
-
-                BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
-
-                if (configuredFee == null) {
-                    LOGGER.error("{} must be configured with a fee", exchange.getExchangeSpecification().getExchangeName());
-                } else {
-                    LOGGER.info("{} configured trading fee for {}: {}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            convertExchangePair(exchange, CurrencyPair.BTC_USD),
-                            configuredFee);
-                }
-            } else {
-                LOGGER.info("{} dynamic trading fee for {}: {}",
-                        exchange.getExchangeSpecification().getExchangeName(),
-                        convertExchangePair(exchange, CurrencyPair.BTC_USD),
-                        tradingFee);
-            }
+            LOGGER.info("{} {} trading fee: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                convertExchangePair(exchange, CurrencyPair.BTC_USD),
+                tradingFee);
         });
 
         LOGGER.info("Trading the following exchanges and pairs:");
@@ -395,10 +380,14 @@ public class TradingService {
             BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
-                LOGGER.error("Cannot determine fees for {}! Defaulting to 0.0030!");
+                LOGGER.error("{} has no fees configured. Setting default of 0.0030. Please configure the correct value!",
+                        exchange.getExchangeSpecification().getExchangeName());
 
                 return new BigDecimal(0.0030);
             }
+
+            LOGGER.warn("{} fees unavailable via API. Will use configured value.",
+                    exchange.getExchangeSpecification().getExchangeName());
 
             return configuredFee;
         }
