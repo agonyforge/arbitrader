@@ -115,7 +115,7 @@ public class TradingService {
                 LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }
 
-            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD));
+            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD), false);
 
             LOGGER.info("{} {} trading fee: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -196,8 +196,8 @@ public class TradingService {
                         spreadOut);
 
                 if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair);
-                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair);
+                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
+                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
                     BigDecimal fees = (longFees.add(shortFees))
                             .multiply(new BigDecimal(2.0));
@@ -373,21 +373,25 @@ public class TradingService {
                 currencyPair);
     }
 
-    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair) {
+    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
             BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
-                LOGGER.error("{} has no fees configured. Setting default of 0.0030. Please configure the correct value!",
-                        exchange.getExchangeSpecification().getExchangeName());
+                if (!isQuiet) {
+                    LOGGER.error("{} has no fees configured. Setting default of 0.0030. Please configure the correct value!",
+                            exchange.getExchangeSpecification().getExchangeName());
+                }
 
                 return new BigDecimal(0.0030);
             }
 
-            LOGGER.warn("{} fees unavailable via API. Will use configured value.",
-                    exchange.getExchangeSpecification().getExchangeName());
+            if (!isQuiet) {
+                LOGGER.warn("{} fees unavailable via API. Will use configured value.",
+                        exchange.getExchangeSpecification().getExchangeName());
+            }
 
             return configuredFee;
         }
