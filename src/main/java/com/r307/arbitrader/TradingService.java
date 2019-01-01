@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -505,8 +506,6 @@ public class TradingService {
                             ticker.getBid(), ticker.getAsk()));
 
             return tickers;
-        } catch (ExchangeException | IOException e) {
-            LOGGER.warn("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
@@ -524,6 +523,8 @@ public class TradingService {
                     })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
+        } catch (AwareException | ExchangeException | IOException e) {
+            LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         }
 
         return Collections.emptyList();
