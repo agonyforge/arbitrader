@@ -1,5 +1,6 @@
 .gradle/
 .idea/
 build/
+out/
 
 /application.yaml

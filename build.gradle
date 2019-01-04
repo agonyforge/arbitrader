@@ -41,3 +41,16 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
     testCompile group: 'org.mockito', name: 'mockito-core', version: '2.23.4'
 }
+
+pitest {
+    excludedMethods = [
+            'hashCode',
+            'equals',
+            'toString'
+    ]
+    timestampedReports = false
+}
+
+check.dependsOn project.tasks.pitest, project.tasks.dependencyCheckAnalyze, project.tasks.stats
+
+project.tasks.pitest.mustRunAfter test
