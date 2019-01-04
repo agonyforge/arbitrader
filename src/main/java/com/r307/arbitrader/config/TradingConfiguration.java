@@ -17,8 +17,8 @@ public class TradingConfiguration {
     private BigDecimal entrySpread;
     private BigDecimal exitTarget;
     private BigDecimal fixedExposure;
-    private List<CurrencyPair> tradingPairs;
-    private List<ExchangeConfiguration> exchanges;
+    private List<CurrencyPair> tradingPairs = new ArrayList<>();
+    private List<ExchangeConfiguration> exchanges = new ArrayList<>();
 
     public BigDecimal getEntrySpread() {
         return entrySpread;

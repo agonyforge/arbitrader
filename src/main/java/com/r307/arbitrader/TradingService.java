@@ -38,8 +38,9 @@ import java.util.stream.Collectors;
 
 @Component
 public class TradingService {
+    static final String METADATA_KEY = "arbitrader-metadata";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
-    private static final String METADATA_KEY = "arbitrader-metadata";
 
     private TradingConfiguration tradingConfiguration;
     private List<CurrencyPair> currencyPairs;
@@ -518,7 +519,7 @@ public class TradingService {
         return Collections.emptyList();
     }
 
-    private BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
+    BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
         CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
 
         try {
@@ -543,7 +544,7 @@ public class TradingService {
             LOGGER.error("IOE", e);
         }
 
-        return BigDecimal.ZERO;
+        throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
     }
 
     private BigDecimal getMaximumExposure(CurrencyPair rawCurrencyPair) {

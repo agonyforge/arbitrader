@@ -1,13 +1,13 @@
 # Sample Arbitrader configuration file
 # Copy this file to "application.yaml" and fill out the settings that you want for your bot.
-# When you run the JAR file, make sure this file is in the current directory so it can be read.
+# When you run the JAR file, make sure the config file is in the current directory so it can be read.
 
 # All the logs you see on the console will also be shipped to Slack.
 notifications:
   slack:
     accessToken: x
     botAccessToken: x
-    channel: channel
+    channel: x
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.
@@ -88,5 +88,5 @@ trading:
       fee: 0.0025
 
       # Poloniex doesn't support any fiat currencies, so we need to use a USD based stablecoin instead.
-      homeCurrency: USDT
+      homeCurrency: USDC
     
