@@ -15,6 +15,7 @@ import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
@@ -37,6 +38,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+
 @Component
 public class TradingService {
     static final String METADATA_KEY = "arbitrader-metadata";
@@ -55,6 +59,8 @@ public class TradingService {
     private CurrencyPair activeCurrencyPair = null;
     private Exchange activeLongExchange = null;
     private Exchange activeShortExchange = null;
+    private String activeLongOrderId = null;
+    private String activeShortOrderId = null;
     private BigDecimal activeLongVolume = null;
     private BigDecimal activeShortVolume = null;
     private BigDecimal activeLongEntry = null;
@@ -270,8 +276,11 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, activeLongVolume, Order.OrderType.BID);
-                    BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, activeShortVolume, Order.OrderType.ASK);
+                    BigDecimal longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
+                    BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
+
+                    BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
+                    BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
 
                     BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
@@ -284,26 +293,26 @@ public class TradingService {
                             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    activeLongVolume,
+                                    longVolume,
                                     longLimitPrice,
                                     longLimitPrice.subtract(longTicker.getBid()),
                                     Currency.USD.getSymbol(),
-                                    activeLongVolume.multiply(longTicker.getBid()));
+                                    longVolume.multiply(longTicker.getBid()));
                             LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                     shortExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    activeShortVolume,
+                                    shortVolume,
                                     shortLimitPrice,
                                     shortTicker.getAsk().subtract(shortLimitPrice),
                                     Currency.USD.getSymbol(),
-                                    activeShortVolume.multiply(shortTicker.getAsk()));
+                                    shortVolume.multiply(shortTicker.getAsk()));
 
-                            BigDecimal longProfit = activeLongVolume.multiply(longLimitPrice)
-                                    .subtract(activeLongVolume.multiply(activeLongEntry))
-                                    .setScale(2, RoundingMode.HALF_EVEN);
-                            BigDecimal shortProfit = activeShortVolume.multiply(activeShortEntry)
-                                    .subtract(activeShortVolume.multiply(shortLimitPrice))
-                                    .setScale(2, RoundingMode.HALF_EVEN);
+                            BigDecimal longProfit = longVolume.multiply(longLimitPrice)
+                                    .subtract(longVolume.multiply(activeLongEntry))
+                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                            BigDecimal shortProfit = shortVolume.multiply(activeShortEntry)
+                                    .subtract(shortVolume.multiply(shortLimitPrice))
+                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
                             LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
                                     Currency.USD.getSymbol(),
@@ -317,7 +326,7 @@ public class TradingService {
                                     longExchange, shortExchange,
                                     currencyPair,
                                     longLimitPrice, shortLimitPrice,
-                                    activeLongVolume, activeShortVolume,
+                                    longVolume, shortVolume,
                                     false);
                         } catch (IOException e) {
                             LOGGER.error("IOE executing limit orders: ", e);
@@ -458,15 +467,24 @@ public class TradingService {
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortLimitOrder);
 
-        String longResult = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
-        String shortResult = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+        String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
+        String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-        LOGGER.info("{} order ID: {}",
+        // TODO not happy with this coupling, need to refactor this
+        if (isPositionOpen) {
+            activeLongOrderId = longOrderId;
+            activeShortOrderId = shortOrderId;
+        } else {
+            activeLongOrderId = null;
+            activeShortOrderId = null;
+        }
+
+        LOGGER.info("{} limit order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
-                longResult);
-        LOGGER.info("{} order ID: {}",
+                longOrderId);
+        LOGGER.info("{} limit order ID: {}",
                 shortExchange.getExchangeSpecification().getExchangeName(),
-                shortResult);
+                shortOrderId);
 
         OpenOrders longOpenOrders = longExchange.getTradeService().getOpenOrders();
         OpenOrders shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
@@ -531,6 +549,22 @@ public class TradingService {
         return Collections.emptyList();
     }
 
+    BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
+        try {
+            return exchange.getTradeService().getOrder(orderId)
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new OrderNotFoundException(orderId))
+                    .getCumulativeAmount();
+        } catch (NotAvailableFromExchangeException e) {
+            LOGGER.debug("Exchange does not support fetching orders by ID");
+        } catch (IOException e) {
+            LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+        }
+
+        return defaultVolume;
+    }
+
     BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
         CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
 
@@ -545,7 +579,7 @@ public class TradingService {
                 volume = volume.add(order.getRemainingAmount());
 
                 LOGGER.debug("Order: {} @ {}",
-                        order.getRemainingAmount().setScale(6, RoundingMode.HALF_EVEN),
+                        order.getRemainingAmount().setScale(BTC_SCALE, RoundingMode.HALF_EVEN),
                         order.getLimitPrice());
 
                 if (volume.compareTo(allowedVolume) > 0) {

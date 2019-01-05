@@ -11,7 +11,9 @@ import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.service.marketdata.MarketDataService;
+import org.knowm.xchange.service.trade.TradeService;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -19,19 +21,20 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.TradingService.METADATA_KEY;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 public class TradingServiceTest {
-    private static final int SCALE = 6;
-
     @Mock
     private Exchange exchange;
 
@@ -40,6 +43,9 @@ public class TradingServiceTest {
 
     @Mock
     private MarketDataService exchangeMarketDataService;
+
+    @Mock
+    private TradeService exchangeTradeService;
 
     private CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
 
@@ -58,6 +64,7 @@ public class TradingServiceTest {
 
         when(exchange.getExchangeSpecification()).thenReturn(exchangeSpecification);
         when(exchange.getMarketDataService()).thenReturn(exchangeMarketDataService);
+        when(exchange.getTradeService()).thenReturn(exchangeTradeService);
 
         when(exchangeSpecification.getExchangeSpecificParametersItem(METADATA_KEY)).thenReturn(longMetadata);
 
@@ -69,7 +76,50 @@ public class TradingServiceTest {
 
         when(exchangeMarketDataService.getOrderBook(eq(currencyPair))).thenReturn(exchangeOrderBook);
 
+        when(exchangeTradeService.getOrder(anyString())).thenReturn(generateOrder());
+        when(exchangeTradeService.getOrder(eq("missingOrder"))).thenReturn(Collections.emptyList());
+        when(exchangeTradeService.getOrder(eq("notAvailable"))).thenThrow(new NotAvailableFromExchangeException("Exchange does not support fetching orders by ID"));
+        when(exchangeTradeService.getOrder(eq("ioe"))).thenThrow(new IOException("Unable to connect to exchange"));
+
         tradingService = new TradingService(configuration);
+    }
+
+    @Test
+    public void testGetVolumeForOrder() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                exchange,
+                "orderId",
+                new BigDecimal(50.0));
+
+        assertEquals(BigDecimal.TEN, volume);
+    }
+
+    @Test(expected = OrderNotFoundException.class)
+    public void testGetVolumeForOrderNotFound() {
+        tradingService.getVolumeForOrder(
+                exchange,
+                "missingOrder",
+                new BigDecimal(50.0));
+    }
+
+    @Test
+    public void testGetVolumeForOrderNotAvailable() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                exchange,
+                "notAvailable",
+                new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(50.0), volume);
+    }
+
+    @Test
+    public void testGetVolumeForOrderIOException() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                exchange,
+                "ioe",
+                new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(50.0), volume);
     }
 
     // the best price point has enough volume to fill my order
@@ -78,7 +128,7 @@ public class TradingServiceTest {
         BigDecimal allowedVolume = new BigDecimal(1.00);
         BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal(100.0000).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0000).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point has enough volume to fill my order
@@ -87,7 +137,7 @@ public class TradingServiceTest {
         BigDecimal allowedVolume = new BigDecimal(1.00);
         BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal(100.0990).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0990).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
@@ -96,7 +146,7 @@ public class TradingServiceTest {
         BigDecimal allowedVolume = new BigDecimal(11.00);
         BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal(100.0010).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0010).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
@@ -105,7 +155,7 @@ public class TradingServiceTest {
         BigDecimal allowedVolume = new BigDecimal(11.00);
         BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal(100.0980).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0980).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the exchange doesn't have enough volume to fill my gigantic order
@@ -124,6 +174,14 @@ public class TradingServiceTest {
         tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
     }
 
+    private Collection<Order> generateOrder() {
+        Order order = new LimitOrder.Builder(Order.OrderType.ASK, currencyPair)
+                .cumulativeAmount(BigDecimal.TEN)
+                .build();
+
+        return Collections.singletonList(order);
+    }
+
     private List<LimitOrder> generateOrders(Order.OrderType type) {
         List<LimitOrder> orders = new ArrayList<>();
 
@@ -136,7 +194,7 @@ public class TradingServiceTest {
                     new Date(),
                     new BigDecimal(100.0000)
                             .add(new BigDecimal(i * 0.001))
-                            .setScale(SCALE, RoundingMode.HALF_EVEN)));
+                            .setScale(BTC_SCALE, RoundingMode.HALF_EVEN)));
         }
 
         if (Order.OrderType.BID.equals(type)) {
