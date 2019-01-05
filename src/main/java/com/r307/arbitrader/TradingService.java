@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -116,27 +117,12 @@ public class TradingService {
                 LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }
 
-            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD));
+            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD), false);
 
-            if (tradingFee == null) {
-                LOGGER.warn("{} does not provide dynamic trading fees", exchange.getExchangeSpecification().getExchangeName());
-
-                BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
-
-                if (configuredFee == null) {
-                    LOGGER.error("{} must be configured with a fee", exchange.getExchangeSpecification().getExchangeName());
-                } else {
-                    LOGGER.info("{} configured trading fee for {}: {}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            convertExchangePair(exchange, CurrencyPair.BTC_USD),
-                            configuredFee);
-                }
-            } else {
-                LOGGER.info("{} dynamic trading fee for {}: {}",
-                        exchange.getExchangeSpecification().getExchangeName(),
-                        convertExchangePair(exchange, CurrencyPair.BTC_USD),
-                        tradingFee);
-            }
+            LOGGER.info("{} {} trading fee: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                convertExchangePair(exchange, CurrencyPair.BTC_USD),
+                tradingFee);
         });
 
         LOGGER.info("Trading the following exchanges and pairs:");
@@ -175,6 +161,11 @@ public class TradingService {
         exchanges.forEach(exchange -> getTickers(exchange, currencyPairs)
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
+        // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
+        // executing trades than ones at the end of the list.
+        Collections.shuffle(exchanges);
+        Collections.shuffle(currencyPairs);
+
         currencyPairs.forEach(currencyPair -> {
             LOGGER.debug("Computing trade opportunities...");
             exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
@@ -207,8 +198,8 @@ public class TradingService {
                         spreadOut);
 
                 if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair);
-                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair);
+                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
+                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
                     BigDecimal fees = (longFees.add(shortFees))
                             .multiply(new BigDecimal(2.0));
@@ -254,7 +245,8 @@ public class TradingService {
                                         longExchange, shortExchange,
                                         currencyPair,
                                         longLimitPrice, shortLimitPrice,
-                                        longVolume, shortVolume);
+                                        longVolume, shortVolume,
+                                        true);
                             } catch (IOException e) {
                                 LOGGER.error("IOE executing limit orders: ", e);
                             }
@@ -287,46 +279,61 @@ public class TradingService {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
                     } else {
                         LOGGER.info("***** EXIT *****");
-                        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
-                                longExchange.getExchangeSpecification().getExchangeName(),
-                                currencyPair,
-                                activeLongVolume,
-                                longLimitPrice,
-                                longLimitPrice.subtract(longTicker.getBid()),
-                                Currency.USD.getSymbol(),
-                                activeLongVolume.multiply(longTicker.getBid()));
-                        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
-                                shortExchange.getExchangeSpecification().getExchangeName(),
-                                currencyPair,
-                                activeShortVolume,
-                                shortLimitPrice,
-                                shortTicker.getAsk().subtract(shortLimitPrice),
-                                Currency.USD.getSymbol(),
-                                activeShortVolume.multiply(shortTicker.getAsk()));
-
-                        BigDecimal longProfit = activeLongVolume.multiply(longLimitPrice)
-                                .subtract(activeLongVolume.multiply(activeLongEntry))
-                                .setScale(2, RoundingMode.HALF_EVEN);
-                        BigDecimal shortProfit = activeShortVolume.multiply(activeShortEntry)
-                                .subtract(activeShortVolume.multiply(shortLimitPrice))
-                                .setScale(2, RoundingMode.HALF_EVEN);
-
-                        LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
-                                Currency.USD.getSymbol(),
-                                longProfit,
-                                Currency.USD.getSymbol(),
-                                shortProfit,
-                                Currency.USD.getSymbol(),
-                                longProfit.add(shortProfit));
 
                         try {
-                            executeOrderPair(
-                                    shortExchange, longExchange,
+                            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
+                                    longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    shortLimitPrice, longLimitPrice,
-                                    activeShortVolume, activeLongVolume);
+                                    activeLongVolume,
+                                    longLimitPrice,
+                                    longLimitPrice.subtract(longTicker.getBid()),
+                                    Currency.USD.getSymbol(),
+                                    activeLongVolume.multiply(longTicker.getBid()));
+                            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
+                                    shortExchange.getExchangeSpecification().getExchangeName(),
+                                    currencyPair,
+                                    activeShortVolume,
+                                    shortLimitPrice,
+                                    shortTicker.getAsk().subtract(shortLimitPrice),
+                                    Currency.USD.getSymbol(),
+                                    activeShortVolume.multiply(shortTicker.getAsk()));
+
+                            BigDecimal longProfit = activeLongVolume.multiply(longLimitPrice)
+                                    .subtract(activeLongVolume.multiply(activeLongEntry))
+                                    .setScale(2, RoundingMode.HALF_EVEN);
+                            BigDecimal shortProfit = activeShortVolume.multiply(activeShortEntry)
+                                    .subtract(activeShortVolume.multiply(shortLimitPrice))
+                                    .setScale(2, RoundingMode.HALF_EVEN);
+
+                            LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
+                                    Currency.USD.getSymbol(),
+                                    longProfit,
+                                    Currency.USD.getSymbol(),
+                                    shortProfit,
+                                    Currency.USD.getSymbol(),
+                                    longProfit.add(shortProfit));
+
+                            executeOrderPair(
+                                    longExchange, shortExchange,
+                                    currencyPair,
+                                    longLimitPrice, shortLimitPrice,
+                                    activeLongVolume, activeShortVolume,
+                                    false);
                         } catch (IOException e) {
                             LOGGER.error("IOE executing limit orders: ", e);
+                        }
+
+                        try {
+                            BigDecimal longBalance = getAccountBalance(longExchange);
+                            BigDecimal shortBalance = getAccountBalance(shortExchange);
+
+                            LOGGER.info("Updated account balances: {} ${} / {} ${}",
+                                    longExchange.getExchangeSpecification().getExchangeName(),
+                                    longBalance,
+                                    shortExchange.getExchangeSpecification().getExchangeName(),
+                                    shortBalance);
+                        } catch (IOException e) {
+                            LOGGER.error("IOE fetching account balances: ", e);
                         }
 
                         inMarket = false;
@@ -368,16 +375,24 @@ public class TradingService {
                 currencyPair);
     }
 
-    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair) {
+    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
             BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
-                LOGGER.error("Cannot determine fees for {}! Defaulting to 0.0030!");
+                if (!isQuiet) {
+                    LOGGER.error("{} has no fees configured. Setting default of 0.0030. Please configure the correct value!",
+                            exchange.getExchangeSpecification().getExchangeName());
+                }
 
                 return new BigDecimal(0.0030);
+            }
+
+            if (!isQuiet) {
+                LOGGER.warn("{} fees unavailable via API. Will use configured value.",
+                        exchange.getExchangeSpecification().getExchangeName());
             }
 
             return configuredFee;
@@ -423,19 +438,16 @@ public class TradingService {
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
                                   CurrencyPair currencyPair,
                                   BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
-                                  BigDecimal longVolume, BigDecimal shortVolume) throws IOException {
-        LimitOrder longLimitOrder = new LimitOrder.Builder(Order.OrderType.BID, convertExchangePair(longExchange, currencyPair))
+                                  BigDecimal longVolume, BigDecimal shortVolume,
+                                  boolean isPositionOpen) throws IOException {
+        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, convertExchangePair(longExchange, currencyPair))
                 .limitPrice(longLimitPrice)
                 .originalAmount(longVolume)
                 .build();
-        LimitOrder shortLimitOrder = new LimitOrder.Builder(Order.OrderType.ASK, convertExchangePair(shortExchange, currencyPair))
+        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, convertExchangePair(shortExchange, currencyPair))
                 .limitPrice(shortLimitPrice)
                 .originalAmount(shortVolume)
                 .build();
-
-        if (getExchangeMetadata(longExchange).getMargin() && !getExchangeMetadata(longExchange).getMarginExclude().contains(currencyPair)) {
-            longLimitOrder.setLeverage("2");
-        }
 
         shortLimitOrder.setLeverage("2");
 
@@ -512,8 +524,8 @@ public class TradingService {
                     })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-        } catch (ExchangeException | IOException e) {
-            LOGGER.warn("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
+        } catch (AwareException | ExchangeException | IOException e) {
+            LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         }
 
         return Collections.emptyList();
@@ -578,8 +590,7 @@ public class TradingService {
         }
     }
 
-    private BigDecimal getAccountBalance(Exchange exchange) throws IOException {
-        Currency currency = getExchangeHomeCurrency(exchange);
+    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
@@ -594,5 +605,11 @@ public class TradingService {
                 exchange.getExchangeSpecification().getExchangeName());
 
         return BigDecimal.ZERO;
+    }
+
+    private BigDecimal getAccountBalance(Exchange exchange) throws IOException {
+        Currency currency = getExchangeHomeCurrency(exchange);
+
+        return getAccountBalance(exchange, currency);
     }
 }
