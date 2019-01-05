@@ -29,7 +29,7 @@ dependencies {
 
     compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.14-SNAPSHOT'
     compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.3.13'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.13'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.14-SNAPSHOT'
     compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.3.13'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.3.13'
     compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.3.13'

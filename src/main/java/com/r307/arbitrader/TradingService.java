@@ -8,6 +8,7 @@ import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
+import org.knowm.xchange.dto.account.Fee;
 import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -77,6 +78,18 @@ public class TradingService {
             specification.setUserName(exchangeMetadata.getUserName());
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
+
+            if (exchangeMetadata.getSslUri() != null) {
+                specification.setSslUri(exchangeMetadata.getSslUri());
+            }
+
+            if (exchangeMetadata.getHost() != null) {
+                specification.setHost(exchangeMetadata.getHost());
+            }
+
+            if (exchangeMetadata.getPort() != null) {
+                specification.setPort( exchangeMetadata.getPort());
+            }
 
             if (!exchangeMetadata.getCustom().isEmpty()) {
                 exchangeMetadata.getCustom().forEach((key, value) -> {
@@ -376,6 +389,20 @@ public class TradingService {
     }
 
     private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
+        try {
+            Map<CurrencyPair, Fee> fees = exchange.getAccountService().getDynamicTradingFees();
+
+            if (fees.containsKey(currencyPair)) {
+                return fees.get(currencyPair).getMakerFee();
+            }
+        } catch (NotYetImplementedForExchangeException e) {
+            LOGGER.trace("Dynamic fees not yet implemented for {}, will try other methods",
+                    exchange.getExchangeSpecification().getExchangeName());
+        } catch (IOException e) {
+            LOGGER.trace("IOE fetching dynamic trading fees for {}",
+                    exchange.getExchangeSpecification().getExchangeName());
+        }
+
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
