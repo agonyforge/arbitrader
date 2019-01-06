@@ -1,0 +1,10 @@
+version: "2"
+
+services:
+  arbitrader:
+    image: scionaltera/arbitrader:latest
+    tty: true
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./application.yaml:/application.yaml

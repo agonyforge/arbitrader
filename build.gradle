@@ -1,3 +1,9 @@
+buildscript {
+    dependencies {
+        classpath group: 'se.transmode.gradle', name: 'gradle-docker', version: '1.2'
+    }
+}
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '2.1.1.RELEASE'
@@ -6,6 +12,8 @@ plugins {
     id 'org.owasp.dependencycheck' version '4.0.0.1'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
+
+apply plugin: 'docker'
 
 group 'com.r307'
 version '0.1.0-SNAPSHOT'
@@ -27,7 +35,7 @@ dependencies {
 
     compile group: 'org.springframework.boot', name: 'spring-boot-starter'
 
-    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.14-SNAPSHOT'
+    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.13'
     compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.3.13'
     compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.13'
     compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.3.13'
@@ -42,6 +50,23 @@ dependencies {
     testCompile group: 'org.mockito', name: 'mockito-core', version: '2.23.4'
 }
 
+task buildDocker(type: Docker) {
+    push = false
+    applicationName = jar.getBaseName()
+    dockerfile = file('src/main/docker/local/Dockerfile')
+    tagVersion = "latest"
+    tag = "scionaltera/${applicationName}"
+
+    doFirst {
+        copy {
+            from jar
+            into stageDir
+        }
+    }
+}
+
+build.dependsOn project.tasks.buildDocker
+
 pitest {
     excludedMethods = [
             'hashCode',
@@ -49,6 +74,10 @@ pitest {
             'toString'
     ]
     timestampedReports = false
+}
+
+dependencyCheck {
+    suppressionFile "codequality/cve-suppressions.xml"
 }
 
 check.dependsOn project.tasks.pitest, project.tasks.dependencyCheckAnalyze, project.tasks.stats
