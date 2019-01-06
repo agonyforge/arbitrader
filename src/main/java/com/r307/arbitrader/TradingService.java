@@ -156,7 +156,7 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
-        LOGGER.debug("Fetching all tickers...");
+        // fetch all the tickers
         allTickers.clear();
         exchanges.forEach(exchange -> getTickers(exchange, currencyPairs)
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
