@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -208,7 +209,7 @@ public class TradingService {
                             .subtract(tradingConfiguration.getExitTarget())
                             .subtract(fees);
 
-                    BigDecimal maxExposure = getMaximumExposure(currencyPair);
+                    BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
                     if (maxExposure != null) {
                         BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
@@ -559,38 +560,31 @@ public class TradingService {
         throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
     }
 
-    private BigDecimal getMaximumExposure(CurrencyPair rawCurrencyPair) {
+    BigDecimal getMaximumExposure(Exchange ... exchanges) {
         if (tradingConfiguration.getFixedExposure() != null) {
             return tradingConfiguration.getFixedExposure();
         } else {
-            BigDecimal smallestBalance = null;
+            BigDecimal smallestBalance = Arrays.stream(exchanges)
+                    .map(exchange -> {
+                        try {
+                            return getAccountBalance(exchange);
+                        } catch (IOException e) {
+                            LOGGER.trace("IOException fetching {} account balance",
+                                    exchange.getExchangeSpecification().getExchangeName());
+                        }
 
-            for (Exchange exchange : exchanges) {
-                CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
+                        return BigDecimal.ZERO;
+                    })
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
 
-                try {
-                    BigDecimal balance = getAccountBalance(exchange);
-
-                    if (smallestBalance == null) {
-                        smallestBalance = balance;
-                    } else {
-                        smallestBalance = smallestBalance.min(balance);
-                    }
-                } catch (IOException e) {
-                    LOGGER.error("Unable to fetch account balance: {} {}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            currencyPair.counter.getDisplayName(),
-                            e);
-                }
-            }
-
-            return smallestBalance == null ? null : smallestBalance
+            return smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
         }
     }
 
-    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+    BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
