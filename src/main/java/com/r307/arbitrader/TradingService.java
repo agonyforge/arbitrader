@@ -99,6 +99,15 @@ public class TradingService {
 
         exchanges.forEach(exchange -> {
             try {
+                LOGGER.debug("{} SSL URI: {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        exchange.getExchangeSpecification().getSslUri());
+                LOGGER.debug("{} SSL host: {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        exchange.getExchangeSpecification().getHost());
+                LOGGER.debug("{} SSL port: {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        exchange.getExchangeSpecification().getPort());
                 LOGGER.debug("{} home currency: {}",
                         exchange.getExchangeSpecification().getExchangeName(),
                         getExchangeHomeCurrency(exchange));
