@@ -114,6 +114,19 @@ trading:
         - ONT/USD
         - DASH/USD
       fee: 0.0020
+
+    - exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
+      apiKey: x
+      secretKey: x
+      # Bitflyer defaults to the Japan endpoints, so there are some extra settings for US based customers
+      sslUri: https://api.bitflyer.com
+      host: api.bitflyer.com
+      port: 443
+      tradingPairs:
+        - BTC/USD
+      margin: false
+      fee: 0.0012
+
     -
       exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
       apiKey: x
@@ -131,6 +144,7 @@ trading:
         - ZRX/USD
       margin: false
       fee: 0.0030
+
     -
       exchangeClass: org.knowm.xchange.poloniex.PoloniexExchange
       apiKey: x
