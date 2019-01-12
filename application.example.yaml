@@ -23,12 +23,6 @@ trading:
   # with a fixedExposure around 10.00 to avoid risking much money at first.
   fixedExposure: 10.00
 
-  # The pairs you would like the bot to trade.
-  tradingPairs:
-    - BTC/USD
-    - ETH/USD
-    - LTC/USD
-
   # Connection information for each exchange goes in this list.
   #
   # To add a new exchange or remove one that you don't use, either add or remove the configuration from this list.
@@ -47,14 +41,45 @@ trading:
       # The API secret for Kraken.
       secretKey: x
 
+      # The pairs you wish to trade on Kraken.
+      tradingPairs:
+        - BTC/USD
+        - BCH/USD
+        - LTC/USD
+        - EOS/USD
+        - ADA/USD
+        - XRP/USD
+        - BSV/USD
+        - XLM/USD
+        - ETC/USD
+        - XTZ/USD
+        - DASH/USD
+        - XMR/USD
+        - GNO/USD
+        - QTUM/USD
+        - ETH/USD
+        - REP/USD
+        - ZEC/USD
+
       # Whether or not this exchange supports margin (aka. leveraged) trades. Kraken does.
       margin: true
 
-      # Pairs to exclude from margin trading on Kraken.
+      # Pairs to exclude from margin trading on Kraken
+      # (i.e. because the exchange doesn't support margin for those pairs)
       marginExclude:
-        - XRP/USD
         - LTC/USD
-        - BCH/USD
+        - EOS/USD
+        - ADA/USD
+        - BSV/USD
+        - XLM/USD
+        - ETC/USD
+        - XTZ/USD
+        - DASH/USD
+        - XMR/USD
+        - GNO/USD
+        - QTUM/USD
+        - REP/USD
+        - ZEC/USD
 
       # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
@@ -64,12 +89,44 @@ trading:
       apiKey: x
       secretKey: x
 
+      tradingPairs:
+        - BTC/USD
+        - ETH/USD
+        - XRP/USD
+        - BCH/USD
+        - QASH/USD
+        - QTUM/USD
+        - RKT/USD
+        - NEO/USD
+        - ONT/USD
+        - DASH/USD
+
       # Quoine (Liquid) has a couple of custom parameters we need to pass in order to enable margin trading with the API.
       custom:
         Use_Margin: true
         Leverage_Level: 2
       margin: true
+      marginExclude:
+        - QASH/USD
+        - QTUM/USD
+        - RKT/USD
+        - NEO/USD
+        - ONT/USD
+        - DASH/USD
       fee: 0.0020
+
+    - exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
+      apiKey: x
+      secretKey: x
+      # Bitflyer defaults to the Japan endpoints, so there are some extra settings for US based customers
+      sslUri: https://api.bitflyer.com
+      host: api.bitflyer.com
+      port: 443
+      tradingPairs:
+        - BTC/USD
+      margin: false
+      fee: 0.0012
+
     -
       exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
       apiKey: x
@@ -78,15 +135,40 @@ trading:
       # Coinbase Pro requires an additional "passphrase" for authentication to the API.
       custom:
         passphrase: x
+      tradingPairs:
+        - BTC/USD
+        - LTC/USD
+        - BCH/USD
+        - ETH/USD
+        - ETC/USD
+        - ZRX/USD
       margin: false
       fee: 0.0030
+
     -
       exchangeClass: org.knowm.xchange.poloniex.PoloniexExchange
       apiKey: x
       secretKey: x
+      tradingPairs:
+        - BTC/USD
+        - BCHSV/USD
+        - LTC/USD
+        - ETH/USD
+        - XRP/USD
+        - STR/USD
+        - BCHABC/USD
+        - XMR/USD
+        - ZEC/USD
+        - FOAM/USD
+        - DOGE/USD
+        - BCH/USD
       margin: false
       fee: 0.0025
 
       # Poloniex doesn't support any fiat currencies, so we need to use a USD based stablecoin instead.
+      #
+      # I've found USDC to be more true to USD than USDT, but you could also use a crypto like BTC here
+      # if you wanted to do pure crypto trading with no fiat. Effectively this just aliases any xxx/USD
+      # pair to xxx/USDC. If you put BTC here you could list ETH/USD and it would actually trade ETH/BTC.
       homeCurrency: USDC
     

@@ -1,0 +1,34 @@
+version: 0.2
+
+env:
+  parameter-store:
+    DOCKER_HUB_USERNAME: "docker-hub-username"
+    DOCKER_HUB_PASSWORD: "docker-hub-password"
+
+phases:
+  install:
+    commands:
+      - chmod +x ./gradlew
+  pre_build:
+    commands:
+      - export PROJECT_VERSION=v`egrep "^version" build.gradle | cut -f2 -d\'`
+      - echo Project version is ${PROJECT_VERSION}
+      - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+  build:
+    commands:
+      - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
+      - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
+  post_build:
+    commands:
+      - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
+      - |
+        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
+          docker push scionaltera/arbitrader:latest
+        fi
+      - |
+        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
+          docker push scionaltera/arbitrader:${PROJECT_VERSION}
+        fi
+      - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
+artifacts:
+  files: imagedefinitions.json

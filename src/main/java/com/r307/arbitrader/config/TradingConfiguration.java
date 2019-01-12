@@ -1,6 +1,5 @@
 package com.r307.arbitrader.config;
 
-import org.knowm.xchange.currency.CurrencyPair;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,7 +16,6 @@ public class TradingConfiguration {
     private BigDecimal entrySpread;
     private BigDecimal exitTarget;
     private BigDecimal fixedExposure;
-    private List<CurrencyPair> tradingPairs = new ArrayList<>();
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
 
     public BigDecimal getEntrySpread() {
@@ -42,15 +40,6 @@ public class TradingConfiguration {
 
     public void setFixedExposure(BigDecimal fixedExposure) {
         this.fixedExposure = fixedExposure.setScale(USD_SCALE, RoundingMode.HALF_EVEN);
-    }
-
-    public List<CurrencyPair> getTradingPairs() {
-        return tradingPairs;
-    }
-
-    public void setTradingPairs(List<String> pairStrings) {
-        tradingPairs = new ArrayList<>();
-        pairStrings.forEach(pair -> tradingPairs.add(new CurrencyPair(pair)));
     }
 
     public List<ExchangeConfiguration> getExchanges() {

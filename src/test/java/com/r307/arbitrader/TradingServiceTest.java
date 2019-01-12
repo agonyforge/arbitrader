@@ -9,10 +9,13 @@ import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
+import org.knowm.xchange.dto.account.AccountInfo;
+import org.knowm.xchange.dto.account.Balance;
+import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -24,24 +27,20 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.TradingService.METADATA_KEY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class TradingServiceTest {
-    private static final int SCALE = 6;
+    private static final CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
 
-    @Mock
-    private Exchange exchange;
+    private Exchange longExchange;
+    private Exchange shortExchange;
 
-    @Mock
-    private ExchangeSpecification exchangeSpecification;
-
-    @Mock
-    private MarketDataService exchangeMarketDataService;
-
-    private CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
+    private TradingConfiguration configuration;
 
     private TradingService tradingService;
 
@@ -49,63 +48,55 @@ public class TradingServiceTest {
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
 
-        TradingConfiguration configuration = new TradingConfiguration();
-        ExchangeConfiguration longMetadata = new ExchangeConfiguration();
+        configuration = new TradingConfiguration();
 
-        longMetadata.setHomeCurrency(Currency.USD);
+        longExchange = new ExchangeBuilder("Long")
+                .withOrderBook(100, 100)
+                .withBalance(Currency.USD, new BigDecimal(100.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN))
+                .build();
+        shortExchange = new ExchangeBuilder("Short")
+                .withBalance(Currency.USD, new BigDecimal(500.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN))
+                .build();
 
-        configuration.getExchanges().add(longMetadata);
-
-        when(exchange.getExchangeSpecification()).thenReturn(exchangeSpecification);
-        when(exchange.getMarketDataService()).thenReturn(exchangeMarketDataService);
-
-        when(exchangeSpecification.getExchangeSpecificParametersItem(METADATA_KEY)).thenReturn(longMetadata);
-
-        OrderBook exchangeOrderBook = new OrderBook(
-                new Date(),
-                generateOrders(Order.OrderType.ASK),
-                generateOrders(Order.OrderType.BID)
-        );
-
-        when(exchangeMarketDataService.getOrderBook(eq(currencyPair))).thenReturn(exchangeOrderBook);
-
-        tradingService = new TradingService(configuration);
+        // This spy right here is a bad code smell, kids! Don't try this at work!
+        // Upcoming refactoring will allow me to remove it.
+        tradingService = spy(new TradingService(configuration));
     }
 
     // the best price point has enough volume to fill my order
     @Test
     public void testLimitPriceLongSufficientVolume() {
         BigDecimal allowedVolume = new BigDecimal(1.00);
-        BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.ASK);
+        BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal(100.0000).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0000).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point has enough volume to fill my order
     @Test
     public void testLimitPriceShortSufficientVolume() {
         BigDecimal allowedVolume = new BigDecimal(1.00);
-        BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
+        BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal(100.0990).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0990).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
     public void testLimitPriceLongInsufficientVolume() {
         BigDecimal allowedVolume = new BigDecimal(11.00);
-        BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.ASK);
+        BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal(100.0010).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0010).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
     public void testLimitPriceShortInsufficientVolume() {
         BigDecimal allowedVolume = new BigDecimal(11.00);
-        BigDecimal limitPrice = tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
+        BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal(100.0980).setScale(SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal(100.0980).setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the exchange doesn't have enough volume to fill my gigantic order
@@ -113,7 +104,7 @@ public class TradingServiceTest {
     public void testLimitPriceLongInsufficientLiquidity() {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
-        tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.ASK);
+        tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
     }
 
     // the exchange doesn't have enough volume to fill my gigantic order
@@ -121,28 +112,125 @@ public class TradingServiceTest {
     public void testLimitPriceShortInsufficientLiquidity() {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
-        tradingService.getLimitPrice(exchange, currencyPair, allowedVolume, Order.OrderType.BID);
+        tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
     }
 
-    private List<LimitOrder> generateOrders(Order.OrderType type) {
-        List<LimitOrder> orders = new ArrayList<>();
+    @Test
+    public void testGetMaximumExposureFixedExposure() {
+        configuration.setFixedExposure(new BigDecimal(100.00));
 
-        for (int i = 0; i < 100; i++) {
-            orders.add(new LimitOrder(
-                    type,
-                    BigDecimal.TEN,
-                    currencyPair,
-                    UUID.randomUUID().toString(),
-                    new Date(),
-                    new BigDecimal(100.0000)
-                            .add(new BigDecimal(i * 0.001))
-                            .setScale(SCALE, RoundingMode.HALF_EVEN)));
+        BigDecimal exposure = tradingService.getMaximumExposure(longExchange, shortExchange);
+
+        assertEquals(new BigDecimal(100.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
+    }
+
+    // should return 90% of the smallest account balance
+    @Test
+    public void testGetMaximumExposure() {
+        BigDecimal exposure = tradingService.getMaximumExposure(longExchange, shortExchange);
+
+        assertEquals(new BigDecimal(90.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
+    }
+
+    @Test
+    public void testGetMaximumExposureEmpty() {
+        BigDecimal exposure = tradingService.getMaximumExposure();
+
+        assertEquals(new BigDecimal(0.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
+    }
+
+    @Test
+    public void testGetMaximumExposureException() throws IOException {
+        when(tradingService.getAccountBalance(shortExchange, Currency.USD)).thenThrow(new IOException("Boom!"));
+
+        BigDecimal exposure = tradingService.getMaximumExposure();
+
+        // the IOE should not propagate and blow everything up
+        assertEquals(new BigDecimal(0.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
+    }
+
+    private static class ExchangeBuilder {
+        private String name;
+        private Integer bids;
+        private Integer asks;
+        private List<Balance> balances = new ArrayList<>();
+
+        ExchangeBuilder(String name) {
+            this.name = name;
         }
 
-        if (Order.OrderType.BID.equals(type)) {
-            Collections.reverse(orders);
+        ExchangeBuilder withOrderBook(int bids, int asks) {
+            this.bids = bids;
+            this.asks = asks;
+            return this;
         }
 
-        return orders;
+        ExchangeBuilder withBalance(Currency currency, BigDecimal amount) {
+            Balance balance = new Balance.Builder()
+                    .currency(currency)
+                    .available(amount)
+                    .build();
+
+            balances.add(balance);
+
+            return this;
+        }
+
+        Exchange build() throws IOException {
+            Exchange exchange = mock(Exchange.class);
+            ExchangeSpecification specification = mock(ExchangeSpecification.class);
+            ExchangeConfiguration metadata = new ExchangeConfiguration();
+
+            metadata.setHomeCurrency(Currency.USD);
+
+            when(exchange.getExchangeSpecification()).thenReturn(specification);
+            when(specification.getExchangeName()).thenReturn(name);
+            when(specification.getExchangeSpecificParametersItem(METADATA_KEY)).thenReturn(metadata);
+
+            if (bids != null || asks != null) {
+                MarketDataService marketDataService = mock(MarketDataService.class);
+                OrderBook orderBook = new OrderBook(
+                        new Date(),
+                        generateOrders(Order.OrderType.ASK),
+                        generateOrders(Order.OrderType.BID)
+                );
+
+                when(marketDataService.getOrderBook(eq(currencyPair))).thenReturn(orderBook);
+                when(exchange.getMarketDataService()).thenReturn(marketDataService);
+            }
+
+            if (!balances.isEmpty()) {
+                Wallet wallet = new Wallet(balances);
+                AccountInfo accountInfo = new AccountInfo(wallet);
+                AccountService accountService = mock(AccountService.class);
+
+                when(accountService.getAccountInfo()).thenReturn(accountInfo);
+                when(exchange.getAccountService()).thenReturn(accountService);
+            }
+
+            return exchange;
+        }
+
+        private static List<LimitOrder> generateOrders(Order.OrderType type) {
+            List<LimitOrder> orders = new ArrayList<>();
+
+            for (int i = 0; i < 100; i++) {
+                orders.add(new LimitOrder(
+                        type,
+                        BigDecimal.TEN,
+                        currencyPair,
+                        UUID.randomUUID().toString(),
+                        new Date(),
+                        new BigDecimal(100.0000)
+                                .add(new BigDecimal(i * 0.001))
+                                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN)));
+            }
+
+            if (Order.OrderType.BID.equals(type)) {
+                Collections.reverse(orders);
+            }
+
+            return orders;
+        }
     }
 }
