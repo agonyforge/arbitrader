@@ -2,6 +2,7 @@ package com.r307.arbitrader;
 
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
+import org.apache.commons.collections4.CollectionUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
@@ -30,12 +31,7 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -45,7 +41,6 @@ public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
 
     private TradingConfiguration tradingConfiguration;
-    private List<CurrencyPair> currencyPairs;
     private List<Exchange> exchanges = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
@@ -64,10 +59,6 @@ public class TradingService {
 
     public TradingService(TradingConfiguration tradingConfiguration) {
         this.tradingConfiguration = tradingConfiguration;
-
-        currencyPairs = tradingConfiguration.getTradingPairs();
-
-        LOGGER.info("Currency pairs: {}", currencyPairs);
     }
 
     @PostConstruct
@@ -120,7 +111,7 @@ public class TradingService {
             }
 
             try {
-                CurrencyPairsParam param = () -> currencyPairs;
+                CurrencyPairsParam param = () -> getExchangeMetadata(exchange).getTradingPairs();
                 exchange.getMarketDataService().getTickers(param);
             } catch (NotYetImplementedForExchangeException e) {
                 LOGGER.warn("{} does not implement MarketDataService.getTickers() and will fetch tickers " +
@@ -141,26 +132,33 @@ public class TradingService {
         LOGGER.info("Trading the following exchanges and pairs:");
 
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, currencyPairs)
+        exchanges.forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
-        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> currencyPairs.forEach(currencyPair -> {
-            if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                return;
-            }
+        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+            // get the pairs common to both exchanges
+            Collection<CurrencyPair> currencyPairs = CollectionUtils.intersection(
+                    getExchangeMetadata(longExchange).getTradingPairs(),
+                    getExchangeMetadata(shortExchange).getTradingPairs());
 
-            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+            currencyPairs.forEach(currencyPair -> {
+                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
+                    return;
+                }
 
-            if (longTicker == null || shortTicker == null) {
-                return;
-            }
+                Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+                Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
-            LOGGER.info("{}/{} {}",
-                    longExchange.getExchangeSpecification().getExchangeName(),
-                    shortExchange.getExchangeSpecification().getExchangeName(),
-                    currencyPair);
-        })));
+                if (longTicker == null || shortTicker == null) {
+                    return;
+                }
+
+                LOGGER.info("{}/{} {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getExchangeSpecification().getExchangeName(),
+                        currencyPair);
+            });
+        }));
 
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
@@ -169,19 +167,25 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
-        LOGGER.debug("Fetching all tickers...");
+        // fetch all the configured tickers for each exchange
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, currencyPairs)
+        exchanges.forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
         Collections.shuffle(exchanges);
-        Collections.shuffle(currencyPairs);
 
-        currencyPairs.forEach(currencyPair -> {
-            LOGGER.debug("Computing trade opportunities...");
-            exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+        LOGGER.debug("Computing trade opportunities...");
+        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+            // get the pairs common to both exchanges
+            List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
+                    getExchangeMetadata(longExchange).getTradingPairs(),
+                    getExchangeMetadata(shortExchange).getTradingPairs()));
+
+            Collections.shuffle(currencyPairs);
+
+            currencyPairs.forEach(currencyPair -> {
                 if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
                     return;
                 }
@@ -221,7 +225,7 @@ public class TradingService {
                             .subtract(tradingConfiguration.getExitTarget())
                             .subtract(fees);
 
-                    BigDecimal maxExposure = getMaximumExposure(currencyPair);
+                    BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
                     if (maxExposure != null) {
                         BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
@@ -367,8 +371,8 @@ public class TradingService {
                 maxSpread.put(spreadKey, spreadIn.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
                 minSpread.put(spreadKey, spreadOut.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
                 maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-            }));
-        });
+            });
+        }));
     }
 
     private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
@@ -586,38 +590,31 @@ public class TradingService {
         throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
     }
 
-    private BigDecimal getMaximumExposure(CurrencyPair rawCurrencyPair) {
+    BigDecimal getMaximumExposure(Exchange ... exchanges) {
         if (tradingConfiguration.getFixedExposure() != null) {
             return tradingConfiguration.getFixedExposure();
         } else {
-            BigDecimal smallestBalance = null;
+            BigDecimal smallestBalance = Arrays.stream(exchanges)
+                    .map(exchange -> {
+                        try {
+                            return getAccountBalance(exchange);
+                        } catch (IOException e) {
+                            LOGGER.trace("IOException fetching {} account balance",
+                                    exchange.getExchangeSpecification().getExchangeName());
+                        }
 
-            for (Exchange exchange : exchanges) {
-                CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
+                        return BigDecimal.ZERO;
+                    })
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
 
-                try {
-                    BigDecimal balance = getAccountBalance(exchange);
-
-                    if (smallestBalance == null) {
-                        smallestBalance = balance;
-                    } else {
-                        smallestBalance = smallestBalance.min(balance);
-                    }
-                } catch (IOException e) {
-                    LOGGER.error("Unable to fetch account balance: {} {}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            currencyPair.counter.getDisplayName(),
-                            e);
-                }
-            }
-
-            return smallestBalance == null ? null : smallestBalance
+            return smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
         }
     }
 
-    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+    BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {

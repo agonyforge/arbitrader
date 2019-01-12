@@ -1,5 +1,7 @@
 # Arbitrader
-A market neutral cryptocurrency trading bot.
+![AWS CodeBuild](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiUnhycTV0MEFLb293K1Y0QlBjOUxESnBaWXM3V3BLMGhEU2Zjcm0yWHpnRGhFdmxYWm45M2dqVU1ZUjRSdldhR0NsUEYyWk0xVWJZUVZBUXhGZmJUZjhrPSIsIml2UGFyYW1ldGVyU3BlYyI6InNER0tuUnhKQ0pUMVhTUVAiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)  
+
+**A market neutral cryptocurrency trading bot.**
 
 ## What is it?
 Arbitrader is a program that finds trading opportunities between two different cryptocurrency exchanges and performs automatic low-risk trades.
@@ -110,23 +112,36 @@ Arbitrader uses the [XChange](https://github.com/knowm/XChange) library to acces
 
 If the bot doesn't work with the exchange(s) you want, you may need to implement the missing functionality in the XChange project and submit a pull request there.
 
-### Compiling and Running
+### How to Run the Bot
 
+The easiest way to run Arbitrader without any programming is through [Docker](https://www.docker.com/get-started). If you don't already have it, go ahead and install Docker on your machine. This project includes a Docker Compose file, so you can get up and running in just a few steps:
+
+1. Install Docker if necessary.
+1. Clone the project from GitHub.
+1. Create your `application.yaml` based on `application.example.yaml`.
+1. Run `docker-compose up` to start the bot.
+
+If everything works properly you'll see Docker download the container and some log messages as it reads your configuration file and connects to the exchanges. Once you see the "Started Arbitrader..." message you won't see any further messages until it finds a trading opportunity.
+
+### Developing
+#### Compiling
 Arbitrader is a Java project and uses the Gradle wrapper. You just need to have a Java 8 JDK on your machine. Clone the project and run the following to compile it:
 
 ```
 ./gradlew clean build
 ```
 
-If it compiles successfully there will be a JAR file in `build/libs` that you can run:
+#### Running
+If it compiles successfully it will build an executable JAR file in `build/libs` as well as a Docker container named `scionaltera/arbitrader:latest`. There is a `docker-compose.yaml` in the project's main directory, so the easiest way to start it up is:
 
 ```
-java -jar build/libs/arbitrader-x.y.z-SNAPSHOT.jar
+docker-compose up
 ```
 
-When the bot starts up you will see a banner and some log messages while it reads the configuration and connects to the exchanges. Once the initialization is done it will probably do nothing for awhile, while it searches for trade opportunities. Unless you turn on debug mode by giving it a `-debug` on the command line, the only log output after initialization will be when it trades, or when there are problems connecting to the exchanges.
+When the bot starts up you will see a banner and some log messages while it reads the configuration from `application.yaml` and connects to the exchanges. Once the initialization is done it will probably do nothing for awhile, while it searches for trade opportunities.
 
-It seemed best to keep it quiet so that you can have it notify a Slack channel and (for instance) buzz your phone when something important happens, but it's not going to bother you constantly with useless notifications.
+#### Debugging
+You can connect a remote debugger to the running Docker container from your IDE (I use IntelliJ IDEA) by connecting it to `localhost:5005`. That will let you set breakpoints and step through the code as it runs. 
 
 ### Finding Help and Contributing
 
