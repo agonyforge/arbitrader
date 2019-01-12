@@ -15,6 +15,7 @@ public class ExchangeConfiguration {
     private String apiKey;
     private String secretKey;
     private Map<String, String> custom = new HashMap<>();
+    private List<CurrencyPair> tradingPairs = new ArrayList<>();
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal fee;
@@ -58,6 +59,14 @@ public class ExchangeConfiguration {
 
     public void setCustom(Map<String, String> custom) {
         this.custom = custom;
+    }
+
+    public List<CurrencyPair> getTradingPairs() {
+        return tradingPairs;
+    }
+
+    public void setTradingPairs(List<CurrencyPair> tradingPairs) {
+        this.tradingPairs = tradingPairs;
     }
 
     public Boolean getMargin() {
