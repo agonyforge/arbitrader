@@ -248,6 +248,9 @@ public class TradingService {
                             LOGGER.debug("Not enough liquidity to execute both trades profitably");
                         } else {
                             LOGGER.info("***** ENTRY *****");
+
+                            logCurrentExchangeBalances(longExchange, shortExchange);
+
                             LOGGER.info("Exit spread target: {}", exitTarget);
                             LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
@@ -349,18 +352,7 @@ public class TradingService {
                             LOGGER.error("IOE executing limit orders: ", e);
                         }
 
-                        try {
-                            BigDecimal longBalance = getAccountBalance(longExchange);
-                            BigDecimal shortBalance = getAccountBalance(shortExchange);
-
-                            LOGGER.info("Updated account balances: {} ${} / {} ${}",
-                                    longExchange.getExchangeSpecification().getExchangeName(),
-                                    longBalance,
-                                    shortExchange.getExchangeSpecification().getExchangeName(),
-                                    shortBalance);
-                        } catch (IOException e) {
-                            LOGGER.error("IOE fetching account balances: ", e);
-                        }
+                        logCurrentExchangeBalances(longExchange, shortExchange);
 
                         inMarket = false;
                         activeCurrencyPair = null;
@@ -620,6 +612,22 @@ public class TradingService {
             return smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+        }
+    }
+
+    private void logCurrentExchangeBalances(Exchange longExchange, Exchange shortExchange) {
+        try {
+            BigDecimal longBalance = getAccountBalance(longExchange);
+            BigDecimal shortBalance = getAccountBalance(shortExchange);
+
+            LOGGER.info("Updated account balances: {} ${} / {} ${} = ${}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    longBalance,
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    shortBalance,
+                    longBalance.add(shortBalance));
+        } catch (IOException e) {
+            LOGGER.error("IOE fetching account balances: ", e);
         }
     }
 
