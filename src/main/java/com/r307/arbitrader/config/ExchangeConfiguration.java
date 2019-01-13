@@ -14,7 +14,11 @@ public class ExchangeConfiguration {
     private String userName;
     private String apiKey;
     private String secretKey;
+    private String sslUri;
+    private String host;
+    private Integer port;
     private Map<String, String> custom = new HashMap<>();
+    private List<CurrencyPair> tradingPairs = new ArrayList<>();
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal fee;
@@ -52,12 +56,44 @@ public class ExchangeConfiguration {
         this.secretKey = secretKey;
     }
 
+    public String getSslUri() {
+        return sslUri;
+    }
+
+    public void setSslUri(String sslUri) {
+        this.sslUri = sslUri;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    public Integer getPort() {
+        return port;
+    }
+
+    public void setPort(Integer port) {
+        this.port = port;
+    }
+
     public Map<String, String> getCustom() {
         return custom;
     }
 
     public void setCustom(Map<String, String> custom) {
         this.custom = custom;
+    }
+
+    public List<CurrencyPair> getTradingPairs() {
+        return tradingPairs;
+    }
+
+    public void setTradingPairs(List<CurrencyPair> tradingPairs) {
+        this.tradingPairs = tradingPairs;
     }
 
     public Boolean getMargin() {

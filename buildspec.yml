@@ -20,8 +20,15 @@ phases:
       - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
   post_build:
     commands:
-      - docker push scionaltera/arbitrader:latest
-      - docker push scionaltera/arbitrader:${PROJECT_VERSION}
+      - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
+      - |
+        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
+          docker push scionaltera/arbitrader:latest
+        fi
+      - |
+        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
+          docker push scionaltera/arbitrader:${PROJECT_VERSION}
+        fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:
   files: imagedefinitions.json
