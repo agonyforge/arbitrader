@@ -30,6 +30,7 @@ import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -62,6 +63,7 @@ public class TradingService {
     private BigDecimal activeLongEntry = null;
     private BigDecimal activeShortEntry = null;
     private BigDecimal activeExitTarget = null;
+    private String lastMissedWarning = null;
 
     public TradingService(TradingConfiguration tradingConfiguration) {
         this.tradingConfiguration = tradingConfiguration;
@@ -191,7 +193,6 @@ public class TradingService {
         // executing trades than ones at the end of the list.
         Collections.shuffle(exchanges);
 
-        LOGGER.debug("Computing trade opportunities...");
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             // get the pairs common to both exchanges
             List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
@@ -205,31 +206,29 @@ public class TradingService {
                     return;
                 }
 
-                LOGGER.debug("=> Long/Short: {}/{} {} <=",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair);
-
                 Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
                 // if we couldn't get a ticker for either exchange, bail out
                 if (longTicker == null || shortTicker == null) {
-                    LOGGER.debug("Ticker was null! long: {}, short: {}", longTicker, shortTicker);
+                    LOGGER.debug("Ticker was null! {}: {}, {}: {}",
+                            longExchange.getExchangeSpecification().getExchangeName(),
+                            longTicker,
+                            shortExchange.getExchangeSpecification().getExchangeName(),
+                            shortTicker);
                     return;
                 }
 
                 BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-                LOGGER.debug("{}/{} {} {} {}",
+                LOGGER.debug("=> Long/Short: {}/{} {} {} <=",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         currencyPair,
-                        spreadIn,
-                        spreadOut);
+                        spreadIn);
 
-                if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                     BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
                     BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
@@ -252,11 +251,29 @@ public class TradingService {
 
                         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
                             LOGGER.debug("Not enough liquidity to execute both trades profitably");
+                        } else if (inMarket) {
+                            String tradeCombination = tradeCombination(longExchange, shortExchange, currencyPair);
+
+                            if (!tradeCombination.equals(lastMissedWarning)
+                                    && !longExchange.equals(activeLongExchange)
+                                    && !shortExchange.equals(activeShortExchange)) {
+
+                                LOGGER.info("***** MISSED ENTRY *****");
+                                LOGGER.info("Detected an entry opportunity but there are already positions open.");
+                                LOGGER.info("{}/{} {} @ {}",
+                                        longExchange.getExchangeSpecification().getExchangeName(),
+                                        shortExchange.getExchangeSpecification().getExchangeName(),
+                                        currencyPair,
+                                        spreadIn);
+
+                                lastMissedWarning = tradeCombination;
+                            }
                         } else {
                             LOGGER.info("***** ENTRY *****");
 
                             logCurrentExchangeBalances(longExchange, shortExchange);
 
+                            LOGGER.info("Entry spread: {}", spreadIn);
                             LOGGER.info("Exit spread target: {}", exitTarget);
                             LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
@@ -295,6 +312,7 @@ public class TradingService {
                             activeShortVolume = shortVolume;
                             activeLongEntry = longLimitPrice;
                             activeShortEntry = shortLimitPrice;
+                            lastMissedWarning = null;
                         }
                     } else {
                         LOGGER.warn("Will not trade: exposure could not be computed");
@@ -456,7 +474,14 @@ public class TradingService {
         return currencyPair;
     }
 
-    private static boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+    private static String tradeCombination(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+        return String.format("%s:%s:%s",
+                longExchange.getExchangeSpecification().getExchangeName(),
+                shortExchange.getExchangeSpecification().getExchangeName(),
+                currencyPair);
+    }
+
+    private boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         // both exchanges are the same
         if (longExchange == shortExchange) {
             return true;
@@ -468,8 +493,13 @@ public class TradingService {
         }
 
         // the "short" exchange doesn't support margin on this currency pair
-        //noinspection RedundantIfStatement
         if (getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
+            return true;
+        }
+
+        // this specific combination of exchanges/currency has been blocked in the configuration
+        //noinspection RedundantIfStatement
+        if (tradingConfiguration.getTradeBlacklist().contains(tradeCombination(longExchange, shortExchange, currencyPair))) {
             return true;
         }
 
@@ -545,29 +575,49 @@ public class TradingService {
         MarketDataService marketDataService = exchange.getMarketDataService();
 
         try {
-            CurrencyPairsParam param = () -> currencyPairs.stream()
-                    .map(currencyPair -> convertExchangePair(exchange, currencyPair))
-                    .collect(Collectors.toList());
-            List<Ticker> tickers = marketDataService.getTickers(param);
+            try {
+                CurrencyPairsParam param = () -> currencyPairs.stream()
+                        .map(currencyPair -> convertExchangePair(exchange, currencyPair))
+                        .collect(Collectors.toList());
+                List<Ticker> tickers = marketDataService.getTickers(param);
 
-            tickers.forEach(ticker ->
-                    LOGGER.debug("{}: {} {}/{}",
-                            ticker.getCurrencyPair(),
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            ticker.getBid(), ticker.getAsk()));
+                tickers.forEach(ticker ->
+                        LOGGER.debug("{}: {} {}/{}",
+                                ticker.getCurrencyPair(),
+                                exchange.getExchangeSpecification().getExchangeName(),
+                                ticker.getBid(), ticker.getAsk()));
 
-            return tickers;
+                return tickers;
+            } catch (UndeclaredThrowableException ute) {
+                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
+                throw ute.getCause();
+            }
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
             return currencyPairs.stream()
                     .map(currencyPair -> {
                         try {
-                            return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
+                            try {
+                                return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
+                            } catch (UndeclaredThrowableException ute) {
+                                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
+                                throw ute.getCause();
+                            }
                         } catch (IOException | NullPointerException | ExchangeException ex) {
                             LOGGER.debug("Unable to fetch ticker for {} {}",
                                     exchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair);
+                        } catch (Throwable t) {
+                            // TODO remove this general catch when we stop seeing oddball exceptions
+
+                            LOGGER.warn("Uncaught Throwable class was: {}", t.getClass().getName());
+
+                            if (t instanceof RuntimeException) {
+                                throw (RuntimeException) t;
+                            } else {
+                                LOGGER.error("Not re-throwing checked Exception!");
+                            }
                         }
 
                         return null;
@@ -576,6 +626,19 @@ public class TradingService {
                     .collect(Collectors.toList());
         } catch (AwareException | ExchangeException | IOException e) {
             LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
+        } catch (Throwable t) {
+            // TODO remove this general catch when we stop seeing oddball exceptions
+            // I hate seeing general catches like this but the method proxying in rescu is throwing some weird ones
+            // to us that I'd like to capture and handle appropriately. It's impossible to tell what they actually are
+            // without laying a trap like this to catch, inspect and log them at runtime.
+
+            LOGGER.warn("Uncaught Throwable's actual class was: {}", t.getClass().getName());
+
+            if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+            } else {
+                LOGGER.error("Not re-throwing checked Exception!");
+            }
         }
 
         return Collections.emptyList();
