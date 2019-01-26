@@ -182,7 +182,7 @@ public class TradingServiceTest {
 
     @Test
     public void testGetMaximumExposureException() throws IOException {
-        when(tradingService.getAccountBalance(shortExchange, Currency.USD)).thenThrow(new IOException("Boom!"));
+        when(tradingService.getAccountBalance(shortExchange, Currency.USD, USD_SCALE)).thenThrow(new IOException("Boom!"));
 
         BigDecimal exposure = tradingService.getMaximumExposure();
 

@@ -242,8 +242,8 @@ public class TradingService {
                     BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
                     if (maxExposure != null) {
-                        BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
-                        BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), RoundingMode.HALF_EVEN);
+                        BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), BTC_SCALE, RoundingMode.HALF_EVEN);
+                        BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), BTC_SCALE, RoundingMode.HALF_EVEN);
                         BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
                         BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
 
@@ -323,7 +323,18 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    BigDecimal longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
+                    BigDecimal longVolume;
+
+                    try {
+                        longVolume = getAccountBalance(longExchange, currencyPair.base, BTC_SCALE);
+                    } catch (IOException e) {
+                        LOGGER.warn("Unable to get {} account balance for {}, falling back to order volume",
+                            currencyPair.base,
+                            longExchange.getExchangeSpecification().getExchangeName());
+
+                        longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
+                    }
+
                     BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
 
                     BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
@@ -706,9 +717,13 @@ public class TradingService {
                     .min(BigDecimal::compareTo)
                     .orElse(BigDecimal.ZERO);
 
-            return smallestBalance
+            BigDecimal exposure = smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+
+            LOGGER.debug("Maximum exposure: ${}", exposure);
+
+            return exposure;
         }
     }
 
@@ -717,7 +732,7 @@ public class TradingService {
             BigDecimal longBalance = getAccountBalance(longExchange);
             BigDecimal shortBalance = getAccountBalance(shortExchange);
 
-            LOGGER.info("Updated account balances: {} ${} / {} ${} = ${}",
+            LOGGER.info("Updated account balances: {} ${} + {} ${} = ${}",
                     longExchange.getExchangeSpecification().getExchangeName(),
                     longBalance,
                     shortExchange.getExchangeSpecification().getExchangeName(),
@@ -728,13 +743,13 @@ public class TradingService {
         }
     }
 
-    BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+    BigDecimal getAccountBalance(Exchange exchange, Currency currency, int scale) throws IOException {
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
             if (wallet.getBalances().containsKey(currency)) {
                 return wallet.getBalance(currency).getAvailable()
-                        .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+                        .setScale(scale, RoundingMode.HALF_EVEN);
             }
         }
 
@@ -743,6 +758,10 @@ public class TradingService {
                 exchange.getExchangeSpecification().getExchangeName());
 
         return BigDecimal.ZERO;
+    }
+
+    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+        return getAccountBalance(exchange, currency, USD_SCALE);
     }
 
     private BigDecimal getAccountBalance(Exchange exchange) throws IOException {
