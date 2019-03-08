@@ -1,4 +1,4 @@
-FROM frolvlad/alpine-oraclejdk8:slim as build
+FROM openjdk:8-jdk as build
 MAINTAINER Peter Keeler <peter@r307.com>
 WORKDIR /opt/build
 COPY . /opt/build/
@@ -8,7 +8,7 @@ RUN cd /opt/build \
 && apk add --no-cache bash \
 && ./gradlew --console=plain clean build -x buildDocker -x dependencyCheckAnalyze
 
-FROM frolvlad/alpine-oraclejre8:slim
+FROM openjre:8-jre
 MAINTAINER Peter Keeler <peter@r307.com>
 EXPOSE 8080
 COPY --from=build /opt/build/build/libs/arbitrader-*.jar /opt/app/app.jar
