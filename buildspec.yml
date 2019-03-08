@@ -29,8 +29,9 @@ phases:
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
         else
-          echo "Pushing tag: ${CODEBUILD_WEBHOOK_BASE_REF}"
-          docker push scionaltera/arbitrader:${CODEBUILD_WEBHOOK_BASE_REF}
+          export BRANCH_TAG=`echo $CODEBUILD_SOURCE_VERSION | sed 's|/|-|g'`
+          echo "Pushing tag: scionaltera/arbitrader:${BRANCH_TAG}"
+          docker push scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:
