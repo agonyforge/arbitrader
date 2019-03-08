@@ -182,6 +182,14 @@ public class TradingService {
         }
     }
 
+    /**
+     * Display a summary once a day to let the user know we're still alive.
+     */
+    @Scheduled(cron = "0 0 12 * * *")
+    public void summary() {
+        LOGGER.info("Daily summary: Currently {}in market.", inMarket ? "" : "not ");
+    }
+
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
         // fetch all the configured tickers for each exchange
@@ -720,8 +728,6 @@ public class TradingService {
             BigDecimal exposure = smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
-
-            LOGGER.debug("Maximum exposure: ${}", exposure);
 
             return exposure;
         }
