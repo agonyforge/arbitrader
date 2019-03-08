@@ -8,7 +8,7 @@ RUN cd /opt/build \
 && apk add --no-cache bash \
 && ./gradlew --console=plain clean build -x buildDocker -x dependencyCheckAnalyze
 
-FROM openjre:8-jre-alpine
+FROM openjdk:8-jre-alpine
 MAINTAINER Peter Keeler <peter@r307.com>
 EXPOSE 8080
 COPY --from=build /opt/build/build/libs/arbitrader-*.jar /opt/app/app.jar
