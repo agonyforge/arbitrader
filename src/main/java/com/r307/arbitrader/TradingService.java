@@ -452,6 +452,10 @@ public class TradingService {
         } catch (IOException e) {
             LOGGER.trace("IOE fetching dynamic trading fees for {}",
                     exchange.getExchangeSpecification().getExchangeName());
+        } catch (Exception e) {
+            LOGGER.warn("Programming error! {} calling getDynamicTradingFees() for exchange: {}",
+                    e.getClass().getName(),
+                    exchange.getExchangeSpecification().getExchangeName());
         }
 
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
