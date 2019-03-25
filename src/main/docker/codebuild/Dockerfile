@@ -4,7 +4,6 @@ WORKDIR /opt/build
 COPY . /opt/build/
 RUN cd /opt/build \
 && apk update \
-&& apk upgrade \
 && apk add --no-cache bash \
 && ./gradlew --console=plain clean build -x buildDocker -x dependencyCheckAnalyze
 
