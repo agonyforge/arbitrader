@@ -192,10 +192,23 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
+        long tickerFetchStartTime = System.currentTimeMillis();
+
         // fetch all the configured tickers for each exchange
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
+
+        exchanges
+            .parallelStream()
+            .forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+
+        long tickerFetchDuration = System.currentTimeMillis() - tickerFetchStartTime;
+
+        if (tickerFetchDuration > 6000) {
+            LOGGER.warn("Fetching tickers took {} ms", tickerFetchDuration);
+        }
+
+        long exchangePollStartTime = System.currentTimeMillis();
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
@@ -420,6 +433,12 @@ public class TradingService {
                 maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
             });
         }));
+
+        long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
+
+        if (exchangePollDuration > 6000) {
+            LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
+        }
     }
 
     private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
