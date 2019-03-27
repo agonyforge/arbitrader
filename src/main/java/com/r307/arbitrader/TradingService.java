@@ -436,9 +436,8 @@ public class TradingService {
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
 
-        if (tickerFetchDuration + exchangePollDuration > 3000) {
+        if (exchangePollDuration > 3000) {
             LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
-            LOGGER.warn("Total duration was {} ms", tickerFetchDuration + exchangePollDuration);
         }
     }
 
