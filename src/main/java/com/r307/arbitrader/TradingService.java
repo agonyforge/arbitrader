@@ -204,7 +204,7 @@ public class TradingService {
 
         long tickerFetchDuration = System.currentTimeMillis() - tickerFetchStartTime;
 
-        if (tickerFetchDuration > 6000) {
+        if (tickerFetchDuration > 3000) {
             LOGGER.warn("Fetching tickers took {} ms", tickerFetchDuration);
         }
 
@@ -436,8 +436,9 @@ public class TradingService {
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
 
-        if (exchangePollDuration > 6000) {
+        if (tickerFetchDuration + exchangePollDuration > 3000) {
             LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
+            LOGGER.warn("Total duration was {} ms", tickerFetchDuration + exchangePollDuration);
         }
     }
 
@@ -637,7 +638,7 @@ public class TradingService {
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
-            return currencyPairs.stream()
+            return currencyPairs.parallelStream()
                     .map(currencyPair -> {
                         try {
                             try {
