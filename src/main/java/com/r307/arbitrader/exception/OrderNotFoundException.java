@@ -1,4 +1,4 @@
-package com.r307.arbitrader;
+package com.r307.arbitrader.exception;
 
 public class OrderNotFoundException extends RuntimeException {
     private String orderId;

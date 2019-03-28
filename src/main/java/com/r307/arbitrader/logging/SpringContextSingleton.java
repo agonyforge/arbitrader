@@ -1,4 +1,4 @@
-package com.r307.arbitrader;
+package com.r307.arbitrader.logging;
 
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
