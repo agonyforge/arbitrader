@@ -1,4 +1,4 @@
-package com.r307.arbitrader;
+package com.r307.arbitrader.logging;
 
 import ch.qos.logback.core.AppenderBase;
 import com.github.seratch.jslack.Slack;

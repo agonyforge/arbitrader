@@ -1,5 +1,7 @@
-package com.r307.arbitrader;
+package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import org.apache.commons.collections4.CollectionUtils;
@@ -183,17 +185,64 @@ public class TradingService {
     }
 
     /**
-     * Display a summary once a day to let the user know we're still alive.
+     * Display a summary once every 6 hours with the current spreads.
      */
-    @Scheduled(cron = "0 0 12 * * *")
+    @Scheduled(cron = "0 0 0/6 * * *")
     public void summary() {
-        LOGGER.info("Daily summary: Currently {}in market.", inMarket ? "" : "not ");
+        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (inMarket ? "Exit" : "Entry"));
+
+        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+            // get the pairs common to both exchanges
+            List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
+                getExchangeMetadata(longExchange).getTradingPairs(),
+                getExchangeMetadata(shortExchange).getTradingPairs()));
+
+            currencyPairs.forEach(currencyPair -> {
+                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
+                    return;
+                }
+
+                Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+                Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+
+                // if we couldn't get a ticker for either exchange, bail out
+                if (longTicker == null || shortTicker == null) {
+                    LOGGER.debug("Ticker was null! {}: {}, {}: {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        longTicker,
+                        shortExchange.getExchangeSpecification().getExchangeName(),
+                        shortTicker);
+                    return;
+                }
+
+                BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
+                BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
+
+                if (!inMarket && BigDecimal.ZERO.compareTo(spreadIn) < 0) {
+                    LOGGER.info("{}/{} {} {} -> {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getExchangeSpecification().getExchangeName(),
+                        currencyPair,
+                        spreadIn,
+                        tradingConfiguration.getEntrySpread());
+                } else if (inMarket
+                    && activeCurrencyPair.equals(currencyPair)
+                    && activeLongExchange.equals(longExchange)
+                    && activeShortExchange.equals(shortExchange)) {
+
+                    LOGGER.info("{}/{} {} {} -> {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getExchangeSpecification().getExchangeName(),
+                        currencyPair,
+                        spreadOut,
+                        activeExitTarget);
+                }
+            });
+        }));
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
-        long tickerFetchStartTime = System.currentTimeMillis();
-
         // fetch all the configured tickers for each exchange
         allTickers.clear();
 
@@ -201,12 +250,6 @@ public class TradingService {
             .parallelStream()
             .forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
-
-        long tickerFetchDuration = System.currentTimeMillis() - tickerFetchStartTime;
-
-        if (tickerFetchDuration > 3000) {
-            LOGGER.warn("Fetching tickers took {} ms", tickerFetchDuration);
-        }
 
         long exchangePollStartTime = System.currentTimeMillis();
 
@@ -243,7 +286,7 @@ public class TradingService {
                 BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-                LOGGER.debug("=> Long/Short: {}/{} {} {} <=",
+                LOGGER.debug("Long/Short: {}/{} {} {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         currencyPair,
@@ -472,7 +515,7 @@ public class TradingService {
             LOGGER.trace("IOE fetching dynamic trading fees for {}",
                     exchange.getExchangeSpecification().getExchangeName());
         } catch (Exception e) {
-            LOGGER.warn("Programming error! {} calling getDynamicTradingFees() for exchange: {}",
+            LOGGER.warn("Programming error in XChange! {} when calling getDynamicTradingFees() for exchange: {}",
                     e.getClass().getName(),
                     exchange.getExchangeSpecification().getExchangeName());
         }
@@ -616,6 +659,8 @@ public class TradingService {
     private List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         MarketDataService marketDataService = exchange.getMarketDataService();
 
+        long start = System.currentTimeMillis();
+
         try {
             try {
                 CurrencyPairsParam param = () -> currencyPairs.stream()
@@ -629,6 +674,15 @@ public class TradingService {
                                 exchange.getExchangeSpecification().getExchangeName(),
                                 ticker.getBid(), ticker.getAsk()));
 
+                long completion = System.currentTimeMillis() - start;
+
+                if (completion > 3000) {
+                    LOGGER.warn("Slow Tickers! Fetched {} tickers via getTickers() for {} in {} ms",
+                        tickers.size(),
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        System.currentTimeMillis() - start);
+                }
+
                 return tickers;
             } catch (UndeclaredThrowableException ute) {
                 // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
@@ -637,7 +691,7 @@ public class TradingService {
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
-            return currencyPairs.parallelStream()
+            List<Ticker> tickers = currencyPairs.parallelStream()
                     .map(currencyPair -> {
                         try {
                             try {
@@ -666,6 +720,17 @@ public class TradingService {
                     })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
+
+            long completion = System.currentTimeMillis() - start;
+
+            if (completion > 3000) {
+                LOGGER.warn("Slow Tickers! Fetched {} tickers via parallelStream for {} getTicker(): {} ms",
+                    tickers.size(),
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    System.currentTimeMillis() - start);
+            }
+
+            return tickers;
         } catch (AwareException | ExchangeException | IOException e) {
             LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
         } catch (Throwable t) {
@@ -681,6 +746,14 @@ public class TradingService {
             } else {
                 LOGGER.error("Not re-throwing checked Exception!");
             }
+        }
+
+        long completion = System.currentTimeMillis() - start;
+
+        if (completion > 3000) {
+            LOGGER.warn("Slow Tickers! Fetched empty ticker list for {} in {} ms",
+                exchange.getExchangeSpecification().getExchangeName(),
+                System.currentTimeMillis() - start);
         }
 
         return Collections.emptyList();

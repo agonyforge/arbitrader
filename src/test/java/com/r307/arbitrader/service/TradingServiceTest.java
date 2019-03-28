@@ -1,5 +1,6 @@
-package com.r307.arbitrader;
+package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import org.junit.Before;
@@ -31,7 +32,7 @@ import java.util.UUID;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
-import static com.r307.arbitrader.TradingService.METADATA_KEY;
+import static com.r307.arbitrader.service.TradingService.METADATA_KEY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
