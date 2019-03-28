@@ -17,6 +17,7 @@ import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
@@ -29,10 +30,14 @@ import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @Component
 public class TradingService {
@@ -51,11 +56,14 @@ public class TradingService {
     private CurrencyPair activeCurrencyPair = null;
     private Exchange activeLongExchange = null;
     private Exchange activeShortExchange = null;
+    private String activeLongOrderId = null;
+    private String activeShortOrderId = null;
     private BigDecimal activeLongVolume = null;
     private BigDecimal activeShortVolume = null;
     private BigDecimal activeLongEntry = null;
     private BigDecimal activeShortEntry = null;
     private BigDecimal activeExitTarget = null;
+    private String lastMissedWarning = null;
 
     public TradingService(TradingConfiguration tradingConfiguration) {
         this.tradingConfiguration = tradingConfiguration;
@@ -174,18 +182,38 @@ public class TradingService {
         }
     }
 
+    /**
+     * Display a summary once a day to let the user know we're still alive.
+     */
+    @Scheduled(cron = "0 0 12 * * *")
+    public void summary() {
+        LOGGER.info("Daily summary: Currently {}in market.", inMarket ? "" : "not ");
+    }
+
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
+        long tickerFetchStartTime = System.currentTimeMillis();
+
         // fetch all the configured tickers for each exchange
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
+
+        exchanges
+            .parallelStream()
+            .forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+
+        long tickerFetchDuration = System.currentTimeMillis() - tickerFetchStartTime;
+
+        if (tickerFetchDuration > 3000) {
+            LOGGER.warn("Fetching tickers took {} ms", tickerFetchDuration);
+        }
+
+        long exchangePollStartTime = System.currentTimeMillis();
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
         Collections.shuffle(exchanges);
 
-        LOGGER.debug("Computing trade opportunities...");
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             // get the pairs common to both exchanges
             List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
@@ -199,31 +227,29 @@ public class TradingService {
                     return;
                 }
 
-                LOGGER.debug("=> Long/Short: {}/{} {} <=",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair);
-
                 Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
                 // if we couldn't get a ticker for either exchange, bail out
                 if (longTicker == null || shortTicker == null) {
-                    LOGGER.debug("Ticker was null! long: {}, short: {}", longTicker, shortTicker);
+                    LOGGER.debug("Ticker was null! {}: {}, {}: {}",
+                            longExchange.getExchangeSpecification().getExchangeName(),
+                            longTicker,
+                            shortExchange.getExchangeSpecification().getExchangeName(),
+                            shortTicker);
                     return;
                 }
 
                 BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-                LOGGER.debug("{}/{} {} {} {}",
+                LOGGER.debug("=> Long/Short: {}/{} {} {} <=",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         currencyPair,
-                        spreadIn,
-                        spreadOut);
+                        spreadIn);
 
-                if (!inMarket && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                     BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
                     BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
@@ -237,8 +263,8 @@ public class TradingService {
                     BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
                     if (maxExposure != null) {
-                        BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), RoundingMode.HALF_EVEN);
-                        BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), RoundingMode.HALF_EVEN);
+                        BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), BTC_SCALE, RoundingMode.HALF_EVEN);
+                        BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), BTC_SCALE, RoundingMode.HALF_EVEN);
                         BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
                         BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
 
@@ -246,11 +272,29 @@ public class TradingService {
 
                         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
                             LOGGER.debug("Not enough liquidity to execute both trades profitably");
+                        } else if (inMarket) {
+                            String tradeCombination = tradeCombination(longExchange, shortExchange, currencyPair);
+
+                            if (!tradeCombination.equals(lastMissedWarning)
+                                    && !longExchange.equals(activeLongExchange)
+                                    && !shortExchange.equals(activeShortExchange)) {
+
+                                LOGGER.info("***** MISSED ENTRY *****");
+                                LOGGER.info("Detected an entry opportunity but there are already positions open.");
+                                LOGGER.info("{}/{} {} @ {}",
+                                        longExchange.getExchangeSpecification().getExchangeName(),
+                                        shortExchange.getExchangeSpecification().getExchangeName(),
+                                        currencyPair,
+                                        spreadIn);
+
+                                lastMissedWarning = tradeCombination;
+                            }
                         } else {
                             LOGGER.info("***** ENTRY *****");
 
                             logCurrentExchangeBalances(longExchange, shortExchange);
 
+                            LOGGER.info("Entry spread: {}", spreadIn);
                             LOGGER.info("Exit spread target: {}", exitTarget);
                             LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
@@ -289,6 +333,7 @@ public class TradingService {
                             activeShortVolume = shortVolume;
                             activeLongEntry = longLimitPrice;
                             activeShortEntry = shortLimitPrice;
+                            lastMissedWarning = null;
                         }
                     } else {
                         LOGGER.warn("Will not trade: exposure could not be computed");
@@ -299,8 +344,22 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, activeLongVolume, Order.OrderType.BID);
-                    BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, activeShortVolume, Order.OrderType.ASK);
+                    BigDecimal longVolume;
+
+                    try {
+                        longVolume = getAccountBalance(longExchange, currencyPair.base, BTC_SCALE);
+                    } catch (IOException e) {
+                        LOGGER.warn("Unable to get {} account balance for {}, falling back to order volume",
+                            currencyPair.base,
+                            longExchange.getExchangeSpecification().getExchangeName());
+
+                        longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
+                    }
+
+                    BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
+
+                    BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
+                    BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
 
                     BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
@@ -313,26 +372,26 @@ public class TradingService {
                             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                     longExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    activeLongVolume,
+                                    longVolume,
                                     longLimitPrice,
                                     longLimitPrice.subtract(longTicker.getBid()),
                                     Currency.USD.getSymbol(),
-                                    activeLongVolume.multiply(longTicker.getBid()));
+                                    longVolume.multiply(longTicker.getBid()));
                             LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                     shortExchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair,
-                                    activeShortVolume,
+                                    shortVolume,
                                     shortLimitPrice,
                                     shortTicker.getAsk().subtract(shortLimitPrice),
                                     Currency.USD.getSymbol(),
-                                    activeShortVolume.multiply(shortTicker.getAsk()));
+                                    shortVolume.multiply(shortTicker.getAsk()));
 
-                            BigDecimal longProfit = activeLongVolume.multiply(longLimitPrice)
-                                    .subtract(activeLongVolume.multiply(activeLongEntry))
-                                    .setScale(2, RoundingMode.HALF_EVEN);
-                            BigDecimal shortProfit = activeShortVolume.multiply(activeShortEntry)
-                                    .subtract(activeShortVolume.multiply(shortLimitPrice))
-                                    .setScale(2, RoundingMode.HALF_EVEN);
+                            BigDecimal longProfit = longVolume.multiply(longLimitPrice)
+                                    .subtract(longVolume.multiply(activeLongEntry))
+                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                            BigDecimal shortProfit = shortVolume.multiply(activeShortEntry)
+                                    .subtract(shortVolume.multiply(shortLimitPrice))
+                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
                             LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
                                     Currency.USD.getSymbol(),
@@ -346,7 +405,7 @@ public class TradingService {
                                     longExchange, shortExchange,
                                     currencyPair,
                                     longLimitPrice, shortLimitPrice,
-                                    activeLongVolume, activeShortVolume,
+                                    longVolume, shortVolume,
                                     false);
                         } catch (IOException e) {
                             LOGGER.error("IOE executing limit orders: ", e);
@@ -374,6 +433,12 @@ public class TradingService {
                 maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
             });
         }));
+
+        long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
+
+        if (exchangePollDuration > 3000) {
+            LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
+        }
     }
 
     private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
@@ -405,6 +470,10 @@ public class TradingService {
                     exchange.getExchangeSpecification().getExchangeName());
         } catch (IOException e) {
             LOGGER.trace("IOE fetching dynamic trading fees for {}",
+                    exchange.getExchangeSpecification().getExchangeName());
+        } catch (Exception e) {
+            LOGGER.warn("Programming error! {} calling getDynamicTradingFees() for exchange: {}",
+                    e.getClass().getName(),
                     exchange.getExchangeSpecification().getExchangeName());
         }
 
@@ -447,7 +516,14 @@ public class TradingService {
         return currencyPair;
     }
 
-    private static boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+    private static String tradeCombination(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
+        return String.format("%s:%s:%s",
+                longExchange.getExchangeSpecification().getExchangeName(),
+                shortExchange.getExchangeSpecification().getExchangeName(),
+                currencyPair);
+    }
+
+    private boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         // both exchanges are the same
         if (longExchange == shortExchange) {
             return true;
@@ -459,8 +535,13 @@ public class TradingService {
         }
 
         // the "short" exchange doesn't support margin on this currency pair
-        //noinspection RedundantIfStatement
         if (getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
+            return true;
+        }
+
+        // this specific combination of exchanges/currency has been blocked in the configuration
+        //noinspection RedundantIfStatement
+        if (tradingConfiguration.getTradeBlacklist().contains(tradeCombination(longExchange, shortExchange, currencyPair))) {
             return true;
         }
 
@@ -490,15 +571,24 @@ public class TradingService {
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortLimitOrder);
 
-        String longResult = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
-        String shortResult = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+        String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
+        String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-        LOGGER.info("{} order ID: {}",
+        // TODO not happy with this coupling, need to refactor this
+        if (isPositionOpen) {
+            activeLongOrderId = longOrderId;
+            activeShortOrderId = shortOrderId;
+        } else {
+            activeLongOrderId = null;
+            activeShortOrderId = null;
+        }
+
+        LOGGER.info("{} limit order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
-                longResult);
-        LOGGER.info("{} order ID: {}",
+                longOrderId);
+        LOGGER.info("{} limit order ID: {}",
                 shortExchange.getExchangeSpecification().getExchangeName(),
-                shortResult);
+                shortOrderId);
 
         OpenOrders longOpenOrders = longExchange.getTradeService().getOpenOrders();
         OpenOrders shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
@@ -527,29 +617,49 @@ public class TradingService {
         MarketDataService marketDataService = exchange.getMarketDataService();
 
         try {
-            CurrencyPairsParam param = () -> currencyPairs.stream()
-                    .map(currencyPair -> convertExchangePair(exchange, currencyPair))
-                    .collect(Collectors.toList());
-            List<Ticker> tickers = marketDataService.getTickers(param);
+            try {
+                CurrencyPairsParam param = () -> currencyPairs.stream()
+                        .map(currencyPair -> convertExchangePair(exchange, currencyPair))
+                        .collect(Collectors.toList());
+                List<Ticker> tickers = marketDataService.getTickers(param);
 
-            tickers.forEach(ticker ->
-                    LOGGER.debug("{}: {} {}/{}",
-                            ticker.getCurrencyPair(),
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            ticker.getBid(), ticker.getAsk()));
+                tickers.forEach(ticker ->
+                        LOGGER.debug("{}: {} {}/{}",
+                                ticker.getCurrencyPair(),
+                                exchange.getExchangeSpecification().getExchangeName(),
+                                ticker.getBid(), ticker.getAsk()));
 
-            return tickers;
+                return tickers;
+            } catch (UndeclaredThrowableException ute) {
+                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
+                throw ute.getCause();
+            }
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
 
-            return currencyPairs.stream()
+            return currencyPairs.parallelStream()
                     .map(currencyPair -> {
                         try {
-                            return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
+                            try {
+                                return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
+                            } catch (UndeclaredThrowableException ute) {
+                                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
+                                throw ute.getCause();
+                            }
                         } catch (IOException | NullPointerException | ExchangeException ex) {
                             LOGGER.debug("Unable to fetch ticker for {} {}",
                                     exchange.getExchangeSpecification().getExchangeName(),
                                     currencyPair);
+                        } catch (Throwable t) {
+                            // TODO remove this general catch when we stop seeing oddball exceptions
+
+                            LOGGER.warn("Uncaught Throwable class was: {}", t.getClass().getName());
+
+                            if (t instanceof RuntimeException) {
+                                throw (RuntimeException) t;
+                            } else {
+                                LOGGER.error("Not re-throwing checked Exception!");
+                            }
                         }
 
                         return null;
@@ -558,9 +668,38 @@ public class TradingService {
                     .collect(Collectors.toList());
         } catch (AwareException | ExchangeException | IOException e) {
             LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
+        } catch (Throwable t) {
+            // TODO remove this general catch when we stop seeing oddball exceptions
+            // I hate seeing general catches like this but the method proxying in rescu is throwing some weird ones
+            // to us that I'd like to capture and handle appropriately. It's impossible to tell what they actually are
+            // without laying a trap like this to catch, inspect and log them at runtime.
+
+            LOGGER.warn("Uncaught Throwable's actual class was: {}", t.getClass().getName());
+
+            if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+            } else {
+                LOGGER.error("Not re-throwing checked Exception!");
+            }
         }
 
         return Collections.emptyList();
+    }
+
+    BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
+        try {
+            return exchange.getTradeService().getOrder(orderId)
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new OrderNotFoundException(orderId))
+                    .getRemainingAmount();
+        } catch (NotAvailableFromExchangeException e) {
+            LOGGER.debug("Exchange does not support fetching orders by ID");
+        } catch (IOException e) {
+            LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+        }
+
+        return defaultVolume;
     }
 
     BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
@@ -577,7 +716,7 @@ public class TradingService {
                 volume = volume.add(order.getRemainingAmount());
 
                 LOGGER.debug("Order: {} @ {}",
-                        order.getRemainingAmount().setScale(6, RoundingMode.HALF_EVEN),
+                        order.getRemainingAmount().setScale(BTC_SCALE, RoundingMode.HALF_EVEN),
                         order.getLimitPrice());
 
                 if (volume.compareTo(allowedVolume) > 0) {
@@ -609,9 +748,11 @@ public class TradingService {
                     .min(BigDecimal::compareTo)
                     .orElse(BigDecimal.ZERO);
 
-            return smallestBalance
+            BigDecimal exposure = smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+
+            return exposure;
         }
     }
 
@@ -620,7 +761,7 @@ public class TradingService {
             BigDecimal longBalance = getAccountBalance(longExchange);
             BigDecimal shortBalance = getAccountBalance(shortExchange);
 
-            LOGGER.info("Updated account balances: {} ${} / {} ${} = ${}",
+            LOGGER.info("Updated account balances: {} ${} + {} ${} = ${}",
                     longExchange.getExchangeSpecification().getExchangeName(),
                     longBalance,
                     shortExchange.getExchangeSpecification().getExchangeName(),
@@ -631,13 +772,13 @@ public class TradingService {
         }
     }
 
-    BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+    BigDecimal getAccountBalance(Exchange exchange, Currency currency, int scale) throws IOException {
         AccountService accountService = exchange.getAccountService();
 
         for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
             if (wallet.getBalances().containsKey(currency)) {
                 return wallet.getBalance(currency).getAvailable()
-                        .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+                        .setScale(scale, RoundingMode.HALF_EVEN);
             }
         }
 
@@ -646,6 +787,10 @@ public class TradingService {
                 exchange.getExchangeSpecification().getExchangeName());
 
         return BigDecimal.ZERO;
+    }
+
+    private BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+        return getAccountBalance(exchange, currency, USD_SCALE);
     }
 
     private BigDecimal getAccountBalance(Exchange exchange) throws IOException {

@@ -17,6 +17,7 @@ public class TradingConfiguration {
     private BigDecimal exitTarget;
     private BigDecimal fixedExposure;
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
+    private List<String> tradeBlacklist = new ArrayList<>();
 
     public BigDecimal getEntrySpread() {
         return entrySpread;
@@ -48,5 +49,13 @@ public class TradingConfiguration {
 
     public void setExchanges(List<ExchangeConfiguration> exchanges) {
         this.exchanges = exchanges;
+    }
+
+    public List<String> getTradeBlacklist() {
+        return tradeBlacklist;
+    }
+
+    public void setTradeBlacklist(List<String> tradeBlacklist) {
+        this.tradeBlacklist = tradeBlacklist;
     }
 }

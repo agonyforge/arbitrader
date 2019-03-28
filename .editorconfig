@@ -1,0 +1,22 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+[*.{java,gradle,css,ftl,xml}]
+charset = utf-8
+indent_style = space
+indent_size = 4
+
+[*.{sql,yml,yaml}]
+charset = utf-8
+indent_style = space
+indent_size = 2
+
+[*.{txt,env,md}]
+charset = utf-8
+trim_trailing_whitespace = false
+
+[Dockerfile]
+charset = utf-8

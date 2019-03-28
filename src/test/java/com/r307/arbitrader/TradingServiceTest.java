@@ -14,8 +14,10 @@ import org.knowm.xchange.dto.account.Balance;
 import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
+import org.knowm.xchange.service.trade.TradeService;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -51,6 +53,7 @@ public class TradingServiceTest {
         configuration = new TradingConfiguration();
 
         longExchange = new ExchangeBuilder("Long")
+                .withTradeService()
                 .withOrderBook(100, 100)
                 .withBalance(Currency.USD, new BigDecimal(100.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN))
                 .build();
@@ -61,6 +64,44 @@ public class TradingServiceTest {
         // This spy right here is a bad code smell, kids! Don't try this at work!
         // Upcoming refactoring will allow me to remove it.
         tradingService = spy(new TradingService(configuration));
+    }
+
+    @Test
+    public void testGetVolumeForOrder() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                longExchange,
+                "orderId",
+                new BigDecimal(50.0));
+
+        assertEquals(BigDecimal.TEN, volume);
+    }
+
+    @Test(expected = OrderNotFoundException.class)
+    public void testGetVolumeForOrderNotFound() {
+        tradingService.getVolumeForOrder(
+                longExchange,
+                "missingOrder",
+                new BigDecimal(50.0));
+    }
+
+    @Test
+    public void testGetVolumeForOrderNotAvailable() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                longExchange,
+                "notAvailable",
+                new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(50.0), volume);
+    }
+
+    @Test
+    public void testGetVolumeForOrderIOException() {
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                longExchange,
+                "ioe",
+                new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(50.0), volume);
     }
 
     // the best price point has enough volume to fill my order
@@ -141,7 +182,7 @@ public class TradingServiceTest {
 
     @Test
     public void testGetMaximumExposureException() throws IOException {
-        when(tradingService.getAccountBalance(shortExchange, Currency.USD)).thenThrow(new IOException("Boom!"));
+        when(tradingService.getAccountBalance(shortExchange, Currency.USD, USD_SCALE)).thenThrow(new IOException("Boom!"));
 
         BigDecimal exposure = tradingService.getMaximumExposure();
 
@@ -154,6 +195,7 @@ public class TradingServiceTest {
         private Integer bids;
         private Integer asks;
         private List<Balance> balances = new ArrayList<>();
+        private TradeService tradeService = null;
 
         ExchangeBuilder(String name) {
             this.name = name;
@@ -172,6 +214,27 @@ public class TradingServiceTest {
                     .build();
 
             balances.add(balance);
+
+            return this;
+        }
+
+        ExchangeBuilder withTradeService() throws IOException {
+            tradeService = mock(TradeService.class);
+
+            LimitOrder order = new LimitOrder(
+                    Order.OrderType.BID,
+                    BigDecimal.TEN,
+                    currencyPair,
+                    UUID.randomUUID().toString(),
+                    new Date(),
+                    new BigDecimal(100.0000)
+                            .add(new BigDecimal(0.001))
+                            .setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
+
+            when(tradeService.getOrder(eq("orderId"))).thenReturn(Collections.singleton(order));
+            when(tradeService.getOrder(eq("missingOrder"))).thenReturn(Collections.emptyList());
+            when(tradeService.getOrder(eq("notAvailable"))).thenThrow(new NotAvailableFromExchangeException("Exchange does not support fetching orders by ID"));
+            when(tradeService.getOrder(eq("ioe"))).thenThrow(new IOException("Unable to connect to exchange"));
 
             return this;
         }
@@ -206,6 +269,10 @@ public class TradingServiceTest {
 
                 when(accountService.getAccountInfo()).thenReturn(accountInfo);
                 when(exchange.getAccountService()).thenReturn(accountService);
+            }
+
+            if (tradeService != null) {
+                when(exchange.getTradeService()).thenReturn(tradeService);
             }
 
             return exchange;

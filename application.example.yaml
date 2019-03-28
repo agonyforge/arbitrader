@@ -18,10 +18,20 @@ trading:
   exitTarget: 0.0050
 
   # (Optional)
-  # Specify the amount to use per trade. If this value is missing, the bot will default to 90% of the balance
-  # of the exchange that has the smallest balance. Arbitrader's author highly recommends starting out the bot
+  # Specify the size per trade. If this value is missing, the bot will default to 90% of the balance
+  # of the exchange that has the smallest balance. I highly recommend starting out the bot
   # with a fixedExposure around 10.00 to avoid risking much money at first.
   fixedExposure: 10.00
+
+  # (Optional)
+  # If for some reason you want to block a specific combination of exchanges from trading, this is how you do it.
+  # Each entry in the list is of the format "LongExchangeName:ShortExchangeName:CurrencyPair".
+  #
+  # In my case the bot tends to go long on Quoine and short on Kraken but those two exchanges almost never reverse
+  # so the trades can be open for several days or weeks. In the meantime I'm losing fees and maybe missing other
+  # opportunities.
+  tradeBlacklist:
+    - Quoine:Kraken:ETH/USD
 
   # Connection information for each exchange goes in this list.
   #
@@ -64,7 +74,7 @@ trading:
       # Whether or not this exchange supports margin (aka. leveraged) trades. Kraken does.
       margin: true
 
-      # Pairs to exclude from margin trading on Kraken
+      # Pairs to exclude from margin trading on Kraken.
       # (i.e. because the exchange doesn't support margin for those pairs)
       marginExclude:
         - LTC/USD
@@ -84,6 +94,7 @@ trading:
       # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
       fee: 0.0026
+
     -
       exchangeClass: org.knowm.xchange.quoine.QuoineExchange
       apiKey: x
@@ -115,15 +126,18 @@ trading:
         - DASH/USD
       fee: 0.0020
 
-    - exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
+    -
+      exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
       apiKey: x
       secretKey: x
-      # Bitflyer defaults to the Japan endpoints, so there are some extra settings for US based customers
+      # Bitflyer defaults to the Japan endpoints, so here are some extra settings to use the US based endpoints.
       sslUri: https://api.bitflyer.com
       host: api.bitflyer.com
       port: 443
       tradingPairs:
         - BTC/USD
+
+      # BitFlyer doesn't support margin trading (for US based customers, anyway).
       margin: false
       fee: 0.0012
 
@@ -167,8 +181,8 @@ trading:
 
       # Poloniex doesn't support any fiat currencies, so we need to use a USD based stablecoin instead.
       #
-      # I've found USDC to be more true to USD than USDT, but you could also use a crypto like BTC here
-      # if you wanted to do pure crypto trading with no fiat. Effectively this just aliases any xxx/USD
-      # pair to xxx/USDC. If you put BTC here you could list ETH/USD and it would actually trade ETH/BTC.
+      # Effectively this just aliases any xxx/USD pair to xxx/USDC. For computing trade opportunities it is important
+      # that this pair has prices that are true to the other exchanges, otherwise it will either never trade or
+      # find false opportunities.
       homeCurrency: USDC
     

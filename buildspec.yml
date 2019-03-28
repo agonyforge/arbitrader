@@ -12,22 +12,24 @@ phases:
   pre_build:
     commands:
       - export PROJECT_VERSION=v`egrep "^version" build.gradle | cut -f2 -d\'`
+      - export BRANCH_TAG=`echo $CODEBUILD_SOURCE_VERSION | sed 's|/|-|g'`
       - echo Project version is ${PROJECT_VERSION}
+      - echo Branch tag is ${BRANCH_TAG}
       - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
   build:
     commands:
       - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
       - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
+      - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
   post_build:
     commands:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
       - |
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
           docker push scionaltera/arbitrader:latest
-        fi
-      - |
-        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
+        else
+          docker push scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:

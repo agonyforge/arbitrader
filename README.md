@@ -55,7 +55,7 @@ A third scenario is if your short order runs out of *margin*. Short orders are b
 
 **I'd like to see an example, please.**
 
-Ok, let's say there are two exchanges. We have a USD balance in both, and the price of COIN (a cryptocurrency) is $1000.00 on both exchanges. There is no opportunity here yet, since there is no difference between the prices. We'll wait for the prices to change.
+Ok, let's say there are two exchanges. We have a USD balance in both, and the price of COIN is $1000.00 on both exchanges. There is no opportunity here yet, since there is no difference between the prices. We'll wait for the prices to change.
 
 ```
           FakeCoins   CryptoTrade
@@ -69,7 +69,7 @@ Sooner or later, the prices diverge enough to catch the bot's attention.
 COIN/USD: 950.00      1050.00
 ```
 
-Now we're talking. We'll place a short order for $1000 on CryptoTrade and a long order for $1000 on FakeCoins.
+Now we're talking. We'll place a short order for $1000 on CryptoTrade and a long order for $1000 on FakeCoins, because we expect the higher price to go down and the lower price to go up until they match.
 
 ```
           FakeCoins   CryptoTrade
@@ -78,7 +78,7 @@ COIN/USD: 950.00      1050.00
                       (sold 0.95 COIN for $1000)
 ```
 
-Suddenly the markets both jump up by $500! Somebody is pumping a ton of money into COIN/USD! Due to our market neutral strategy, we gained money on FakeCoins and lost the same amount of money on CryptoTrade. If the price had dropped by $500 instead, the opposite would have happened and we'd still be fine.
+Suddenly the markets both jump up by $500! Somebody is pumping a ton of money into COIN/USD! Due to our market neutral strategy, we gained money on FakeCoins and lost the same amount of money on CryptoTrade. If the price had dropped by $500 instead, the opposite would have happened. The two trades balance each other out, so everything is fine.
 
 ```
           FakeCoins   CryptoTrade
@@ -92,11 +92,19 @@ Finally, the prices converge and we can exit the trade.
 ```
           FakeCoins   CryptoTrade
 COIN/USD: 1550.00     1550.00
-          (sold 1.05 COIN @ $1550.00 for $1627.5)
-                      (bought 0.95 COIN @ 1550.00 for $1472.5)
+          (sold 1.05 COIN @ $1550.00 for $1627.50)
+                      (bought 0.95 COIN @ 1550.00 for $1472.50)
 ```
 
-$1627.50 - $1472.50 = $155.00 profit, minus any fees. We survived an unexpected major market shift and came out ahead in the end. Not bad!
+So what happened? Did we win?  
+
+```
+$1627.50 (sold) - $1000.00 (bought) = $627.50 profit on our long FakeCoins trade.  
+$1000.00 (sold) - $1472.50 (bought) = -$472.50 loss on our short CryptoTrade trade.  
+$627.50 - $472.50 = $155.00 total profit, minus any fees.  
+```
+
+We survived an unexpected major market shift and came out ahead in the end. Not bad!
 
 Obviously this is a contrived example with fake numbers. Your mileage will vary, but hopefully that illustrates the principle at work in the strategy. If you still aren't convinced, Blackbird has an [issue thread](https://github.com/butor/blackbird/issues/100) that goes into a huge amount of detail and is well worth the read.
 

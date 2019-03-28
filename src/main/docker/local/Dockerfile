@@ -1,4 +1,4 @@
-FROM frolvlad/alpine-oraclejre8:slim
+FROM openjdk:8-jre-alpine
 MAINTAINER Peter Keeler <peter@r307.com>
 EXPOSE 8080
 COPY arbitrader-*.jar /opt/app/app.jar
