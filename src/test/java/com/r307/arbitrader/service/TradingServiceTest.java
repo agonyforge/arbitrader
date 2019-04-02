@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
@@ -43,7 +44,8 @@ public class TradingServiceTest {
     private Exchange longExchange;
     private Exchange shortExchange;
 
-    private TradingConfiguration configuration;
+    private TradingConfiguration tradingConfiguration;
+    private NotificationConfiguration notificationConfiguration;
 
     private TradingService tradingService;
 
@@ -51,7 +53,8 @@ public class TradingServiceTest {
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
 
-        configuration = new TradingConfiguration();
+        tradingConfiguration = new TradingConfiguration();
+        notificationConfiguration = new NotificationConfiguration();
 
         longExchange = new ExchangeBuilder("Long")
                 .withTradeService()
@@ -64,7 +67,7 @@ public class TradingServiceTest {
 
         // This spy right here is a bad code smell, kids! Don't try this at work!
         // Upcoming refactoring will allow me to remove it.
-        tradingService = spy(new TradingService(configuration));
+        tradingService = spy(new TradingService(tradingConfiguration, notificationConfiguration));
     }
 
     @Test
@@ -159,7 +162,7 @@ public class TradingServiceTest {
 
     @Test
     public void testGetMaximumExposureFixedExposure() {
-        configuration.setFixedExposure(new BigDecimal(100.00));
+        tradingConfiguration.setFixedExposure(new BigDecimal(100.00));
 
         BigDecimal exposure = tradingService.getMaximumExposure(longExchange, shortExchange);
 
