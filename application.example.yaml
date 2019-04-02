@@ -124,7 +124,7 @@ trading:
         - NEO/USD
         - ONT/USD
         - DASH/USD
-      fee: 0.0020
+      fee: 0.0010
 
     -
       exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
@@ -185,4 +185,3 @@ trading:
       # that this pair has prices that are true to the other exchanges, otherwise it will either never trade or
       # find false opportunities.
       homeCurrency: USDC
-    
