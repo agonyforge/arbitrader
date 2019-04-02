@@ -8,6 +8,13 @@ notifications:
     accessToken: x
     botAccessToken: x
     channel: x
+  logs:
+    # The number of milliseconds before a slow ticker update generates a warning in the logs.
+    # Ticker updates are supposed to run every 3 seconds, but the time it takes to fetch them from the exchange's API
+    # can vary based on your internet connection speed, other things your computer is working on and how busy the
+    # exchange's API is. Because there are so many factors it made sense to be able to configure the warning so you can
+    # control how noisy your logs are.
+    slowTickerWarning: 4000
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.
