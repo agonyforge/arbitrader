@@ -763,7 +763,7 @@ public class TradingService {
 
         long completion = System.currentTimeMillis() - start;
 
-        if (completion > 3000) {
+        if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
             LOGGER.warn("Slow Tickers! Fetched empty ticker list for {} in {} ms",
                 exchange.getExchangeSpecification().getExchangeName(),
                 System.currentTimeMillis() - start);
