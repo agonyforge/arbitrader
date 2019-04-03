@@ -387,22 +387,7 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    BigDecimal longVolume;
-
-                    try {
-                        longVolume = getAccountBalance(longExchange, currencyPair.base, BTC_SCALE);
-
-                        if (longVolume.compareTo(BigDecimal.ZERO) <= 0) {
-                            throw new IllegalStateException("Order volume must be more than zero.");
-                        }
-                    } catch (IllegalStateException | IOException e) {
-                        LOGGER.warn("Unable to get {} account balance for {}, falling back to order volume",
-                            currencyPair.base,
-                            longExchange.getExchangeSpecification().getExchangeName());
-
-                        longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
-                    }
-
+                    BigDecimal longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
                     BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
 
                     BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
