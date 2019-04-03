@@ -391,7 +391,11 @@ public class TradingService {
 
                     try {
                         longVolume = getAccountBalance(longExchange, currencyPair.base, BTC_SCALE);
-                    } catch (IOException e) {
+
+                        if (longVolume.compareTo(BigDecimal.ZERO) <= 0) {
+                            throw new IllegalStateException("Order volume must be more than zero.");
+                        }
+                    } catch (IllegalStateException | IOException e) {
                         LOGGER.warn("Unable to get {} account balance for {}, falling back to order volume",
                             currencyPair.base,
                             longExchange.getExchangeSpecification().getExchangeName());
@@ -405,6 +409,10 @@ public class TradingService {
                     BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
 
                     BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
+
+                    if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
+                        LOGGER.error("Computed trade volume for exiting position was zero!");
+                    }
 
                     if (spreadVerification.compareTo(activeExitTarget) > 0) {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
@@ -761,17 +769,33 @@ public class TradingService {
 
     BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
         try {
-            return exchange.getTradeService().getOrder(orderId)
+            BigDecimal volume = exchange.getTradeService().getOrder(orderId)
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new OrderNotFoundException(orderId))
-                    .getRemainingAmount();
+                    .getOriginalAmount();
+
+            if (volume.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("Volume must be more than zero.");
+            }
+
+            LOGGER.info("{} using order ID {} volume of: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                orderId,
+                volume);
+
+            return volume;
         } catch (NotAvailableFromExchangeException e) {
             LOGGER.debug("Exchange does not support fetching orders by ID");
         } catch (IOException e) {
             LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+        } catch (IllegalStateException e) {
+            LOGGER.debug(e.getMessage());
         }
 
+        LOGGER.info("{} using default volume: {}",
+            exchange.getExchangeSpecification().getExchangeName(),
+            defaultVolume);
         return defaultVolume;
     }
 
