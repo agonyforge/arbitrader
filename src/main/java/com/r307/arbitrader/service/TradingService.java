@@ -1,11 +1,13 @@
 package com.r307.arbitrader.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
@@ -32,10 +34,12 @@ import org.springframework.stereotype.Component;
 import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,6 +58,8 @@ public class TradingService {
     static final String METADATA_KEY = "arbitrader-metadata";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String STATE_FILE = "arbitrader-state.json";
 
     private TradingConfiguration tradingConfiguration;
     private NotificationConfiguration notificationConfiguration;
@@ -61,20 +67,8 @@ public class TradingService {
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
-
-    // active trade information
     private boolean bailOut = false;
-    private boolean inMarket = false;
-    private CurrencyPair activeCurrencyPair = null;
-    private Exchange activeLongExchange = null;
-    private Exchange activeShortExchange = null;
-    private String activeLongOrderId = null;
-    private String activeShortOrderId = null;
-    private BigDecimal activeLongVolume = null;
-    private BigDecimal activeShortVolume = null;
-    private BigDecimal activeLongEntry = null;
-    private BigDecimal activeShortEntry = null;
-    private BigDecimal activeExitTarget = null;
+    private ActivePosition activePosition = null;
     private String lastMissedWarning = null;
 
     public TradingService(
@@ -196,6 +190,23 @@ public class TradingService {
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
         }
+
+        // load active trades from file, if there is one
+        File stateFile = new File(STATE_FILE);
+
+        if (stateFile.exists()) {
+            if (!stateFile.canRead()) {
+                LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
+            } else {
+                try {
+                    activePosition = OBJECT_MAPPER.readValue(stateFile, ActivePosition.class);
+
+                    LOGGER.info("Loaded active trades from file: {}", stateFile.getAbsolutePath());
+                } catch (IOException e) {
+                    LOGGER.error("Unable to parse state file {}: ", stateFile.getAbsolutePath(), e);
+                }
+            }
+        }
     }
 
     /**
@@ -203,7 +214,7 @@ public class TradingService {
      */
     @Scheduled(cron = "0 0 0/6 * * *")
     public void summary() {
-        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (inMarket ? "Exit" : "Entry"));
+        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             // get the pairs common to both exchanges
@@ -232,24 +243,24 @@ public class TradingService {
                 BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
                 BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-                if (!inMarket && BigDecimal.ZERO.compareTo(spreadIn) < 0) {
+                if (activePosition == null && BigDecimal.ZERO.compareTo(spreadIn) < 0) {
                     LOGGER.info("{}/{} {} {} -> {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         currencyPair,
                         spreadIn,
                         tradingConfiguration.getEntrySpread());
-                } else if (inMarket
-                    && activeCurrencyPair.equals(currencyPair)
-                    && activeLongExchange.equals(longExchange)
-                    && activeShortExchange.equals(shortExchange)) {
+                } else if (activePosition != null
+                    && activePosition.getCurrencyPair().equals(currencyPair)
+                    && activePosition.getLongTrade().getExchange().equals(longExchange)
+                    && activePosition.getShortTrade().getExchange().equals(shortExchange)) {
 
                     LOGGER.info("{}/{} {} {} -> {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         currencyPair,
                         spreadOut,
-                        activeExitTarget);
+                        activePosition.getExitTarget());
                 }
             });
         }));
@@ -334,12 +345,12 @@ public class TradingService {
 
                         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
                             LOGGER.debug("Not enough liquidity to execute both trades profitably");
-                        } else if (inMarket) {
+                        } else if (activePosition != null) {
                             String tradeCombination = tradeCombination(longExchange, shortExchange, currencyPair);
 
                             if (!tradeCombination.equals(lastMissedWarning)
-                                    && !longExchange.equals(activeLongExchange)
-                                    && !shortExchange.equals(activeShortExchange)) {
+                                    && !longExchange.equals(activePosition.getLongTrade().getExchange())
+                                    && !shortExchange.equals(activePosition.getShortTrade().getExchange())) {
 
                                 LOGGER.info("***** MISSED ENTRY *****");
                                 LOGGER.info("Detected an entry opportunity but there are already positions open.");
@@ -386,28 +397,40 @@ public class TradingService {
                                 LOGGER.error("IOE executing limit orders: ", e);
                             }
 
-                            inMarket = true;
-                            activeCurrencyPair = currencyPair;
-                            activeExitTarget = exitTarget;
-                            activeLongExchange = longExchange;
-                            activeShortExchange = shortExchange;
-                            activeLongVolume = longVolume;
-                            activeShortVolume = shortVolume;
-                            activeLongEntry = longLimitPrice;
-                            activeShortEntry = shortLimitPrice;
+                            activePosition = new ActivePosition();
+                            activePosition.setCurrencyPair(currencyPair);
+                            activePosition.setExitTarget(exitTarget);
+                            activePosition.getLongTrade().setExchange(longExchange);
+                            activePosition.getLongTrade().setVolume(longVolume);
+                            activePosition.getLongTrade().setEntry(longLimitPrice);
+                            activePosition.getShortTrade().setExchange(shortExchange);
+                            activePosition.getShortTrade().setVolume(shortVolume);
+                            activePosition.getShortTrade().setEntry(shortLimitPrice);
                             lastMissedWarning = null;
+
+                            try {
+                                FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
+                            } catch (IOException e) {
+                                LOGGER.error("Unable to write state file!", e);
+                            }
                         }
                     } else {
                         LOGGER.warn("Will not trade: exposure could not be computed");
                     }
-                } else if (inMarket
-                        && currencyPair.equals(activeCurrencyPair)
-                        && longExchange.equals(activeLongExchange)
-                        && shortExchange.equals(activeShortExchange)
-                        && spreadOut.compareTo(activeExitTarget) < 0) {
+                } else if (activePosition != null
+                        && currencyPair.equals(activePosition.getCurrencyPair())
+                        && longExchange.equals(activePosition.getLongTrade().getExchange())
+                        && shortExchange.equals(activePosition.getShortTrade().getExchange())
+                        && spreadOut.compareTo(activePosition.getExitTarget()) < 0) {
 
-                    BigDecimal longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
-                    BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
+                    BigDecimal longVolume = getVolumeForOrder(
+                        longExchange,
+                        activePosition.getLongTrade().getOrderId(),
+                        activePosition.getLongTrade().getVolume());
+                    BigDecimal shortVolume = getVolumeForOrder(
+                        shortExchange,
+                        activePosition.getShortTrade().getOrderId(),
+                        activePosition.getShortTrade().getVolume());
 
                     BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
                     BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
@@ -418,7 +441,7 @@ public class TradingService {
                         LOGGER.error("Computed trade volume for exiting position was zero!");
                     }
 
-                    if (spreadVerification.compareTo(activeExitTarget) > 0) {
+                    if (spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
                     } else {
                         LOGGER.info("***** EXIT *****");
@@ -442,9 +465,9 @@ public class TradingService {
                                     shortVolume.multiply(shortTicker.getAsk()));
 
                             BigDecimal longProfit = longVolume.multiply(longLimitPrice)
-                                    .subtract(longVolume.multiply(activeLongEntry))
+                                    .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
                                     .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
-                            BigDecimal shortProfit = shortVolume.multiply(activeShortEntry)
+                            BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
                                     .subtract(shortVolume.multiply(shortLimitPrice))
                                     .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
@@ -468,15 +491,9 @@ public class TradingService {
 
                         logCurrentExchangeBalances(longExchange, shortExchange);
 
-                        inMarket = false;
-                        activeCurrencyPair = null;
-                        activeExitTarget = null;
-                        activeLongExchange = null;
-                        activeShortExchange = null;
-                        activeLongVolume = null;
-                        activeShortVolume = null;
-                        activeLongEntry = null;
-                        activeShortEntry = null;
+                        activePosition = null;
+
+                        FileUtils.deleteQuietly(new File(STATE_FILE));
                     }
                 }
 
@@ -631,14 +648,14 @@ public class TradingService {
             String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
             String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-            // TODO not happy with this coupling, need to refactor this
-            if (isPositionOpen) {
-                activeLongOrderId = longOrderId;
-                activeShortOrderId = shortOrderId;
-            } else {
-                activeLongOrderId = null;
-                activeShortOrderId = null;
-            }
+        // TODO not happy with this coupling, need to refactor this
+        if (isPositionOpen) {
+            activePosition.getLongTrade().setOrderId(longOrderId);
+            activePosition.getShortTrade().setOrderId(shortOrderId);
+        } else {
+            activePosition.getLongTrade().setOrderId(null);
+            activePosition.getShortTrade().setOrderId(null);
+        }
 
             LOGGER.info("{} limit order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
@@ -808,7 +825,7 @@ public class TradingService {
             LOGGER.debug(e.getMessage());
         }
 
-        LOGGER.info("{} using default volume: {}",
+        LOGGER.debug("{} using default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
         return defaultVolume;
