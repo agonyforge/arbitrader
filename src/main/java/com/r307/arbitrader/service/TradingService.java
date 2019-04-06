@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
@@ -35,7 +36,14 @@ import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -48,6 +56,7 @@ public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
 
     private TradingConfiguration tradingConfiguration;
+    private NotificationConfiguration notificationConfiguration;
     private List<Exchange> exchanges = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
@@ -68,8 +77,12 @@ public class TradingService {
     private BigDecimal activeExitTarget = null;
     private String lastMissedWarning = null;
 
-    public TradingService(TradingConfiguration tradingConfiguration) {
+    public TradingService(
+        TradingConfiguration tradingConfiguration,
+        NotificationConfiguration notificationConfiguration) {
+
         this.tradingConfiguration = tradingConfiguration;
+        this.notificationConfiguration = notificationConfiguration;
     }
 
     @PostConstruct
@@ -686,7 +699,7 @@ public class TradingService {
 
                 long completion = System.currentTimeMillis() - start;
 
-                if (completion > 3000) {
+                if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
                     LOGGER.warn("Slow Tickers! Fetched {} tickers via getTickers() for {} in {} ms",
                         tickers.size(),
                         exchange.getExchangeSpecification().getExchangeName(),
@@ -733,7 +746,7 @@ public class TradingService {
 
             long completion = System.currentTimeMillis() - start;
 
-            if (completion > 3000) {
+            if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
                 LOGGER.warn("Slow Tickers! Fetched {} tickers via parallelStream for {} getTicker(): {} ms",
                     tickers.size(),
                     exchange.getExchangeSpecification().getExchangeName(),
@@ -760,7 +773,7 @@ public class TradingService {
 
         long completion = System.currentTimeMillis() - start;
 
-        if (completion > 3000) {
+        if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
             LOGGER.warn("Slow Tickers! Fetched empty ticker list for {} in {} ms",
                 exchange.getExchangeSpecification().getExchangeName(),
                 System.currentTimeMillis() - start);
@@ -850,6 +863,8 @@ public class TradingService {
             BigDecimal exposure = smallestBalance
                     .multiply(new BigDecimal(0.9))
                     .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
+
+            LOGGER.debug("Maximum exposure for {}: {}", exchanges, exposure);
 
             return exposure;
         }
