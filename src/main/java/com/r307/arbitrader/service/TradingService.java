@@ -54,6 +54,7 @@ public class TradingService {
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
 
     // active trade information
+    private boolean bailOut = false;
     private boolean inMarket = false;
     private CurrencyPair activeCurrencyPair = null;
     private Exchange activeLongExchange = null;
@@ -243,6 +244,11 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
+        if (bailOut) {
+            LOGGER.error("Exiting immediately to avoid erroneous trades.");
+            System.exit(1);
+        }
+
         // fetch all the configured tickers for each exchange
         allTickers.clear();
 
@@ -387,24 +393,17 @@ public class TradingService {
                         && shortExchange.equals(activeShortExchange)
                         && spreadOut.compareTo(activeExitTarget) < 0) {
 
-                    BigDecimal longVolume;
-
-                    try {
-                        longVolume = getAccountBalance(longExchange, currencyPair.base, BTC_SCALE);
-                    } catch (IOException e) {
-                        LOGGER.warn("Unable to get {} account balance for {}, falling back to order volume",
-                            currencyPair.base,
-                            longExchange.getExchangeSpecification().getExchangeName());
-
-                        longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
-                    }
-
+                    BigDecimal longVolume = getVolumeForOrder(longExchange, activeLongOrderId, activeLongVolume);
                     BigDecimal shortVolume = getVolumeForOrder(shortExchange, activeShortOrderId, activeShortVolume);
 
                     BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
                     BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
 
                     BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
+
+                    if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
+                        LOGGER.error("Computed trade volume for exiting position was zero!");
+                    }
 
                     if (spreadVerification.compareTo(activeExitTarget) > 0) {
                         LOGGER.debug("Not enough liquidity to execute both trades profitably");
@@ -595,7 +594,8 @@ public class TradingService {
                                   CurrencyPair currencyPair,
                                   BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
                                   BigDecimal longVolume, BigDecimal shortVolume,
-                                  boolean isPositionOpen) throws IOException {
+                                  boolean isPositionOpen) throws IOException, ExchangeException {
+
         LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, convertExchangePair(longExchange, currencyPair))
                 .limitPrice(longLimitPrice)
                 .originalAmount(longVolume)
@@ -614,24 +614,34 @@ public class TradingService {
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortLimitOrder);
 
-        String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
-        String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+        try {
+            String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
+            String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-        // TODO not happy with this coupling, need to refactor this
-        if (isPositionOpen) {
-            activeLongOrderId = longOrderId;
-            activeShortOrderId = shortOrderId;
-        } else {
-            activeLongOrderId = null;
-            activeShortOrderId = null;
-        }
+            // TODO not happy with this coupling, need to refactor this
+            if (isPositionOpen) {
+                activeLongOrderId = longOrderId;
+                activeShortOrderId = shortOrderId;
+            } else {
+                activeLongOrderId = null;
+                activeShortOrderId = null;
+            }
 
-        LOGGER.info("{} limit order ID: {}",
+            LOGGER.info("{} limit order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
                 longOrderId);
-        LOGGER.info("{} limit order ID: {}",
+            LOGGER.info("{} limit order ID: {}",
                 shortExchange.getExchangeSpecification().getExchangeName(),
                 shortOrderId);
+        } catch (ExchangeException e) {
+            // At this point we may or may not have executed one of the trades
+            // so we're in an unknown state.
+            // For now, we'll just bail out and let the human figure out what to do to fix it.
+            // TODO Look at both exchanges and attempt close any open positions.
+            LOGGER.error("Exchange returned an error executing trade!", e);
+            bailOut = true;
+            return;
+        }
 
         OpenOrders longOpenOrders = longExchange.getTradeService().getOpenOrders();
         OpenOrders shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
@@ -761,17 +771,33 @@ public class TradingService {
 
     BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
         try {
-            return exchange.getTradeService().getOrder(orderId)
+            BigDecimal volume = exchange.getTradeService().getOrder(orderId)
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new OrderNotFoundException(orderId))
-                    .getRemainingAmount();
+                    .getOriginalAmount();
+
+            if (volume.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("Volume must be more than zero.");
+            }
+
+            LOGGER.info("{} using order ID {} volume of: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                orderId,
+                volume);
+
+            return volume;
         } catch (NotAvailableFromExchangeException e) {
             LOGGER.debug("Exchange does not support fetching orders by ID");
         } catch (IOException e) {
             LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+        } catch (IllegalStateException e) {
+            LOGGER.debug(e.getMessage());
         }
 
+        LOGGER.info("{} using default volume: {}",
+            exchange.getExchangeSpecification().getExchangeName(),
+            defaultVolume);
         return defaultVolume;
     }
 
