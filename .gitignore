@@ -6,3 +6,4 @@ out/
 
 *.iml
 /application.yaml
+/arbitrader-state.json
