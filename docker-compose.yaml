@@ -1,4 +1,4 @@
-version: "2"
+version: "3.7"
 
 services:
   arbitrader:
@@ -7,4 +7,5 @@ services:
     ports:
       - "5005:5005"
     volumes:
-      - ./application.yaml:/application.yaml
+      - ${PWD}/application.yaml:/application.yaml
+      - ${PWD}/arbitrader-state.json:/arbitrader-state.json
