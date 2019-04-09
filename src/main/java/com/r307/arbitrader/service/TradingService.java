@@ -252,8 +252,8 @@ public class TradingService {
                         tradingConfiguration.getEntrySpread());
                 } else if (activePosition != null
                     && activePosition.getCurrencyPair().equals(currencyPair)
-                    && activePosition.getLongTrade().getExchange().equals(longExchange)
-                    && activePosition.getShortTrade().getExchange().equals(shortExchange)) {
+                    && activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
+                    && activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
                     LOGGER.info("{}/{} {} {} -> {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
