@@ -131,6 +131,16 @@ The easiest way to run Arbitrader without any programming is through [Docker](ht
 
 If everything works properly you'll see Docker download the container and some log messages as it reads your configuration file and connects to the exchanges. Once you see the "Started Arbitrader..." message you won't see any further messages until it finds a trading opportunity.
 
+#### Windows Users
+
+In Windows `docker-compose` does not understand the `${PWD}` environment variable and will not turn it into the current working directory automatically. A workaround is to create a file called `.env` (TIP: Name it `.env.` in the Save... dialog!) in the same directory as you are running Arbitrader in with one line of configuration that points to Arbitrader's directory:
+
+```
+PWD=C:\absolute\path\to\arbitrader\directory
+```
+
+Adding the aforementioned configuration will set the `${PWD}` variable to the hard coded value that you picked. 
+
 ### Developing
 #### Compiling
 Arbitrader is a Java project and uses the Gradle wrapper. You just need to have a Java 8 JDK on your machine. Clone the project and run the following to compile it:

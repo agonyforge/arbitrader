@@ -55,7 +55,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @Component
 public class TradingService {
-    static final String METADATA_KEY = "arbitrader-metadata";
+    public static final String METADATA_KEY = "arbitrader-metadata";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -349,8 +349,8 @@ public class TradingService {
                             String tradeCombination = tradeCombination(longExchange, shortExchange, currencyPair);
 
                             if (!tradeCombination.equals(lastMissedWarning)
-                                    && !longExchange.equals(activePosition.getLongTrade().getExchange())
-                                    && !shortExchange.equals(activePosition.getShortTrade().getExchange())) {
+                                    && !longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
+                                    && !shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())) {
 
                                 LOGGER.info("***** MISSED ENTRY *****");
                                 LOGGER.info("Detected an entry opportunity but there are already positions open.");
@@ -387,6 +387,17 @@ public class TradingService {
                                     shortVolume.multiply(shortLimitPrice));
 
                             try {
+                                activePosition = new ActivePosition();
+                                activePosition.setCurrencyPair(currencyPair);
+                                activePosition.setExitTarget(exitTarget);
+                                activePosition.getLongTrade().setExchange(longExchange);
+                                activePosition.getLongTrade().setVolume(longVolume);
+                                activePosition.getLongTrade().setEntry(longLimitPrice);
+                                activePosition.getShortTrade().setExchange(shortExchange);
+                                activePosition.getShortTrade().setVolume(shortVolume);
+                                activePosition.getShortTrade().setEntry(shortLimitPrice);
+                                lastMissedWarning = null;
+
                                 executeOrderPair(
                                         longExchange, shortExchange,
                                         currencyPair,
@@ -395,18 +406,8 @@ public class TradingService {
                                         true);
                             } catch (IOException e) {
                                 LOGGER.error("IOE executing limit orders: ", e);
+                                activePosition = null;
                             }
-
-                            activePosition = new ActivePosition();
-                            activePosition.setCurrencyPair(currencyPair);
-                            activePosition.setExitTarget(exitTarget);
-                            activePosition.getLongTrade().setExchange(longExchange);
-                            activePosition.getLongTrade().setVolume(longVolume);
-                            activePosition.getLongTrade().setEntry(longLimitPrice);
-                            activePosition.getShortTrade().setExchange(shortExchange);
-                            activePosition.getShortTrade().setVolume(shortVolume);
-                            activePosition.getShortTrade().setEntry(shortLimitPrice);
-                            lastMissedWarning = null;
 
                             try {
                                 FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
@@ -419,8 +420,8 @@ public class TradingService {
                     }
                 } else if (activePosition != null
                         && currencyPair.equals(activePosition.getCurrencyPair())
-                        && longExchange.equals(activePosition.getLongTrade().getExchange())
-                        && shortExchange.equals(activePosition.getShortTrade().getExchange())
+                        && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
+                        && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
                         && spreadOut.compareTo(activePosition.getExitTarget()) < 0) {
 
                     BigDecimal longVolume = getVolumeForOrder(
