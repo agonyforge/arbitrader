@@ -16,7 +16,7 @@ plugins {
 apply plugin: 'docker'
 
 group 'com.r307'
-version '0.3.1-SNAPSHOT'
+version '0.4.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -35,13 +35,13 @@ dependencies {
 
     compile group: 'org.springframework.boot', name: 'spring-boot-starter'
 
-    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.3.14'
-    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '4.3.14'
+    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.3.17'
+    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '4.3.17'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
