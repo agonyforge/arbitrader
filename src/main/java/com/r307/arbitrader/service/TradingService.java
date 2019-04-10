@@ -59,7 +59,7 @@ public class TradingService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String STATE_FILE = "arbitrader-state.json";
+    private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
 
     private TradingConfiguration tradingConfiguration;
     private NotificationConfiguration notificationConfiguration;
