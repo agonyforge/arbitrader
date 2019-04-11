@@ -8,4 +8,4 @@ services:
       - "5005:5005"
     volumes:
       - ${PWD}/application.yaml:/application.yaml
-      - ${PWD}/arbitrader-state.json:/arbitrader-state.json
+      - ${PWD}/.arbitrader:/.arbitrader
