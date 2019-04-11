@@ -176,7 +176,7 @@ public class TradingService {
                 Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
-                if (longTicker == null || shortTicker == null) {
+                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
                     return;
                 }
 
@@ -230,13 +230,7 @@ public class TradingService {
                 Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
-                // if we couldn't get a ticker for either exchange, bail out
-                if (longTicker == null || shortTicker == null) {
-                    LOGGER.debug("Ticker was null! {}: {}, {}: {}",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        longTicker,
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        shortTicker);
+                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
                     return;
                 }
 
@@ -304,12 +298,7 @@ public class TradingService {
                 Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
                 // if we couldn't get a ticker for either exchange, bail out
-                if (longTicker == null || shortTicker == null) {
-                    LOGGER.debug("Ticker was null! {}: {}, {}: {}",
-                            longExchange.getExchangeSpecification().getExchangeName(),
-                            longTicker,
-                            shortExchange.getExchangeSpecification().getExchangeName(),
-                            shortTicker);
+                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
                     return;
                 }
 
@@ -619,6 +608,10 @@ public class TradingService {
         }
 
         return false;
+    }
+
+    private boolean isInvalidTicker(Ticker ticker) {
+        return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
