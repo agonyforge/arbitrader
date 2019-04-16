@@ -272,8 +272,14 @@ public class TradingService {
 
         exchanges
             .parallelStream()
-            .forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
-                .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+            .forEach(exchange -> {
+                try {
+                    getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
+                        .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker));
+                } catch (ExchangeException e) {
+                    LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
+                }
+            });
 
         long exchangePollStartTime = System.currentTimeMillis();
 
@@ -327,8 +333,19 @@ public class TradingService {
                     if (maxExposure != null) {
                         BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), BTC_SCALE, RoundingMode.HALF_EVEN);
                         BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), BTC_SCALE, RoundingMode.HALF_EVEN);
-                        BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
-                        BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
+                        BigDecimal longLimitPrice;
+                        BigDecimal shortLimitPrice;
+
+                        try {
+                            longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
+                            shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
+                        } catch (ExchangeException e) {
+                            LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
+                                longExchange.getExchangeSpecification().getExchangeName(),
+                                shortExchange.getDefaultExchangeSpecification().getExchangeName(),
+                                e.getMessage());
+                            return;
+                        }
 
                         BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
