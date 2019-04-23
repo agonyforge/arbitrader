@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @Component
@@ -66,6 +65,7 @@ public class TradingService {
 
     private TradingConfiguration tradingConfiguration;
     private NotificationConfiguration notificationConfiguration;
+    private ExchangeFeeCache feeCache;
     private List<Exchange> exchanges = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
@@ -76,10 +76,12 @@ public class TradingService {
 
     public TradingService(
         TradingConfiguration tradingConfiguration,
-        NotificationConfiguration notificationConfiguration) {
+        NotificationConfiguration notificationConfiguration,
+        ExchangeFeeCache feeCache) {
 
         this.tradingConfiguration = tradingConfiguration;
         this.notificationConfiguration = notificationConfiguration;
+        this.feeCache = feeCache;
     }
 
     @PostConstruct
@@ -336,6 +338,14 @@ public class TradingService {
                     BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
                     BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
 
+                    if (longMinAmount == null) {
+                        longMinAmount = new BigDecimal(0.001);
+                    }
+
+                    if (shortMinAmount == null) {
+                        shortMinAmount = new BigDecimal(0.001);
+                    }
+
                     if (maxExposure.compareTo(longMinAmount) <= 0) {
                         LOGGER.error("{} must have more than ${} to trade {}",
                             longExchange.getExchangeSpecification().getExchangeName(),
@@ -352,8 +362,12 @@ public class TradingService {
                         return;
                     }
 
-                    BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), BTC_SCALE, RoundingMode.HALF_EVEN);
-                    BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), BTC_SCALE, RoundingMode.HALF_EVEN);
+                    BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
+                        longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getPriceScale(),
+                        RoundingMode.HALF_EVEN);
+                    BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
+                        shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
+                        RoundingMode.HALF_EVEN);
                     BigDecimal longLimitPrice;
                     BigDecimal shortLimitPrice;
 
@@ -555,12 +569,24 @@ public class TradingService {
                 currencyPair);
     }
 
-    private static BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
+    private BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
+        BigDecimal cachedFee = feeCache.getCachedFee(exchange, currencyPair);
+
+        if (cachedFee != null) {
+            return cachedFee;
+        }
+
         try {
             Map<CurrencyPair, Fee> fees = exchange.getAccountService().getDynamicTradingFees();
 
             if (fees.containsKey(currencyPair)) {
-                return fees.get(currencyPair).getMakerFee();
+                BigDecimal fee = fees.get(currencyPair).getMakerFee();
+
+                // We're going to cache this value. Fees don't change all that often and we don't want to use up
+                // our allowance of API calls just checking the fees.
+                feeCache.setCachedFee(exchange, currencyPair, fee);
+
+                return fee;
             }
         } catch (NotYetImplementedForExchangeException e) {
             LOGGER.trace("Dynamic fees not yet implemented for {}, will try other methods",
@@ -874,7 +900,9 @@ public class TradingService {
                 volume = volume.add(order.getRemainingAmount());
 
                 LOGGER.debug("Order: {} @ {}",
-                        order.getRemainingAmount().setScale(BTC_SCALE, RoundingMode.HALF_EVEN),
+                        order.getRemainingAmount().setScale(
+                            exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getPriceScale(),
+                            RoundingMode.HALF_EVEN),
                         order.getLimitPrice());
 
                 if (volume.compareTo(allowedVolume) > 0) {
