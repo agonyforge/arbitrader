@@ -1,4 +1,4 @@
-package com.r307.arbitrader.service;
+package com.r307.arbitrader.service.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.knowm.xchange.Exchange;

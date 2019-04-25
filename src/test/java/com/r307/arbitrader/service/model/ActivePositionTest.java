@@ -1,4 +1,4 @@
-package com.r307.arbitrader.service;
+package com.r307.arbitrader.service.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.ExchangeBuilder;
