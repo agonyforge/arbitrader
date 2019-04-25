@@ -37,19 +37,22 @@ public class TradingServiceTest {
 
         tradingConfiguration = new TradingConfiguration();
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
+        ExchangeFeeCache feeCache = new ExchangeFeeCache();
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
+                .withExchangeMetaData()
                 .withTradeService()
                 .withOrderBook(100, 100)
                 .withBalance(Currency.USD, new BigDecimal(100.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN))
                 .build();
         shortExchange = new ExchangeBuilder("Short", CurrencyPair.BTC_USD)
+                .withExchangeMetaData()
                 .withBalance(Currency.USD, new BigDecimal(500.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN))
                 .build();
 
         // This spy right here is a bad code smell, kids! Don't try this at work!
         // Upcoming refactoring will allow me to remove it.
-        tradingService = spy(new TradingService(tradingConfiguration, notificationConfiguration));
+        tradingService = spy(new TradingService(tradingConfiguration, notificationConfiguration, feeCache));
     }
 
     @Test

@@ -10,6 +10,9 @@ import org.knowm.xchange.dto.account.AccountInfo;
 import org.knowm.xchange.dto.account.Balance;
 import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
+import org.knowm.xchange.dto.meta.CurrencyMetaData;
+import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
+import org.knowm.xchange.dto.meta.ExchangeMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.service.account.AccountService;
@@ -22,10 +25,13 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.service.TradingService.METADATA_KEY;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -37,6 +43,7 @@ public class ExchangeBuilder {
     private Integer bids;
     private Integer asks;
     private List<Balance> balances = new ArrayList<>();
+    private ExchangeMetaData exchangeMetaData = null;
     private TradeService tradeService = null;
 
     public ExchangeBuilder(String name, CurrencyPair currencyPair) {
@@ -57,6 +64,36 @@ public class ExchangeBuilder {
             .build();
 
         balances.add(balance);
+
+        return this;
+    }
+
+    public ExchangeBuilder withExchangeMetaData() {
+        CurrencyPairMetaData currencyPairMetaData = new CurrencyPairMetaData(
+            new BigDecimal(0.0020),
+            new BigDecimal(0.0010),
+            new BigDecimal(1000.00000000),
+            BTC_SCALE,
+            null,
+            null);
+        Map<CurrencyPair, CurrencyPairMetaData> currencyPairMetaDataMap = new HashMap<>();
+
+        currencyPairMetaDataMap.put(currencyPair, currencyPairMetaData);
+
+        CurrencyMetaData baseMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
+        CurrencyMetaData counterMetaData = new CurrencyMetaData(USD_SCALE, BigDecimal.ZERO);
+        Map<Currency, CurrencyMetaData> currencyMetaDataMap = new HashMap<>();
+
+        currencyMetaDataMap.put(currencyPair.base, baseMetaData);
+        currencyMetaDataMap.put(currencyPair.counter, counterMetaData);
+
+        exchangeMetaData = new ExchangeMetaData(
+            currencyPairMetaDataMap,
+            currencyMetaDataMap,
+            null,
+            null,
+            null
+        );
 
         return this;
     }
@@ -112,6 +149,10 @@ public class ExchangeBuilder {
 
             when(accountService.getAccountInfo()).thenReturn(accountInfo);
             when(exchange.getAccountService()).thenReturn(accountService);
+        }
+
+        if (exchangeMetaData != null) {
+            when(exchange.getExchangeMetaData()).thenReturn(exchangeMetaData);
         }
 
         if (tradeService != null) {
