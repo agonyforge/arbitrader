@@ -6,6 +6,8 @@ import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.model.ActivePosition;
+import com.r307.arbitrader.service.model.TradeCombination;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
@@ -67,12 +69,13 @@ public class TradingService {
     private NotificationConfiguration notificationConfiguration;
     private ExchangeFeeCache feeCache;
     private List<Exchange> exchanges = new ArrayList<>();
+    private List<TradeCombination> tradeCombinations = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
     private boolean bailOut = false;
     private ActivePosition activePosition = null;
-    private String lastMissedWarning = null;
+    private TradeCombination lastMissedWarning = null;
 
     public TradingService(
         TradingConfiguration tradingConfiguration,
@@ -185,10 +188,11 @@ public class TradingService {
                     return;
                 }
 
-                LOGGER.info("{}/{} {}",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair);
+                TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
+
+                tradeCombinations.add(combination);
+
+                LOGGER.info("{}", combination);
             });
         }));
 
@@ -221,48 +225,41 @@ public class TradingService {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
-        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-            // get the pairs common to both exchanges
-            List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
-                getExchangeMetadata(longExchange).getTradingPairs(),
-                getExchangeMetadata(shortExchange).getTradingPairs()));
+        tradeCombinations.forEach(tradeCombination -> {
+            Exchange longExchange = tradeCombination.getLongExchange();
+            Exchange shortExchange = tradeCombination.getShortExchange();
+            CurrencyPair currencyPair = tradeCombination.getCurrencyPair();
 
-            currencyPairs.forEach(currencyPair -> {
-                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    return;
-                }
+            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
-                Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-                Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+            if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
+                return;
+            }
 
-                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
-                    return;
-                }
+            BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
+            BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-                BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
-                BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
+            if (activePosition == null && BigDecimal.ZERO.compareTo(spreadIn) < 0) {
+                LOGGER.info("{}/{} {} {} -> {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair,
+                    spreadIn,
+                    tradingConfiguration.getEntrySpread());
+            } else if (activePosition != null
+                && activePosition.getCurrencyPair().equals(currencyPair)
+                && activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
+                && activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
-                if (activePosition == null && BigDecimal.ZERO.compareTo(spreadIn) < 0) {
-                    LOGGER.info("{}/{} {} {} -> {}",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair,
-                        spreadIn,
-                        tradingConfiguration.getEntrySpread());
-                } else if (activePosition != null
-                    && activePosition.getCurrencyPair().equals(currencyPair)
-                    && activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
-                    && activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
-
-                    LOGGER.info("{}/{} {} {} -> {}",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair,
-                        spreadOut,
-                        activePosition.getExitTarget());
-                }
-            });
-        }));
+                LOGGER.info("{}/{} {} {} -> {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair,
+                    spreadOut,
+                    activePosition.getExitTarget());
+            }
+        });
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
@@ -275,11 +272,22 @@ public class TradingService {
         // fetch all the configured tickers for each exchange
         allTickers.clear();
 
+        // find the currency pairs for each exchange that are both configured and actually in use for trading
+        // only fetch those tickers that are being used, to try to avoid API rate limiting
         exchanges
             .parallelStream()
             .forEach(exchange -> {
+                List<CurrencyPair> activePairs = tradeCombinations
+                    .parallelStream()
+                    .filter(tradeCombination -> tradeCombination.getLongExchange().equals(exchange) || tradeCombination.getShortExchange().equals(exchange))
+                    .map(TradeCombination::getCurrencyPair)
+                    .distinct()
+                    .collect(Collectors.toList());
+
                 try {
-                    getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
+                    LOGGER.trace("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
+
+                    getTickers(exchange, activePairs)
                         .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker));
                 } catch (ExchangeException e) {
                     LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
@@ -290,260 +298,249 @@ public class TradingService {
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
-        Collections.shuffle(exchanges);
+        Collections.shuffle(tradeCombinations);
 
-        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-            // get the pairs common to both exchanges
-            List<CurrencyPair> currencyPairs = new ArrayList<>(CollectionUtils.intersection(
-                    getExchangeMetadata(longExchange).getTradingPairs(),
-                    getExchangeMetadata(shortExchange).getTradingPairs()));
+        tradeCombinations.forEach(tradeCombination -> {
+            Exchange longExchange = tradeCombination.getLongExchange();
+            Exchange shortExchange = tradeCombination.getShortExchange();
+            CurrencyPair currencyPair = tradeCombination.getCurrencyPair();
 
-            Collections.shuffle(currencyPairs);
+            Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
+            Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
 
-            currencyPairs.forEach(currencyPair -> {
-                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    return;
+            // if we couldn't get a ticker for either exchange, bail out
+            if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
+                return;
+            }
+
+            BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
+            BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
+
+            LOGGER.debug("Long/Short: {}/{} {} {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair,
+                    spreadIn);
+
+            if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
+                BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
+
+                BigDecimal fees = (longFees.add(shortFees))
+                        .multiply(new BigDecimal(2.0));
+
+                BigDecimal exitTarget = spreadIn
+                        .subtract(tradingConfiguration.getExitTarget())
+                        .subtract(fees);
+
+                BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
+
+                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
+                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
+
+                if (longMinAmount == null) {
+                    longMinAmount = new BigDecimal(0.001);
                 }
 
-                Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-                Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
-
-                // if we couldn't get a ticker for either exchange, bail out
-                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
-                    return;
+                if (shortMinAmount == null) {
+                    shortMinAmount = new BigDecimal(0.001);
                 }
 
-                BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
-                BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
-
-                LOGGER.debug("Long/Short: {}/{} {} {}",
+                if (maxExposure.compareTo(longMinAmount) <= 0) {
+                    LOGGER.error("{} must have more than ${} to trade {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
+                        longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
+                        convertExchangePair(longExchange, currencyPair));
+                    return;
+                }
+
+                if (maxExposure.compareTo(shortMinAmount) <= 0) {
+                    LOGGER.error("{} must have more than ${} to trade {}",
                         shortExchange.getExchangeSpecification().getExchangeName(),
-                        currencyPair,
-                        spreadIn);
+                        shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
+                        convertExchangePair(shortExchange, currencyPair));
+                    return;
+                }
 
-                if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                    BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
-                    BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
+                BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
+                    longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getPriceScale(),
+                    RoundingMode.HALF_EVEN);
+                BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
+                    shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
+                    RoundingMode.HALF_EVEN);
+                BigDecimal longLimitPrice;
+                BigDecimal shortLimitPrice;
 
-                    BigDecimal fees = (longFees.add(shortFees))
-                            .multiply(new BigDecimal(2.0));
+                try {
+                    longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
+                    shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
+                } catch (ExchangeException e) {
+                    LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getDefaultExchangeSpecification().getExchangeName(),
+                        e.getMessage());
+                    return;
+                }
 
-                    BigDecimal exitTarget = spreadIn
-                            .subtract(tradingConfiguration.getExitTarget())
-                            .subtract(fees);
+                BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
-                    BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
+                if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+                    LOGGER.debug("Not enough liquidity to execute both trades profitably");
+                } else if (activePosition != null) {
+                    if (!tradeCombination.equals(lastMissedWarning)
+                            && !longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
+                            && !shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())) {
 
-                    BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
-                    BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
+                        LOGGER.info("***** MISSED ENTRY *****");
+                        LOGGER.info("Detected an entry opportunity but there are already positions open.");
+                        LOGGER.info("{}/{} {} @ {}",
+                                longExchange.getExchangeSpecification().getExchangeName(),
+                                shortExchange.getExchangeSpecification().getExchangeName(),
+                                currencyPair,
+                                spreadIn);
 
-                    if (longMinAmount == null) {
-                        longMinAmount = new BigDecimal(0.001);
+                        lastMissedWarning = tradeCombination;
                     }
+                } else {
+                    LOGGER.info("***** ENTRY *****");
 
-                    if (shortMinAmount == null) {
-                        shortMinAmount = new BigDecimal(0.001);
-                    }
+                    logCurrentExchangeBalances(longExchange, shortExchange);
 
-                    if (maxExposure.compareTo(longMinAmount) <= 0) {
-                        LOGGER.error("{} must have more than ${} to trade {}",
+                    LOGGER.info("Entry spread: {}", spreadIn);
+                    LOGGER.info("Exit spread target: {}", exitTarget);
+                    LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
                             longExchange.getExchangeSpecification().getExchangeName(),
-                            longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
-                            convertExchangePair(longExchange, currencyPair));
-                        return;
-                    }
-
-                    if (maxExposure.compareTo(shortMinAmount) <= 0) {
-                        LOGGER.error("{} must have more than ${} to trade {}",
+                            currencyPair,
+                            longVolume,
+                            longLimitPrice,
+                            longLimitPrice.subtract(longTicker.getAsk()),
+                            Currency.USD.getSymbol(),
+                            longVolume.multiply(longLimitPrice));
+                    LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
                             shortExchange.getExchangeSpecification().getExchangeName(),
-                            shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
-                            convertExchangePair(shortExchange, currencyPair));
-                        return;
-                    }
-
-                    BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
-                        longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getPriceScale(),
-                        RoundingMode.HALF_EVEN);
-                    BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
-                        shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
-                        RoundingMode.HALF_EVEN);
-                    BigDecimal longLimitPrice;
-                    BigDecimal shortLimitPrice;
+                            currencyPair,
+                            shortVolume,
+                            shortLimitPrice,
+                            shortTicker.getBid().subtract(shortLimitPrice),
+                            Currency.USD.getSymbol(),
+                            shortVolume.multiply(shortLimitPrice));
 
                     try {
-                        longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK);
-                        shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.BID);
-                    } catch (ExchangeException e) {
-                        LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
-                            longExchange.getExchangeSpecification().getExchangeName(),
-                            shortExchange.getDefaultExchangeSpecification().getExchangeName(),
-                            e.getMessage());
-                        return;
+                        activePosition = new ActivePosition();
+                        activePosition.setCurrencyPair(currencyPair);
+                        activePosition.setExitTarget(exitTarget);
+                        activePosition.getLongTrade().setExchange(longExchange);
+                        activePosition.getLongTrade().setVolume(longVolume);
+                        activePosition.getLongTrade().setEntry(longLimitPrice);
+                        activePosition.getShortTrade().setExchange(shortExchange);
+                        activePosition.getShortTrade().setVolume(shortVolume);
+                        activePosition.getShortTrade().setEntry(shortLimitPrice);
+                        lastMissedWarning = null;
+
+                        executeOrderPair(
+                                longExchange, shortExchange,
+                                currencyPair,
+                                longLimitPrice, shortLimitPrice,
+                                longVolume, shortVolume,
+                                true);
+                    } catch (IOException e) {
+                        LOGGER.error("IOE executing limit orders: ", e);
+                        activePosition = null;
                     }
 
-                    BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
+                    try {
+                        FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
+                    } catch (IOException e) {
+                        LOGGER.error("Unable to write state file!", e);
+                    }
+                }
+            } else if (activePosition != null
+                    && currencyPair.equals(activePosition.getCurrencyPair())
+                    && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
+                    && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
+                    && spreadOut.compareTo(activePosition.getExitTarget()) < 0) {
 
-                    if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                        LOGGER.debug("Not enough liquidity to execute both trades profitably");
-                    } else if (activePosition != null) {
-                        String tradeCombination = tradeCombination(longExchange, shortExchange, currencyPair);
+                BigDecimal longVolume = getVolumeForOrder(
+                    longExchange,
+                    activePosition.getLongTrade().getOrderId(),
+                    activePosition.getLongTrade().getVolume());
+                BigDecimal shortVolume = getVolumeForOrder(
+                    shortExchange,
+                    activePosition.getShortTrade().getOrderId(),
+                    activePosition.getShortTrade().getVolume());
 
-                        if (!tradeCombination.equals(lastMissedWarning)
-                                && !longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
-                                && !shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())) {
+                BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
+                BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
 
-                            LOGGER.info("***** MISSED ENTRY *****");
-                            LOGGER.info("Detected an entry opportunity but there are already positions open.");
-                            LOGGER.info("{}/{} {} @ {}",
-                                    longExchange.getExchangeSpecification().getExchangeName(),
-                                    shortExchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair,
-                                    spreadIn);
+                BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
 
-                            lastMissedWarning = tradeCombination;
-                        }
-                    } else {
-                        LOGGER.info("***** ENTRY *****");
+                if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
+                    LOGGER.error("Computed trade volume for exiting position was zero!");
+                }
 
-                        logCurrentExchangeBalances(longExchange, shortExchange);
+                if (spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+                    LOGGER.debug("Not enough liquidity to execute both trades profitably");
+                } else {
+                    LOGGER.info("***** EXIT *****");
 
-                        LOGGER.info("Entry spread: {}", spreadIn);
-                        LOGGER.info("Exit spread target: {}", exitTarget);
-                        LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
+                    try {
+                        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                 longExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 longVolume,
                                 longLimitPrice,
-                                longLimitPrice.subtract(longTicker.getAsk()),
+                                longLimitPrice.subtract(longTicker.getBid()),
                                 Currency.USD.getSymbol(),
-                                longVolume.multiply(longLimitPrice));
-                        LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
+                                longVolume.multiply(longTicker.getBid()));
+                        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                 shortExchange.getExchangeSpecification().getExchangeName(),
                                 currencyPair,
                                 shortVolume,
                                 shortLimitPrice,
-                                shortTicker.getBid().subtract(shortLimitPrice),
+                                shortTicker.getAsk().subtract(shortLimitPrice),
                                 Currency.USD.getSymbol(),
-                                shortVolume.multiply(shortLimitPrice));
+                                shortVolume.multiply(shortTicker.getAsk()));
 
-                        try {
-                            activePosition = new ActivePosition();
-                            activePosition.setCurrencyPair(currencyPair);
-                            activePosition.setExitTarget(exitTarget);
-                            activePosition.getLongTrade().setExchange(longExchange);
-                            activePosition.getLongTrade().setVolume(longVolume);
-                            activePosition.getLongTrade().setEntry(longLimitPrice);
-                            activePosition.getShortTrade().setExchange(shortExchange);
-                            activePosition.getShortTrade().setVolume(shortVolume);
-                            activePosition.getShortTrade().setEntry(shortLimitPrice);
-                            lastMissedWarning = null;
+                        BigDecimal longProfit = longVolume.multiply(longLimitPrice)
+                                .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
+                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                        BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
+                                .subtract(shortVolume.multiply(shortLimitPrice))
+                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
-                            executeOrderPair(
-                                    longExchange, shortExchange,
-                                    currencyPair,
-                                    longLimitPrice, shortLimitPrice,
-                                    longVolume, shortVolume,
-                                    true);
-                        } catch (IOException e) {
-                            LOGGER.error("IOE executing limit orders: ", e);
-                            activePosition = null;
-                        }
+                        LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
+                                Currency.USD.getSymbol(),
+                                longProfit,
+                                Currency.USD.getSymbol(),
+                                shortProfit,
+                                Currency.USD.getSymbol(),
+                                longProfit.add(shortProfit));
 
-                        try {
-                            FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
-                        } catch (IOException e) {
-                            LOGGER.error("Unable to write state file!", e);
-                        }
-                    }
-                } else if (activePosition != null
-                        && currencyPair.equals(activePosition.getCurrencyPair())
-                        && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
-                        && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
-                        && spreadOut.compareTo(activePosition.getExitTarget()) < 0) {
-
-                    BigDecimal longVolume = getVolumeForOrder(
-                        longExchange,
-                        activePosition.getLongTrade().getOrderId(),
-                        activePosition.getLongTrade().getVolume());
-                    BigDecimal shortVolume = getVolumeForOrder(
-                        shortExchange,
-                        activePosition.getShortTrade().getOrderId(),
-                        activePosition.getShortTrade().getVolume());
-
-                    BigDecimal longLimitPrice = getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID);
-                    BigDecimal shortLimitPrice = getLimitPrice(shortExchange, currencyPair, shortVolume, Order.OrderType.ASK);
-
-                    BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
-
-                    if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
-                        LOGGER.error("Computed trade volume for exiting position was zero!");
+                        executeOrderPair(
+                                longExchange, shortExchange,
+                                currencyPair,
+                                longLimitPrice, shortLimitPrice,
+                                longVolume, shortVolume,
+                                false);
+                    } catch (IOException e) {
+                        LOGGER.error("IOE executing limit orders: ", e);
                     }
 
-                    if (spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
-                        LOGGER.debug("Not enough liquidity to execute both trades profitably");
-                    } else {
-                        LOGGER.info("***** EXIT *****");
+                    logCurrentExchangeBalances(longExchange, shortExchange);
 
-                        try {
-                            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
-                                    longExchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair,
-                                    longVolume,
-                                    longLimitPrice,
-                                    longLimitPrice.subtract(longTicker.getBid()),
-                                    Currency.USD.getSymbol(),
-                                    longVolume.multiply(longTicker.getBid()));
-                            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
-                                    shortExchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair,
-                                    shortVolume,
-                                    shortLimitPrice,
-                                    shortTicker.getAsk().subtract(shortLimitPrice),
-                                    Currency.USD.getSymbol(),
-                                    shortVolume.multiply(shortTicker.getAsk()));
+                    activePosition = null;
 
-                            BigDecimal longProfit = longVolume.multiply(longLimitPrice)
-                                    .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
-                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
-                            BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
-                                    .subtract(shortVolume.multiply(shortLimitPrice))
-                                    .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
-
-                            LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
-                                    Currency.USD.getSymbol(),
-                                    longProfit,
-                                    Currency.USD.getSymbol(),
-                                    shortProfit,
-                                    Currency.USD.getSymbol(),
-                                    longProfit.add(shortProfit));
-
-                            executeOrderPair(
-                                    longExchange, shortExchange,
-                                    currencyPair,
-                                    longLimitPrice, shortLimitPrice,
-                                    longVolume, shortVolume,
-                                    false);
-                        } catch (IOException e) {
-                            LOGGER.error("IOE executing limit orders: ", e);
-                        }
-
-                        logCurrentExchangeBalances(longExchange, shortExchange);
-
-                        activePosition = null;
-
-                        FileUtils.deleteQuietly(new File(STATE_FILE));
-                    }
+                    FileUtils.deleteQuietly(new File(STATE_FILE));
                 }
+            }
 
-                String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
+            String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
 
-                minSpread.put(spreadKey, spreadIn.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-                maxSpread.put(spreadKey, spreadIn.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-                minSpread.put(spreadKey, spreadOut.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-                maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-            });
-        }));
+            minSpread.put(spreadKey, spreadIn.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
+            maxSpread.put(spreadKey, spreadIn.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
+            minSpread.put(spreadKey, spreadOut.min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
+            maxSpread.put(spreadKey, spreadOut.max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
+        });
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
 
