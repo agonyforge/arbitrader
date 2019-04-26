@@ -68,6 +68,7 @@ public class TradingService {
     private TradingConfiguration tradingConfiguration;
     private NotificationConfiguration notificationConfiguration;
     private ExchangeFeeCache feeCache;
+    private ConditionService conditionService;
     private List<Exchange> exchanges = new ArrayList<>();
     private List<TradeCombination> tradeCombinations = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
@@ -80,11 +81,13 @@ public class TradingService {
     public TradingService(
         TradingConfiguration tradingConfiguration,
         NotificationConfiguration notificationConfiguration,
-        ExchangeFeeCache feeCache) {
+        ExchangeFeeCache feeCache,
+        ConditionService conditionService) {
 
         this.tradingConfiguration = tradingConfiguration;
         this.notificationConfiguration = notificationConfiguration;
         this.feeCache = feeCache;
+        this.conditionService = conditionService;
     }
 
     @PostConstruct
@@ -323,6 +326,11 @@ public class TradingService {
                     spreadIn);
 
             if (spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                if (activePosition != null) {
+                    LOGGER.warn("Missed possible entry opportunity: {} {}", spreadIn, tradeCombination);
+                    return;
+                }
+
                 BigDecimal longFees = getExchangeFee(longExchange, currencyPair, true);
                 BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
@@ -386,21 +394,6 @@ public class TradingService {
 
                 if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably");
-                } else if (activePosition != null) {
-                    if (!tradeCombination.equals(lastMissedWarning)
-                            && !longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
-                            && !shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())) {
-
-                        LOGGER.info("***** MISSED ENTRY *****");
-                        LOGGER.info("Detected an entry opportunity but there are already positions open.");
-                        LOGGER.info("{}/{} {} @ {}",
-                                longExchange.getExchangeSpecification().getExchangeName(),
-                                shortExchange.getExchangeSpecification().getExchangeName(),
-                                currencyPair,
-                                spreadIn);
-
-                        lastMissedWarning = tradeCombination;
-                    }
                 } else {
                     LOGGER.info("***** ENTRY *****");
 
@@ -455,10 +448,11 @@ public class TradingService {
                     }
                 }
             } else if (activePosition != null
-                    && currencyPair.equals(activePosition.getCurrencyPair())
+                    && (currencyPair.equals(activePosition.getCurrencyPair())
                     && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
                     && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
-                    && spreadOut.compareTo(activePosition.getExitTarget()) < 0) {
+                    && spreadOut.compareTo(activePosition.getExitTarget()) < 0)
+                    || conditionService.isForceCloseCondition()) {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
@@ -531,6 +525,10 @@ public class TradingService {
                     activePosition = null;
 
                     FileUtils.deleteQuietly(new File(STATE_FILE));
+
+                    if (conditionService.isForceCloseCondition()) {
+                        conditionService.clearForceCloseCondition();
+                    }
                 }
             }
 
