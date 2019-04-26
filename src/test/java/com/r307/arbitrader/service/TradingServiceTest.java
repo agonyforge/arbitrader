@@ -38,6 +38,7 @@ public class TradingServiceTest {
         tradingConfiguration = new TradingConfiguration();
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
         ExchangeFeeCache feeCache = new ExchangeFeeCache();
+        ConditionService conditionService = new ConditionService();
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
                 .withExchangeMetaData()
@@ -52,7 +53,11 @@ public class TradingServiceTest {
 
         // This spy right here is a bad code smell, kids! Don't try this at work!
         // Upcoming refactoring will allow me to remove it.
-        tradingService = spy(new TradingService(tradingConfiguration, notificationConfiguration, feeCache));
+        tradingService = spy(new TradingService(
+            tradingConfiguration,
+            notificationConfiguration,
+            feeCache,
+            conditionService));
     }
 
     @Test

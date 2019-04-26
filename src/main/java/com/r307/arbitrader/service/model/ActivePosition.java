@@ -54,6 +54,16 @@ public class ActivePosition {
         return Objects.hash(getLongTrade(), getShortTrade(), getCurrencyPair(), getExitTarget());
     }
 
+    @Override
+    public String toString() {
+        return "ActivePosition{" +
+            "longTrade=" + longTrade +
+            ", shortTrade=" + shortTrade +
+            ", currencyPair=" + currencyPair +
+            ", exitTarget=" + exitTarget +
+            '}';
+    }
+
     public static class Trade {
         private String exchange;
         private String orderId;
@@ -110,6 +120,16 @@ public class ActivePosition {
         @Override
         public int hashCode() {
             return Objects.hash(getExchange(), getOrderId(), getVolume(), getEntry());
+        }
+
+        @Override
+        public String toString() {
+            return "Trade{" +
+                "exchange='" + exchange + '\'' +
+                ", orderId='" + orderId + '\'' +
+                ", volume=" + volume +
+                ", entry=" + entry +
+                '}';
         }
     }
 }
