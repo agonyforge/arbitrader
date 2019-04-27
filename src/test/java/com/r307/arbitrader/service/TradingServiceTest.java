@@ -64,6 +64,7 @@ public class TradingServiceTest {
     public void testGetVolumeForOrder() {
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
+                currencyPair.counter,
                 "orderId",
                 new BigDecimal(50.0));
 
@@ -74,6 +75,7 @@ public class TradingServiceTest {
     public void testGetVolumeForOrderNotFound() {
         tradingService.getVolumeForOrder(
                 longExchange,
+                currencyPair.counter,
                 "missingOrder",
                 new BigDecimal(50.0));
     }
@@ -82,6 +84,7 @@ public class TradingServiceTest {
     public void testGetVolumeForOrderNotAvailable() {
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
+                currencyPair.counter,
                 "notAvailable",
                 new BigDecimal(50.0));
 
@@ -92,6 +95,7 @@ public class TradingServiceTest {
     public void testGetVolumeForOrderIOException() {
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
+                currencyPair.counter,
                 "ioe",
                 new BigDecimal(50.0));
 

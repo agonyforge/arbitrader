@@ -331,7 +331,7 @@ public class TradingService {
                         || !activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
                         || !activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
-                        LOGGER.warn("Missed possible entry opportunity: {} {}", spreadIn, tradeCombination);
+                        LOGGER.info("Missed possible entry opportunity: {} {}", spreadIn, tradeCombination);
                     }
 
                     return;
@@ -460,10 +460,12 @@ public class TradingService {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
+                    currencyPair.counter,
                     activePosition.getLongTrade().getOrderId(),
                     activePosition.getLongTrade().getVolume());
                 BigDecimal shortVolume = getVolumeForOrder(
                     shortExchange,
+                    currencyPair.counter,
                     activePosition.getShortTrade().getOrderId(),
                     activePosition.getShortTrade().getVolume());
 
@@ -486,7 +488,7 @@ public class TradingService {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (conditionService.isForceCloseCondition()) {
-                        LOGGER.info("***** FORCED EXIT *****");
+                        LOGGER.warn("***** FORCED EXIT *****");
                     } else {
                         LOGGER.info("***** EXIT *****");
                     }
@@ -863,33 +865,50 @@ public class TradingService {
         return Collections.emptyList();
     }
 
-    BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
+    BigDecimal getVolumeForOrder(Exchange exchange, Currency currency, String orderId, BigDecimal defaultVolume) {
         try {
+            LOGGER.info("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
             BigDecimal volume = exchange.getTradeService().getOrder(orderId)
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new OrderNotFoundException(orderId))
                     .getOriginalAmount();
 
-            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalStateException("Volume must be more than zero.");
-            }
-
-            LOGGER.info("{} using order ID {} volume of: {}",
+            LOGGER.info("{}: Order {} volume is: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 orderId,
                 volume);
 
+            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("Volume must be more than zero.");
+            }
+
+            LOGGER.info("{}: Using volume: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                orderId);
+
             return volume;
         } catch (NotAvailableFromExchangeException e) {
-            LOGGER.debug("Exchange does not support fetching orders by ID");
+            LOGGER.info("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
         } catch (IOException e) {
-            LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
         } catch (IllegalStateException e) {
             LOGGER.debug(e.getMessage());
         }
 
-        LOGGER.debug("{} using default volume: {}",
+        if (!getExchangeHomeCurrency(exchange).equals(currency)) {
+            try {
+                BigDecimal balance = getAccountBalance(exchange, currency);
+
+                LOGGER.info("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currency.toString(), balance);
+
+                return balance;
+            } catch (IOException e) {
+                LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currency.toString());
+            }
+        }
+
+        LOGGER.info("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
         return defaultVolume;
