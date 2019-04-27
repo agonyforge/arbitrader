@@ -881,14 +881,14 @@ public class TradingService {
 
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
-            LOGGER.info("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+            LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
             BigDecimal volume = exchange.getTradeService().getOrder(orderId)
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new OrderNotFoundException(orderId))
                     .getOriginalAmount();
 
-            LOGGER.info("{}: Order {} volume is: {}",
+            LOGGER.debug("{}: Order {} volume is: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 orderId,
                 volume);
@@ -897,15 +897,15 @@ public class TradingService {
                 throw new IllegalStateException("Volume must be more than zero.");
             }
 
-            LOGGER.info("{}: Using volume: {}",
+            LOGGER.debug("{}: Using volume: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 orderId);
 
             return volume;
         } catch (NotAvailableFromExchangeException e) {
-            LOGGER.info("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
+            LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
         } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
         } catch (IllegalStateException e) {
             LOGGER.debug(e.getMessage());
         }
@@ -914,15 +914,15 @@ public class TradingService {
             BigDecimal balance = getAccountBalance(exchange, currencyPair.base);
 
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
-                LOGGER.info("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
+                LOGGER.debug("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
 
                 return balance;
             }
         } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString());
+            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), e);
         }
 
-        LOGGER.info("{}: Falling back to default volume: {}",
+        LOGGER.debug("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
         return defaultVolume;
