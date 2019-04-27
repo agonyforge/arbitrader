@@ -74,6 +74,7 @@ public class TradingService {
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
+    private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
     private boolean bailOut = false;
     private ActivePosition activePosition = null;
 
@@ -325,13 +326,26 @@ public class TradingService {
                     currencyPair,
                     spreadIn);
 
+            if (activePosition != null
+                && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) <= 0
+                && missedTrades.containsKey(tradeCombination)) {
+
+                LOGGER.info("{} has exited entry threshold: {}", tradeCombination, spreadIn);
+
+                missedTrades.remove(tradeCombination);
+            }
+
             if (!bailOut && !conditionService.isForceCloseCondition() && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                 if (activePosition != null) {
                     if (!activePosition.getCurrencyPair().equals(currencyPair)
                         || !activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
                         || !activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
-                        LOGGER.info("Missed possible entry opportunity: {} {}", spreadIn, tradeCombination);
+                        if (!missedTrades.containsKey(tradeCombination)) {
+                            LOGGER.info("{} has entered entry threshold: {}", tradeCombination, spreadIn);
+
+                            missedTrades.put(tradeCombination, spreadIn);
+                        }
                     }
 
                     return;
@@ -460,12 +474,12 @@ public class TradingService {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
-                    currencyPair.counter,
+                    currencyPair,
                     activePosition.getLongTrade().getOrderId(),
                     activePosition.getLongTrade().getVolume());
                 BigDecimal shortVolume = getVolumeForOrder(
                     shortExchange,
-                    currencyPair.counter,
+                    currencyPair,
                     activePosition.getShortTrade().getOrderId(),
                     activePosition.getShortTrade().getVolume());
 
@@ -865,7 +879,7 @@ public class TradingService {
         return Collections.emptyList();
     }
 
-    BigDecimal getVolumeForOrder(Exchange exchange, Currency currency, String orderId, BigDecimal defaultVolume) {
+    BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
             LOGGER.info("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
             BigDecimal volume = exchange.getTradeService().getOrder(orderId)
@@ -896,16 +910,16 @@ public class TradingService {
             LOGGER.debug(e.getMessage());
         }
 
-        if (!getExchangeHomeCurrency(exchange).equals(currency)) {
-            try {
-                BigDecimal balance = getAccountBalance(exchange, currency);
+        try {
+            BigDecimal balance = getAccountBalance(exchange, currencyPair.base);
 
-                LOGGER.info("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currency.toString(), balance);
+            if (BigDecimal.ZERO.compareTo(balance) < 0) {
+                LOGGER.info("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
 
                 return balance;
-            } catch (IOException e) {
-                LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currency.toString());
             }
+        } catch (IOException e) {
+            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString());
         }
 
         LOGGER.info("{}: Falling back to default volume: {}",

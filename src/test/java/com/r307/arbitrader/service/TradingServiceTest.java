@@ -64,7 +64,7 @@ public class TradingServiceTest {
     public void testGetVolumeForOrder() {
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
-                currencyPair.counter,
+                currencyPair,
                 "orderId",
                 new BigDecimal(50.0));
 
@@ -75,29 +75,67 @@ public class TradingServiceTest {
     public void testGetVolumeForOrderNotFound() {
         tradingService.getVolumeForOrder(
                 longExchange,
-                currencyPair.counter,
+                currencyPair,
                 "missingOrder",
                 new BigDecimal(50.0));
     }
 
     @Test
-    public void testGetVolumeForOrderNotAvailable() {
+    public void testGetVolumeForOrderNotAvailable() throws IOException {
+        doReturn(new BigDecimal(90.0))
+            .when(tradingService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
-                currencyPair.counter,
+                currencyPair,
                 "notAvailable",
                 new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(90.0), volume);
+    }
+
+    @Test
+    public void testGetVolumeForOrderIOException() throws IOException {
+        doReturn(new BigDecimal(90.0))
+            .when(tradingService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+
+        BigDecimal volume = tradingService.getVolumeForOrder(
+                longExchange,
+                currencyPair,
+                "ioe",
+                new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(90.0), volume);
+    }
+
+    @Test
+    public void testGetVolumeFallbackToDefaultZeroBalance() throws IOException {
+        doReturn(BigDecimal.ZERO)
+            .when(tradingService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+
+        BigDecimal volume = tradingService.getVolumeForOrder(
+            longExchange,
+            currencyPair,
+            "notAvailable",
+            new BigDecimal(50.0));
 
         assertEquals(new BigDecimal(50.0), volume);
     }
 
     @Test
-    public void testGetVolumeForOrderIOException() {
+    public void testGetVolumeFallbackToDefaultIOException() throws IOException {
+        doThrow(new IOException("Boom!"))
+            .when(tradingService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+
         BigDecimal volume = tradingService.getVolumeForOrder(
-                longExchange,
-                currencyPair.counter,
-                "ioe",
-                new BigDecimal(50.0));
+            longExchange,
+            currencyPair,
+            "notAvailable",
+            new BigDecimal(50.0));
 
         assertEquals(new BigDecimal(50.0), volume);
     }
