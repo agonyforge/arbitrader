@@ -8,6 +8,12 @@ Arbitrader is a program that finds trading opportunities between two different c
 
 The software is MIT licensed, so you are free to use it as you wish. Please keep in mind that trading cryptocurrencies carries a lot of inherent risk, and unattended automated trading can add even more risk. The author(s) of Arbitrader are not responsible if you lose money using this bot. Please be patient and careful!
 
+## How do I use it?
+Please see the [wiki](https://github.com/scionaltera/arbitrader/wiki) for detailed instructions on running and using Arbitrader.
+
+## Finding Help and Contributing
+Contributions are always welcome! Please see [CONTRIBUTING.md](https://github.com/scionaltera/arbitrader/blob/master/CONTRIBUTING.md) for details on how to contribute.
+
 ## How does it work?
 The trading strategy itself is inspired by [Blackbird](https://github.com/butor/blackbird). Arbitrader uses none of Blackbird's code, but a lot of the algorithms are similar.
 
@@ -107,60 +113,3 @@ $627.50 - $472.50 = $155.00 total profit, minus any fees.
 We survived an unexpected major market shift and came out ahead in the end. Not bad!
 
 Obviously this is a contrived example with fake numbers. Your mileage will vary, but hopefully that illustrates the principle at work in the strategy. If you still aren't convinced, Blackbird has an [issue thread](https://github.com/butor/blackbird/issues/100) that goes into a huge amount of detail and is well worth the read.
-
-## How do I use it?
-
-### Configuration File
-
-Arbitrader uses a configuration file called `application.yaml`. There is an example file in the project, but you will need to fill in which exchanges you want to use, and some other parameters. When you run Arbitrader, just make sure the configuration file is in the directory you run the bot from, and the program should read it in. If no configuration can be found, you'll get an error saying Spring couldn't start up.
-
-### XChange
-
-Arbitrader uses the [XChange](https://github.com/knowm/XChange) library to access the various exchanges. Not all exchanges support all the features Arbitrader requires, and not all of them have been added as dependencies to the project yet. If you want to try an exchange that isn't a dependency, please add it to `build.gradle` and feel free to submit a pull request with your change.
-
-If the bot doesn't work with the exchange(s) you want, you may need to implement the missing functionality in the XChange project and submit a pull request there.
-
-### How to Run the Bot
-
-The easiest way to run Arbitrader without any programming is through [Docker](https://www.docker.com/get-started). If you don't already have it, go ahead and install Docker on your machine. This project includes a Docker Compose file, so you can get up and running in just a few steps:
-
-1. Install Docker if necessary.
-1. Clone the project from GitHub.
-1. Create your `application.yaml` based on `application.example.yaml`.
-1. Run `docker-compose up` to start the bot.
-
-If everything works properly you'll see Docker download the container and some log messages as it reads your configuration file and connects to the exchanges. Once you see the "Started Arbitrader..." message you won't see any further messages until it finds a trading opportunity.
-
-#### Windows Users
-
-In Windows `docker-compose` does not understand the `${PWD}` environment variable and will not turn it into the current working directory automatically. A workaround is to create a file called `.env` (TIP: Name it `.env.` in the Save... dialog!) in the same directory as you are running Arbitrader in with one line of configuration that points to Arbitrader's directory:
-
-```
-PWD=C:\absolute\path\to\arbitrader\directory
-```
-
-Adding the aforementioned configuration will set the `${PWD}` variable to the hard coded value that you picked. 
-
-### Developing
-#### Compiling
-Arbitrader is a Java project and uses the Gradle wrapper. You just need to have a Java 8 JDK on your machine. Clone the project and run the following to compile it:
-
-```
-./gradlew clean build
-```
-
-#### Running
-If it compiles successfully it will build an executable JAR file in `build/libs` as well as a Docker container named `scionaltera/arbitrader:latest`. There is a `docker-compose.yaml` in the project's main directory, so the easiest way to start it up is:
-
-```
-docker-compose up
-```
-
-When the bot starts up you will see a banner and some log messages while it reads the configuration from `application.yaml` and connects to the exchanges. Once the initialization is done it will probably do nothing for awhile, while it searches for trade opportunities.
-
-#### Debugging
-You can connect a remote debugger to the running Docker container from your IDE (I use IntelliJ IDEA) by connecting it to `localhost:5005`. That will let you set breakpoints and step through the code as it runs. 
-
-### Finding Help and Contributing
-
-If you have a question or find a bug, please feel free to submit an issue on GitHub. Pull requests are always welcome.
