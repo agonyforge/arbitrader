@@ -74,6 +74,7 @@ public class TradingService {
     private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
+    private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
     private boolean bailOut = false;
     private ActivePosition activePosition = null;
 
@@ -325,13 +326,26 @@ public class TradingService {
                     currencyPair,
                     spreadIn);
 
+            if (activePosition != null
+                && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) <= 0
+                && missedTrades.containsKey(tradeCombination)) {
+
+                LOGGER.info("{} has exited entry threshold: {}", tradeCombination, spreadIn);
+
+                missedTrades.remove(tradeCombination);
+            }
+
             if (!bailOut && !conditionService.isForceCloseCondition() && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                 if (activePosition != null) {
                     if (!activePosition.getCurrencyPair().equals(currencyPair)
                         || !activePosition.getLongTrade().getExchange().equals(longExchange.getExchangeSpecification().getExchangeName())
                         || !activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
-                        LOGGER.warn("Missed possible entry opportunity: {} {}", spreadIn, tradeCombination);
+                        if (!missedTrades.containsKey(tradeCombination)) {
+                            LOGGER.info("{} has entered entry threshold: {}", tradeCombination, spreadIn);
+
+                            missedTrades.put(tradeCombination, spreadIn);
+                        }
                     }
 
                     return;
@@ -460,10 +474,12 @@ public class TradingService {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
+                    currencyPair,
                     activePosition.getLongTrade().getOrderId(),
                     activePosition.getLongTrade().getVolume());
                 BigDecimal shortVolume = getVolumeForOrder(
                     shortExchange,
+                    currencyPair,
                     activePosition.getShortTrade().getOrderId(),
                     activePosition.getShortTrade().getVolume());
 
@@ -486,7 +502,7 @@ public class TradingService {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (conditionService.isForceCloseCondition()) {
-                        LOGGER.info("***** FORCED EXIT *****");
+                        LOGGER.warn("***** FORCED EXIT *****");
                     } else {
                         LOGGER.info("***** EXIT *****");
                     }
@@ -863,33 +879,50 @@ public class TradingService {
         return Collections.emptyList();
     }
 
-    BigDecimal getVolumeForOrder(Exchange exchange, String orderId, BigDecimal defaultVolume) {
+    BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
+            LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
             BigDecimal volume = exchange.getTradeService().getOrder(orderId)
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new OrderNotFoundException(orderId))
                     .getOriginalAmount();
 
-            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalStateException("Volume must be more than zero.");
-            }
-
-            LOGGER.info("{} using order ID {} volume of: {}",
+            LOGGER.debug("{}: Order {} volume is: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 orderId,
                 volume);
 
+            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("Volume must be more than zero.");
+            }
+
+            LOGGER.debug("{}: Using volume: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                orderId);
+
             return volume;
         } catch (NotAvailableFromExchangeException e) {
-            LOGGER.debug("Exchange does not support fetching orders by ID");
+            LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
         } catch (IOException e) {
-            LOGGER.warn("Unable to fetch order {} from exchange", orderId);
+            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
         } catch (IllegalStateException e) {
             LOGGER.debug(e.getMessage());
         }
 
-        LOGGER.debug("{} using default volume: {}",
+        try {
+            BigDecimal balance = getAccountBalance(exchange, currencyPair.base);
+
+            if (BigDecimal.ZERO.compareTo(balance) < 0) {
+                LOGGER.debug("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
+
+                return balance;
+            }
+        } catch (IOException e) {
+            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), e);
+        }
+
+        LOGGER.debug("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
         return defaultVolume;
