@@ -19,8 +19,13 @@ phases:
   build:
     commands:
       - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
-      - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
-      - docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+      - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
+      - |
+        if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
+        else
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+        fi
   post_build:
     commands:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
