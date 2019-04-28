@@ -753,21 +753,32 @@ public class TradingService {
             return;
         }
 
-        OpenOrders longOpenOrders = longExchange.getTradeService().getOpenOrders();
-        OpenOrders shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
-
         LOGGER.info("Waiting for limit orders to complete...");
 
-        while (!longOpenOrders.getOpenOrders().isEmpty() && !shortOpenOrders.getOpenOrders().isEmpty()) {
+        OpenOrders longOpenOrders;
+        OpenOrders shortOpenOrders;
+        long waitStart = System.currentTimeMillis();
+
+        do {
             longOpenOrders = longExchange.getTradeService().getOpenOrders();
             shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+
+            if ((System.currentTimeMillis() - waitStart) % 30000 == 0) {
+                if (!longOpenOrders.getOpenOrders().isEmpty()) {
+                    LOGGER.warn("{} limit order has not filled.", longExchange.getExchangeSpecification().getExchangeName());
+                }
+
+                if (!shortOpenOrders.getOpenOrders().isEmpty()) {
+                    LOGGER.warn("{} limit order has not filled.", shortExchange.getExchangeSpecification().getExchangeName());
+                }
+            }
 
             try {
                 Thread.sleep(3000);
             } catch (InterruptedException e) {
                 LOGGER.trace("Sleep interrupted!", e);
             }
-        }
+        } while (!longOpenOrders.getOpenOrders().isEmpty() || !shortOpenOrders.getOpenOrders().isEmpty());
 
         LOGGER.info("Trades executed successfully!");
     }
