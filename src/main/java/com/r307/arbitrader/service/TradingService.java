@@ -40,6 +40,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -396,6 +397,25 @@ public class TradingService {
                 BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
                     shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
                     RoundingMode.HALF_EVEN);
+
+                BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getAmountStepSize();
+                BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getAmountStepSize();
+
+                LOGGER.info("{} trade amount step size: {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    longStepSize);
+                LOGGER.info("{} trade amount step size: {}",
+                    shortExchange.getExchangeSpecification().getExchangeName(),
+                    shortStepSize);
+
+                if (longStepSize != null) {
+                    longVolume = roundByStep(longVolume, longStepSize);
+                }
+
+                if (shortStepSize != null) {
+                    shortVolume = roundByStep(shortVolume, shortStepSize);
+                }
+
                 BigDecimal longLimitPrice;
                 BigDecimal shortLimitPrice;
 
@@ -728,14 +748,14 @@ public class TradingService {
             String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
             String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
 
-        // TODO not happy with this coupling, need to refactor this
-        if (isPositionOpen) {
-            activePosition.getLongTrade().setOrderId(longOrderId);
-            activePosition.getShortTrade().setOrderId(shortOrderId);
-        } else {
-            activePosition.getLongTrade().setOrderId(null);
-            activePosition.getShortTrade().setOrderId(null);
-        }
+            // TODO not happy with this coupling, need to refactor this
+            if (isPositionOpen) {
+                activePosition.getLongTrade().setOrderId(longOrderId);
+                activePosition.getShortTrade().setOrderId(shortOrderId);
+            } else {
+                activePosition.getLongTrade().setOrderId(null);
+                activePosition.getShortTrade().setOrderId(null);
+            }
 
             LOGGER.info("{} limit order ID: {}",
                 longExchange.getExchangeSpecification().getExchangeName(),
@@ -1039,5 +1059,12 @@ public class TradingService {
         Currency currency = getExchangeHomeCurrency(exchange);
 
         return getAccountBalance(exchange, currency);
+    }
+
+    static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
+        return input
+            .divide(step, RoundingMode.HALF_EVEN)
+            .round(MathContext.DECIMAL64)
+            .multiply(step);
     }
 }
