@@ -13,6 +13,7 @@ public class ActivePosition {
     private Trade shortTrade = new Trade();
     private CurrencyPair currencyPair;
     private BigDecimal exitTarget;
+    private BigDecimal entryBalance; // USD balance of both exchanges summed when the trades were first opened
 
     public Trade getLongTrade() {
         return longTrade;
@@ -38,6 +39,14 @@ public class ActivePosition {
         this.exitTarget = exitTarget;
     }
 
+    public BigDecimal getEntryBalance() {
+        return entryBalance;
+    }
+
+    public void setEntryBalance(BigDecimal entryBalance) {
+        this.entryBalance = entryBalance;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -46,12 +55,13 @@ public class ActivePosition {
         return Objects.equals(getLongTrade(), that.getLongTrade()) &&
             Objects.equals(getShortTrade(), that.getShortTrade()) &&
             Objects.equals(getCurrencyPair(), that.getCurrencyPair()) &&
-            Objects.equals(getExitTarget(), that.getExitTarget());
+            Objects.equals(getExitTarget(), that.getExitTarget()) &&
+            Objects.equals(getEntryBalance(), that.getEntryBalance());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getLongTrade(), getShortTrade(), getCurrencyPair(), getExitTarget());
+        return Objects.hash(getLongTrade(), getShortTrade(), getCurrencyPair(), getExitTarget(), getEntryBalance());
     }
 
     @Override
@@ -61,6 +71,7 @@ public class ActivePosition {
             ", shortTrade=" + shortTrade +
             ", currencyPair=" + currencyPair +
             ", exitTarget=" + exitTarget +
+            ", entryBalance=" + entryBalance +
             '}';
     }
 
