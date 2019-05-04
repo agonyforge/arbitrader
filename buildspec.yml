@@ -31,8 +31,8 @@ phases:
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
         else
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:snapshot
-          docker push scionaltera/arbitrader:snapshot
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+          docker push scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:
