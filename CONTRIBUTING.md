@@ -36,13 +36,17 @@ Testing new exchanges is always useful. If you have added a new exchange and it 
 1. An example configuration in `application.example.yaml` with good descriptions of any unusual parameters (e.g. the "passphrase" for Coinbase Pro). **DO NOT** include your API keys!
 1. Any other code you had to change to make the exchange work.
 
-### Pull Requests
-Adding new features, fixing bugs and updating documentation is always appreciated. A good pull request will have the following elements.
+### New Features
+Adding new features, fixing bugs and updating documentation is always appreciated. If you aren't sure what to work on, check the open issues and look for anything labeled "Good First Issue". Those tend to be fairly small, well understood and straightforward to implement. Anything labeled "Help Wanted" might be a little more complex but would be particularly useful to have done. Or, if there's something else you want to change about Arbitrader, go ahead and do it!
+
+When you've decided what you'd like to do you can fork the project, open a branch and start working on your changes. When it's ready, open a pull request.
+
+A good pull request will have the following elements.
 
 1. Work in your own fork in a branch, not `master`.
 1. Write a detailed explanation of the pull request when you create it.
 1. Try to match the code style of the existing code as best as you can.
 1. Include documentation if...
-  * You added a new feature that has no existing documentation.
-  * You changed behavior that is already documented, making the existing docs incorrect.
+    * You added a new feature that has no existing documentation.
+    * You changed behavior that is already documented, making the existing docs incorrect.
 1. Include tests that cover the code you changed.
