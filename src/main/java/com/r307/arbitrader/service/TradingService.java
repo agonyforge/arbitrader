@@ -273,6 +273,12 @@ public class TradingService {
             System.exit(1);
         }
 
+        if (activePosition == null && conditionService.isExitWhenIdleCondition()) {
+            LOGGER.info("Exiting at user request");
+            conditionService.clearExitWhenIdleCondition();
+            System.exit(0);
+        }
+
         // fetch all the configured tickers for each exchange
         allTickers.clear();
 

@@ -7,7 +7,11 @@ import java.io.File;
 
 @Component
 public class ConditionService {
-    private File forceCloseFile = new File("force-close");
+    static final String FORCE_CLOSE = "force-close";
+    static final String EXIT_WHEN_IDLE = "exit-when-idle";
+
+    private File forceCloseFile = new File(FORCE_CLOSE);
+    private File exitWhenIdleFile = new File(EXIT_WHEN_IDLE);
 
     public boolean isForceCloseCondition() {
         return forceCloseFile.exists();
@@ -15,5 +19,13 @@ public class ConditionService {
 
     public void clearForceCloseCondition() {
         FileUtils.deleteQuietly(forceCloseFile);
+    }
+
+    public boolean isExitWhenIdleCondition() {
+        return exitWhenIdleFile.exists();
+    }
+
+    public void clearExitWhenIdleCondition() {
+        FileUtils.deleteQuietly(exitWhenIdleFile);
     }
 }
