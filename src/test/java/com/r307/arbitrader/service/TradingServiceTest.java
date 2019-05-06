@@ -36,9 +36,13 @@ public class TradingServiceTest {
         MockitoAnnotations.initMocks(this);
 
         tradingConfiguration = new TradingConfiguration();
+
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
+
         ExchangeFeeCache feeCache = new ExchangeFeeCache();
         ConditionService conditionService = new ConditionService();
+        ExchangeService exchangeService = new ExchangeService();
+        TickerService tickerService = new TickerService(notificationConfiguration, exchangeService);
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
                 .withExchangeMetaData()
@@ -55,9 +59,10 @@ public class TradingServiceTest {
         // Upcoming refactoring will allow me to remove it.
         tradingService = spy(new TradingService(
             tradingConfiguration,
-            notificationConfiguration,
             feeCache,
-            conditionService));
+            conditionService,
+            exchangeService,
+            tickerService));
     }
 
     @Test

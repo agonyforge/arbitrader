@@ -10,13 +10,16 @@ import org.knowm.xchange.dto.account.AccountInfo;
 import org.knowm.xchange.dto.account.Balance;
 import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.marketdata.OrderBook;
+import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.meta.ExchangeMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
+import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
 import org.knowm.xchange.service.marketdata.MarketDataService;
+import org.knowm.xchange.service.marketdata.params.Params;
 import org.knowm.xchange.service.trade.TradeService;
 
 import java.io.IOException;
@@ -33,6 +36,7 @@ import java.util.UUID;
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.service.TradingService.METADATA_KEY;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,11 +44,15 @@ import static org.mockito.Mockito.when;
 public class ExchangeBuilder {
     private String name;
     private CurrencyPair currencyPair;
+    private Currency homeCurrency = Currency.USD;
     private Integer bids;
     private Integer asks;
     private List<Balance> balances = new ArrayList<>();
     private ExchangeMetaData exchangeMetaData = null;
+    private Exception tickerException = null;
     private TradeService tradeService = null;
+    private Boolean isGetTickersImplemented = null;
+    private List<Ticker> tickers = new ArrayList<>();
 
     public ExchangeBuilder(String name, CurrencyPair currencyPair) {
         this.name = name;
@@ -64,6 +72,35 @@ public class ExchangeBuilder {
             .build();
 
         balances.add(balance);
+
+        return this;
+    }
+
+    public ExchangeBuilder withTickers(boolean isGetTickersImplemented, List<CurrencyPair> currencyPairs) {
+        this.isGetTickersImplemented = isGetTickersImplemented;
+
+        currencyPairs.forEach(currencyPair ->
+            tickers.add(new Ticker.Builder()
+                .currencyPair(currencyPair)
+                .open(new BigDecimal(1000.000))
+                .last(new BigDecimal(1001.000))
+                .bid(new BigDecimal(1001.000))
+                .ask(new BigDecimal(1002.000))
+                .high(new BigDecimal(1005.00))
+                .low(new BigDecimal(1000.00))
+                .vwap(new BigDecimal(1000.50))
+                .volume(new BigDecimal(500000.00))
+                .quoteVolume(new BigDecimal(600000.00))
+                .bidSize(new BigDecimal(400.00))
+                .askSize(new BigDecimal(600.00))
+                .build())
+        );
+
+        return this;
+    }
+
+    public ExchangeBuilder withTickers(Exception toThrow) {
+        this.tickerException = toThrow;
 
         return this;
     }
@@ -119,19 +156,47 @@ public class ExchangeBuilder {
         return this;
     }
 
+    public ExchangeBuilder withHomeCurrency(Currency homeCurrency) {
+        this.homeCurrency = homeCurrency;
+
+        return this;
+    }
+
     public Exchange build() throws IOException {
         Exchange exchange = mock(Exchange.class);
         ExchangeSpecification specification = mock(ExchangeSpecification.class);
         ExchangeConfiguration metadata = new ExchangeConfiguration();
+        MarketDataService marketDataService = mock(MarketDataService.class);
 
-        metadata.setHomeCurrency(Currency.USD);
+        metadata.setHomeCurrency(homeCurrency);
 
         when(exchange.getExchangeSpecification()).thenReturn(specification);
         when(specification.getExchangeName()).thenReturn(name);
         when(specification.getExchangeSpecificParametersItem(METADATA_KEY)).thenReturn(metadata);
+        when(exchange.getMarketDataService()).thenReturn(marketDataService);
+
+        if (tickerException != null) {
+            when(marketDataService.getTicker(any())).thenThrow(tickerException);
+            when(marketDataService.getTickers(any(Params.class))).thenThrow(tickerException);
+        }
+
+        if (tickers != null && !tickers.isEmpty()) {
+            tickers.forEach(ticker -> {
+                try {
+                    when(marketDataService.getTicker(eq(ticker.getCurrencyPair()))).thenReturn(ticker);
+                } catch (IOException e) {
+                    // nothing to do here if we couldn't build the mock
+                }
+            });
+
+            if (isGetTickersImplemented) {
+                when(marketDataService.getTickers(any())).thenReturn(tickers);
+            } else {
+                when(marketDataService.getTickers(any())).thenThrow(new NotYetImplementedForExchangeException());
+            }
+        }
 
         if (bids != null || asks != null) {
-            MarketDataService marketDataService = mock(MarketDataService.class);
             OrderBook orderBook = new OrderBook(
                 new Date(),
                 generateOrders(currencyPair, Order.OrderType.ASK),
@@ -139,7 +204,6 @@ public class ExchangeBuilder {
             );
 
             when(marketDataService.getOrderBook(eq(currencyPair))).thenReturn(orderBook);
-            when(exchange.getMarketDataService()).thenReturn(marketDataService);
         }
 
         if (!balances.isEmpty()) {
