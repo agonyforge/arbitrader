@@ -192,3 +192,22 @@ trading:
       # that this pair has prices that are true to the other exchanges, otherwise it will either never trade or
       # find false opportunities.
       homeCurrency: USDC
+
+    -
+      #Bitstamp
+      exchangeClass: org.knowm.xchange.bitstamp.BitstampExchange
+      apiKey: x
+      secretKey: x
+      
+      # Bitstamp requires username for authentication to the API
+      userName: x
+
+      tradingPairs:
+        - BTC/USD
+        - XRP/USD
+        - LTC/USD
+        - ETH/USD
+        - BCH/USD
+      margin: false
+      fee: 0.0025
+      homeCurrency: USD
