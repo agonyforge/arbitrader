@@ -6,6 +6,7 @@ import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.TradeCombination;
+import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
@@ -51,6 +52,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Component
 public class TradingService {
     public static final String METADATA_KEY = "arbitrader-metadata";
+    public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -64,6 +66,7 @@ public class TradingService {
     private ConditionService conditionService;
     private ExchangeService exchangeService;
     private TickerService tickerService;
+    private Map<String, TickerStrategy> tickerStrategies;
     private List<Exchange> exchanges = new ArrayList<>();
     private List<TradeCombination> tradeCombinations = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
@@ -78,13 +81,15 @@ public class TradingService {
         ExchangeFeeCache feeCache,
         ConditionService conditionService,
         ExchangeService exchangeService,
-        TickerService tickerService) {
+        TickerService tickerService,
+        Map<String, TickerStrategy> tickerStrategies) {
 
         this.tradingConfiguration = tradingConfiguration;
         this.feeCache = feeCache;
         this.conditionService = conditionService;
         this.exchangeService = exchangeService;
         this.tickerService = tickerService;
+        this.tickerStrategies = tickerStrategies;
     }
 
     @PostConstruct
@@ -145,13 +150,19 @@ public class TradingService {
                 LOGGER.error("Unable to fetch account balance: ", e);
             }
 
+            LOGGER.info("Ticker strategies: " + String.join(", ", tickerStrategies.keySet()));
+
             try {
                 CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs();
                 exchange.getMarketDataService().getTickers(param);
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
             } catch (NotYetImplementedForExchangeException e) {
                 LOGGER.warn("{} does not implement MarketDataService.getTickers() and will fetch tickers " +
                                 "individually instead. This may result in API rate limiting.",
                         exchange.getExchangeSpecification().getExchangeName());
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("parallelTickerStrategy"));
             } catch (IOException e) {
                 LOGGER.debug("IOException fetching tickers for {}: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }

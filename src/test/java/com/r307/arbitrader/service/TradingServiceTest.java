@@ -4,6 +4,9 @@ import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
+import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -15,6 +18,8 @@ import org.mockito.MockitoAnnotations;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
@@ -42,7 +47,14 @@ public class TradingServiceTest {
         ExchangeFeeCache feeCache = new ExchangeFeeCache();
         ConditionService conditionService = new ConditionService();
         ExchangeService exchangeService = new ExchangeService();
-        TickerService tickerService = new TickerService(notificationConfiguration, exchangeService);
+        TickerService tickerService = new TickerService();
+        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, exchangeService);
+        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, exchangeService);
+
+        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
+
+        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
+        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
                 .withExchangeMetaData()
@@ -62,7 +74,8 @@ public class TradingServiceTest {
             feeCache,
             conditionService,
             exchangeService,
-            tickerService));
+            tickerService,
+            tickerStrategies));
     }
 
     @Test

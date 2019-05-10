@@ -1,6 +1,7 @@
 package com.r307.arbitrader;
 
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.Currency;
@@ -36,6 +37,7 @@ import java.util.UUID;
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.service.TradingService.METADATA_KEY;
+import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -51,6 +53,7 @@ public class ExchangeBuilder {
     private ExchangeMetaData exchangeMetaData = null;
     private Exception tickerException = null;
     private TradeService tradeService = null;
+    private TickerStrategy tickerStrategy = null;
     private Boolean isGetTickersImplemented = null;
     private List<Ticker> tickers = new ArrayList<>();
 
@@ -101,6 +104,12 @@ public class ExchangeBuilder {
 
     public ExchangeBuilder withTickers(Exception toThrow) {
         this.tickerException = toThrow;
+
+        return this;
+    }
+
+    public ExchangeBuilder withTickerStrategy(TickerStrategy tickerStrategy) {
+        this.tickerStrategy = tickerStrategy;
 
         return this;
     }
@@ -213,6 +222,10 @@ public class ExchangeBuilder {
 
             when(accountService.getAccountInfo()).thenReturn(accountInfo);
             when(exchange.getAccountService()).thenReturn(accountService);
+        }
+
+        if (tickerStrategy != null) {
+            when(specification.getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY)).thenReturn(tickerStrategy);
         }
 
         if (exchangeMetaData != null) {
