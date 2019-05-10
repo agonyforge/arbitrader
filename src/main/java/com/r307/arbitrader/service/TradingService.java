@@ -150,8 +150,6 @@ public class TradingService {
                 LOGGER.error("Unable to fetch account balance: ", e);
             }
 
-            LOGGER.info("Ticker strategies: " + String.join(", ", tickerStrategies.keySet()));
-
             try {
                 CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs();
                 exchange.getMarketDataService().getTickers(param);
