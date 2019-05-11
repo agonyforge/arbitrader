@@ -420,12 +420,8 @@ public class TradingService {
                     return;
                 }
 
-                int longScale = Optional
-                    .ofNullable(longExchange.getExchangeMetaData().getCurrencies().get(currencyPair.base).getScale())
-                    .orElse(BTC_SCALE);
-                int shortScale = Optional
-                    .ofNullable(shortExchange.getExchangeMetaData().getCurrencies().get(currencyPair.base).getScale())
-                    .orElse(BTC_SCALE);
+                int longScale = getScale(longExchange, currencyPair.base);
+                int shortScale = getScale(shortExchange, currencyPair.base);
 
                 BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
                     longScale,
@@ -971,5 +967,15 @@ public class TradingService {
         Currency currency = exchangeService.getExchangeHomeCurrency(exchange);
 
         return getAccountBalance(exchange, currency);
+    }
+
+    private int getScale(Exchange exchange, Currency currency) {
+        if (exchange.getExchangeMetaData() != null) {
+            if (exchange.getExchangeMetaData().getCurrencies().get(currency) != null) {
+                return exchange.getExchangeMetaData().getCurrencies().get(currency).getScale();
+            }
+        }
+
+        return BTC_SCALE;
     }
 }

@@ -72,10 +72,6 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                 throw ute.getCause();
             }
         } catch (Throwable t) {
-            if (t instanceof RuntimeException) {
-                throw (RuntimeException)t;
-            }
-
             errorCollectorService.collect(t);
             LOGGER.debug("Unexpected checked exception: " + t.getMessage(), t);
         }

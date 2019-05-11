@@ -57,14 +57,17 @@ public class ParallelTickerStrategyTest {
         assertEquals(CurrencyPair.BTC_USD, ticker.getCurrencyPair());
     }
 
-    @Test(expected = ExchangeException.class)
+    @Test
     public void testGetTickersExchangeException() throws IOException {
         Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
             .withTickerStrategy(tickerStrategy)
             .withTickers(new ExchangeException("Boom!"))
             .build();
 
-        tickerStrategy.getTickers(exchange, currencyPairs);
+        List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+
+        assertTrue(tickers.isEmpty());
+        assertFalse(errorCollectorService.isEmpty());
     }
 
     @Test
