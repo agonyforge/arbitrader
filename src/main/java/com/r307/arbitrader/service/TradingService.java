@@ -45,8 +45,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @Component
@@ -159,7 +161,7 @@ public class TradingService {
 
                 exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
             } catch (NotYetImplementedForExchangeException e) {
-                LOGGER.warn("{} does not implement MarketDataService.getTickers() and will fetch tickers " +
+                LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
                                 "individually instead. This may result in API rate limiting.",
                         exchange.getExchangeSpecification().getExchangeName());
 
@@ -418,11 +420,18 @@ public class TradingService {
                     return;
                 }
 
+                int longScale = Optional
+                    .ofNullable(longExchange.getExchangeMetaData().getCurrencies().get(currencyPair.base).getScale())
+                    .orElse(BTC_SCALE);
+                int shortScale = Optional
+                    .ofNullable(shortExchange.getExchangeMetaData().getCurrencies().get(currencyPair.base).getScale())
+                    .orElse(BTC_SCALE);
+
                 BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
-                    longExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(longExchange, currencyPair)).getPriceScale(),
+                    longScale,
                     RoundingMode.HALF_EVEN);
                 BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
-                    shortExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
+                    shortScale,
                     RoundingMode.HALF_EVEN);
 
                 BigDecimal longLimitPrice;
@@ -557,10 +566,18 @@ public class TradingService {
 
                         BigDecimal longProfit = longVolume.multiply(longLimitPrice)
                                 .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
-                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                                .setScale(
+                                    Optional
+                                        .ofNullable(longExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
+                                        .orElse(USD_SCALE),
+                                    RoundingMode.HALF_EVEN);
                         BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
                                 .subtract(shortVolume.multiply(shortLimitPrice))
-                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                                .setScale(
+                                    Optional
+                                        .ofNullable(shortExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
+                                        .orElse(USD_SCALE),
+                                    RoundingMode.HALF_EVEN);
 
                         LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
                                 Currency.USD.getSymbol(),
