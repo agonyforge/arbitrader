@@ -1,18 +1,18 @@
 package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.config.NotificationConfiguration;
+import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import org.apache.commons.collections4.ListUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
-import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.service.marketdata.MarketDataService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
-import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Objects;
@@ -24,39 +24,74 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
     private NotificationConfiguration notificationConfiguration;
     private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
 
     @Inject
-    public ParallelTickerStrategy(NotificationConfiguration notificationConfiguration, ExchangeService exchangeService) {
+    public ParallelTickerStrategy(
+        NotificationConfiguration notificationConfiguration,
+        ErrorCollectorService errorCollectorService,
+        ExchangeService exchangeService) {
+
         this.notificationConfiguration = notificationConfiguration;
+        this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
     }
 
     @Override
     public List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         MarketDataService marketDataService = exchange.getMarketDataService();
+        Integer tickerBatchDelay = exchangeService.getExchangeMetadata(exchange).getTicker().get("batchDelay");
+        int tickerPartitionSize = exchangeService.getExchangeMetadata(exchange).getTicker()
+            .getOrDefault("batchSize", Integer.MAX_VALUE);
 
         long start = System.currentTimeMillis();
 
-        List<Ticker> tickers = currencyPairs.parallelStream()
-            .map(currencyPair -> {
-                try {
+        List<Ticker> tickers = ListUtils.partition(currencyPairs, tickerPartitionSize)
+            .stream()
+            .peek(partition -> {
+                if (tickerBatchDelay != null) {
                     try {
-                        return marketDataService.getTicker(exchangeService.convertExchangePair(exchange, currencyPair));
-                    } catch (UndeclaredThrowableException ute) {
-                        // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
-                        throw ute.getCause();
+                        LOGGER.debug("Taking a nap...");
+                        Thread.sleep(tickerBatchDelay);
+                    } catch (InterruptedException e) {
+                        LOGGER.trace("Sleep interrupted");
                     }
-                } catch (Throwable t) {
-                    if (t instanceof RuntimeException) {
-                        throw (RuntimeException) t;
-                    }
-
-                    LOGGER.warn("Unexpected checked exception: " + t.getMessage(), t);
                 }
-
-                return null;
             })
-            .filter(Objects::nonNull)
+            .map(partition ->
+                partition
+                    .parallelStream()
+                    .map(currencyPair -> {
+                        try {
+                            try {
+                                Ticker ticker = marketDataService.getTicker(exchangeService.convertExchangePair(exchange, currencyPair));
+
+                                LOGGER.debug("Fetched ticker: {} {} {}/{}",
+                                    exchange.getExchangeSpecification().getExchangeName(),
+                                    currencyPair,
+                                    ticker.getBid(),
+                                    ticker.getAsk());
+
+                                return ticker;
+                            } catch (UndeclaredThrowableException ute) {
+                                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
+                                throw ute.getCause();
+                            }
+                        } catch (Throwable t) {
+                            if (t instanceof RuntimeException) {
+                                throw (RuntimeException) t;
+                            }
+
+                            errorCollectorService.collect(t);
+                            LOGGER.debug("Unexpected checked exception: " + t.getMessage(), t);
+                        }
+
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList())
+            )
+            .flatMap(List::stream)
             .collect(Collectors.toList());
 
         long completion = System.currentTimeMillis() - start;

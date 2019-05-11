@@ -65,6 +65,7 @@ public class TradingService {
     private ExchangeFeeCache feeCache;
     private ConditionService conditionService;
     private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
     private TickerService tickerService;
     private Map<String, TickerStrategy> tickerStrategies;
     private List<Exchange> exchanges = new ArrayList<>();
@@ -81,6 +82,7 @@ public class TradingService {
         ExchangeFeeCache feeCache,
         ConditionService conditionService,
         ExchangeService exchangeService,
+        ErrorCollectorService errorCollectorService,
         TickerService tickerService,
         Map<String, TickerStrategy> tickerStrategies) {
 
@@ -88,6 +90,7 @@ public class TradingService {
         this.feeCache = feeCache;
         this.conditionService = conditionService;
         this.exchangeService = exchangeService;
+        this.errorCollectorService = errorCollectorService;
         this.tickerService = tickerService;
         this.tickerStrategies = tickerStrategies;
     }
@@ -110,7 +113,7 @@ public class TradingService {
             }
 
             if (exchangeMetadata.getPort() != null) {
-                specification.setPort( exchangeMetadata.getPort());
+                specification.setPort(exchangeMetadata.getPort());
             }
 
             if (!exchangeMetadata.getCustom().isEmpty()) {
@@ -151,7 +154,7 @@ public class TradingService {
             }
 
             try {
-                CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs();
+                CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
                 exchange.getMarketDataService().getTickers(param);
 
                 exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
@@ -173,11 +176,13 @@ public class TradingService {
                 tradingFee);
         });
 
-        LOGGER.info("Trading the following exchanges and pairs:");
+        LOGGER.info("Fetching all tickers for all exchanges...");
 
         allTickers.clear();
         exchanges.forEach(exchange -> tickerService.getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+
+        LOGGER.info("Trading the following exchanges and pairs:");
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             // get the pairs common to both exchanges
@@ -228,6 +233,15 @@ public class TradingService {
         }
     }
 
+    @Scheduled(cron = "0 * * * * *")
+    public void errorSummary() {
+        if (!errorCollectorService.isEmpty()) {
+            LOGGER.info("Noncritical error summary: [Exception name]: [Error message] x [Count]");
+            LOGGER.info(errorCollectorService.report());
+            errorCollectorService.clear();
+        }
+    }
+
     /**
      * Display a summary once every 6 hours with the current spreads.
      */
@@ -274,6 +288,8 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
+        LOGGER.debug("Tick");
+
         if (bailOut) {
             LOGGER.error("Exiting immediately to avoid erroneous trades.");
             System.exit(1);
@@ -408,6 +424,7 @@ public class TradingService {
                 BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
                     shortExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
                     RoundingMode.HALF_EVEN);
+
                 BigDecimal longLimitPrice;
                 BigDecimal shortLimitPrice;
 

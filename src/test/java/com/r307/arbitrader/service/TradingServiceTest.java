@@ -47,9 +47,10 @@ public class TradingServiceTest {
         ExchangeFeeCache feeCache = new ExchangeFeeCache();
         ConditionService conditionService = new ConditionService();
         ExchangeService exchangeService = new ExchangeService();
-        TickerService tickerService = new TickerService();
-        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, exchangeService);
-        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, exchangeService);
+        ErrorCollectorService errorCollectorService = new ErrorCollectorService();
+        TickerService tickerService = new TickerService(errorCollectorService);
+        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 
         Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
 
@@ -74,6 +75,7 @@ public class TradingServiceTest {
             feeCache,
             conditionService,
             exchangeService,
+            errorCollectorService,
             tickerService,
             tickerStrategies));
     }

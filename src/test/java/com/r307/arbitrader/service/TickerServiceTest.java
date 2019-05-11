@@ -27,6 +27,8 @@ public class TickerServiceTest {
     private TickerStrategy singleCallTickerStrategy;
     private TickerStrategy parallelTickerStrategy;
 
+    private ErrorCollectorService errorCollectorService;
+
     private TickerService tickerService;
 
     @Before
@@ -36,10 +38,12 @@ public class TickerServiceTest {
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
         ExchangeService exchangeService = new ExchangeService();
 
-        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, exchangeService);
-        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, exchangeService);
+        errorCollectorService = new ErrorCollectorService();
 
-        tickerService = new TickerService();
+        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+
+        tickerService = new TickerService(errorCollectorService);
     }
 
     @Test
@@ -54,6 +58,7 @@ public class TickerServiceTest {
         List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
 
         assertFalse(tickers.isEmpty());
+        assertTrue(errorCollectorService.isEmpty());
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());
@@ -71,6 +76,7 @@ public class TickerServiceTest {
         List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
 
         assertFalse(tickers.isEmpty());
+        assertTrue(errorCollectorService.isEmpty());
 
         verify(exchange.getMarketDataService(), never()).getTickers(any());
         verify(exchange.getMarketDataService(), atLeastOnce()).getTicker(any());
@@ -86,6 +92,7 @@ public class TickerServiceTest {
         List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
 
         assertTrue(tickers.isEmpty());
+        assertFalse(errorCollectorService.isEmpty());
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());

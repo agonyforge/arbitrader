@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.config.NotificationConfiguration;
+import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -23,10 +24,16 @@ public class SingleCallTickerStrategy implements TickerStrategy {
 
     private NotificationConfiguration notificationConfiguration;
     private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
 
     @Inject
-    public SingleCallTickerStrategy(NotificationConfiguration notificationConfiguration, ExchangeService exchangeService) {
+    public SingleCallTickerStrategy(
+        NotificationConfiguration notificationConfiguration,
+        ErrorCollectorService errorCollectorService,
+        ExchangeService exchangeService) {
+
         this.notificationConfiguration = notificationConfiguration;
+        this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
     }
 
@@ -43,6 +50,12 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                     .collect(Collectors.toList());
 
                 List<Ticker> tickers = marketDataService.getTickers(param);
+
+                tickers.forEach(ticker -> LOGGER.debug("Fetched ticker: {} {} {}/{}",
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    ticker.getCurrencyPair(),
+                    ticker.getBid(),
+                    ticker.getAsk()));
 
                 long completion = System.currentTimeMillis() - start;
 
@@ -63,7 +76,8 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                 throw (RuntimeException)t;
             }
 
-            LOGGER.warn("Unexpected checked exception: " + t.getMessage(), t);
+            errorCollectorService.collect(t);
+            LOGGER.debug("Unexpected checked exception: " + t.getMessage(), t);
         }
 
         return Collections.emptyList();
