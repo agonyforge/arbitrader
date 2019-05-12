@@ -4,6 +4,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
+
+import static com.r307.arbitrader.service.ErrorCollectorService.HEADER;
 import static org.junit.Assert.*;
 
 public class ErrorCollectorServiceTest {
@@ -20,9 +23,11 @@ public class ErrorCollectorServiceTest {
     public void testCollect() {
         errorCollectorService.collect(new NullPointerException("Boom!"));
 
-        String report = errorCollectorService.report();
+        List<String> report = errorCollectorService.report();
 
-        assertEquals("NullPointerException: Boom! x 1", report);
+        assertEquals(2, report.size());
+        assertEquals(HEADER, report.get(0));
+        assertEquals("NullPointerException: Boom! x 1", report.get(1));
     }
 
     @Test
@@ -30,14 +35,19 @@ public class ErrorCollectorServiceTest {
         errorCollectorService.collect(new NullPointerException("Boom!"));
         errorCollectorService.collect(new NullPointerException("Boom!"));
 
-        String report = errorCollectorService.report();
+        List<String> report = errorCollectorService.report();
 
-        assertEquals("NullPointerException: Boom! x 2", report);
+        assertEquals(2, report.size());
+        assertEquals(HEADER, report.get(0));
+        assertEquals("NullPointerException: Boom! x 2", report.get(1));
     }
 
     @Test
     public void testEmptyReport() {
-        assertEquals("", errorCollectorService.report());
+        List<String> report = errorCollectorService.report();
+
+        assertEquals(1, report.size());
+        assertEquals(HEADER, report.get(0));
     }
 
     @Test

@@ -235,11 +235,14 @@ public class TradingService {
         }
     }
 
+    /**
+     * As often as once per minute, display a summary of any non-critical error messages. Summarizing them greatly
+     * reduces how noisy the logs are while still providing the same information.
+     */
     @Scheduled(cron = "0 * * * * *")
     public void errorSummary() {
         if (!errorCollectorService.isEmpty()) {
-            LOGGER.info("Noncritical error summary: [Exception name]: [Error message] x [Count]");
-            LOGGER.info(errorCollectorService.report());
+            errorCollectorService.report().forEach(LOGGER::info);
             errorCollectorService.clear();
         }
     }
