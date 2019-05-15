@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service;
 
+import org.knowm.xchange.Exchange;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,8 +15,8 @@ public class ErrorCollectorService {
 
     private Map<String, Integer> errors = new HashMap<>();
 
-    public void collect(Throwable t) {
-        errors.compute(computeKey(t), (key, value) -> (value == null ? 0 : value) + 1);
+    public void collect(Exchange exchange, Throwable t) {
+        errors.compute(computeKey(exchange, t), (key, value) -> (value == null ? 0 : value) + 1);
     }
 
     public boolean isEmpty() {
@@ -38,7 +39,7 @@ public class ErrorCollectorService {
         return report;
     }
 
-    private String computeKey(Throwable t) {
-        return t.getClass().getSimpleName() + ": " + t.getMessage();
+    private String computeKey(Exchange exchange, Throwable t) {
+        return exchange.getExchangeSpecification().getExchangeName() + ": " + t.getClass().getSimpleName() + " " + t.getMessage();
     }
 }

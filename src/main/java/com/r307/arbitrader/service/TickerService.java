@@ -32,7 +32,7 @@ public class TickerService {
             return tickerStrategy.getTickers(exchange, currencyPairs);
         } catch (RuntimeException re) {
             LOGGER.debug("Unexpected runtime exception: " + re.getMessage(), re);
-            errorCollectorService.collect(re);
+            errorCollectorService.collect(exchange, re);
         }
 
         return Collections.emptyList();

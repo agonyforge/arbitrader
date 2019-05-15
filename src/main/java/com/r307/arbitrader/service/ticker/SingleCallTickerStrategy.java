@@ -72,7 +72,7 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                 throw ute.getCause();
             }
         } catch (Throwable t) {
-            errorCollectorService.collect(t);
+            errorCollectorService.collect(exchange, t);
             LOGGER.debug("Unexpected checked exception: " + t.getMessage(), t);
         }
 
