@@ -245,4 +245,34 @@ public class TradingServiceTest {
         // the IOE should not propagate and blow everything up
         assertEquals(new BigDecimal(0.00).setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
     }
+
+    @Test
+    public void testRoundByStep64() {
+        BigDecimal input = new BigDecimal(64.00);
+        BigDecimal step = new BigDecimal(10.00);
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal(60.00), result);
+    }
+
+    @Test
+    public void testRoundByStep65() {
+        BigDecimal input = new BigDecimal(65.00);
+        BigDecimal step = new BigDecimal(10.00);
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal(60.00), result);
+    }
+
+    @Test
+    public void testRoundByStep66() {
+        BigDecimal input = new BigDecimal(66.00);
+        BigDecimal step = new BigDecimal(10.00);
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal(70.00), result);
+    }
 }
