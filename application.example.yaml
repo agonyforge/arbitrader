@@ -156,6 +156,17 @@ trading:
       # Coinbase Pro requires an additional "passphrase" for authentication to the API.
       custom:
         passphrase: x
+
+      # Coinbase Pro does not provide an API to fetch more than one ticker at a time
+      # and they rate limit at 3 calls per second, so here are some settings to control
+      # how many tickers we try to fetch at a time in order to avoid rate limiting.
+      ticker:
+        # Only fetch this many tickers at once.
+        batchSize: 3
+
+        # Wait this many milliseconds between batches of tickers.
+        batchDelay: 1250
+
       tradingPairs:
         - BTC/USD
         - LTC/USD
