@@ -23,6 +23,7 @@ public class ExchangeConfiguration {
     private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal fee;
     private Currency homeCurrency = Currency.USD;
+    private Map<String, Integer> ticker = new HashMap<>();
 
     public String getExchangeClass() {
         return exchangeClass;
@@ -126,5 +127,13 @@ public class ExchangeConfiguration {
 
     public void setHomeCurrency(Currency homeCurrency) {
         this.homeCurrency = homeCurrency;
+    }
+
+    public Map<String, Integer> getTicker() {
+        return ticker;
+    }
+
+    public void setTicker(Map<String, Integer> ticker) {
+        this.ticker = ticker;
     }
 }

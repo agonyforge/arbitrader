@@ -2,12 +2,11 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
-import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
-import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.TradeCombination;
+import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
@@ -27,18 +26,15 @@ import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
-import org.knowm.xchange.service.marketdata.MarketDataService;
 import org.knowm.xchange.service.marketdata.params.CurrencyPairsParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import si.mazi.rescu.AwareException;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -50,14 +46,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 @Component
 public class TradingService {
     public static final String METADATA_KEY = "arbitrader-metadata";
+    public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -67,9 +65,12 @@ public class TradingService {
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
 
     private TradingConfiguration tradingConfiguration;
-    private NotificationConfiguration notificationConfiguration;
     private ExchangeFeeCache feeCache;
     private ConditionService conditionService;
+    private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
+    private TickerService tickerService;
+    private Map<String, TickerStrategy> tickerStrategies;
     private List<Exchange> exchanges = new ArrayList<>();
     private List<TradeCombination> tradeCombinations = new ArrayList<>();
     private Map<String, Ticker> allTickers = new HashMap<>();
@@ -81,14 +82,20 @@ public class TradingService {
 
     public TradingService(
         TradingConfiguration tradingConfiguration,
-        NotificationConfiguration notificationConfiguration,
         ExchangeFeeCache feeCache,
-        ConditionService conditionService) {
+        ConditionService conditionService,
+        ExchangeService exchangeService,
+        ErrorCollectorService errorCollectorService,
+        TickerService tickerService,
+        Map<String, TickerStrategy> tickerStrategies) {
 
         this.tradingConfiguration = tradingConfiguration;
-        this.notificationConfiguration = notificationConfiguration;
         this.feeCache = feeCache;
         this.conditionService = conditionService;
+        this.exchangeService = exchangeService;
+        this.errorCollectorService = errorCollectorService;
+        this.tickerService = tickerService;
+        this.tickerStrategies = tickerStrategies;
     }
 
     @PostConstruct
@@ -109,7 +116,7 @@ public class TradingService {
             }
 
             if (exchangeMetadata.getPort() != null) {
-                specification.setPort( exchangeMetadata.getPort());
+                specification.setPort(exchangeMetadata.getPort());
             }
 
             if (!exchangeMetadata.getCustom().isEmpty()) {
@@ -140,45 +147,51 @@ public class TradingService {
                         exchange.getExchangeSpecification().getPort());
                 LOGGER.debug("{} home currency: {}",
                         exchange.getExchangeSpecification().getExchangeName(),
-                        getExchangeHomeCurrency(exchange));
+                        exchangeService.getExchangeHomeCurrency(exchange));
                 LOGGER.info("{} balance: {}{}",
                         exchange.getExchangeSpecification().getExchangeName(),
-                        getExchangeHomeCurrency(exchange).getSymbol(),
+                    exchangeService.getExchangeHomeCurrency(exchange).getSymbol(),
                         getAccountBalance(exchange));
             } catch (IOException e) {
                 LOGGER.error("Unable to fetch account balance: ", e);
             }
 
             try {
-                CurrencyPairsParam param = () -> getExchangeMetadata(exchange).getTradingPairs();
+                CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
                 exchange.getMarketDataService().getTickers(param);
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
             } catch (NotYetImplementedForExchangeException e) {
-                LOGGER.warn("{} does not implement MarketDataService.getTickers() and will fetch tickers " +
+                LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
                                 "individually instead. This may result in API rate limiting.",
                         exchange.getExchangeSpecification().getExchangeName());
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("parallelTickerStrategy"));
             } catch (IOException e) {
-                LOGGER.debug("IOException fetching tickers for: ", exchange.getExchangeSpecification().getExchangeName(), e);
+                LOGGER.debug("IOException fetching tickers for {}: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }
 
-            BigDecimal tradingFee = getExchangeFee(exchange, convertExchangePair(exchange, CurrencyPair.BTC_USD), false);
+            BigDecimal tradingFee = getExchangeFee(exchange, exchangeService.convertExchangePair(exchange, CurrencyPair.BTC_USD), false);
 
             LOGGER.info("{} {} trading fee: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
-                convertExchangePair(exchange, CurrencyPair.BTC_USD),
+                exchangeService.convertExchangePair(exchange, CurrencyPair.BTC_USD),
                 tradingFee);
         });
 
-        LOGGER.info("Trading the following exchanges and pairs:");
+        LOGGER.info("Fetching all tickers for all exchanges...");
 
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, getExchangeMetadata(exchange).getTradingPairs())
+        exchanges.forEach(exchange -> tickerService.getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
                 .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+
+        LOGGER.info("Trading the following exchanges and pairs:");
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
             // get the pairs common to both exchanges
             Collection<CurrencyPair> currencyPairs = CollectionUtils.intersection(
-                    getExchangeMetadata(longExchange).getTradingPairs(),
-                    getExchangeMetadata(shortExchange).getTradingPairs());
+                exchangeService.getExchangeMetadata(longExchange).getTradingPairs(),
+                exchangeService.getExchangeMetadata(shortExchange).getTradingPairs());
 
             currencyPairs.forEach(currencyPair -> {
                 if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
@@ -220,6 +233,18 @@ public class TradingService {
                     LOGGER.error("Unable to parse state file {}: ", stateFile.getAbsolutePath(), e);
                 }
             }
+        }
+    }
+
+    /**
+     * As often as once per minute, display a summary of any non-critical error messages. Summarizing them greatly
+     * reduces how noisy the logs are while still providing the same information.
+     */
+    @Scheduled(cron = "0 * * * * *")
+    public void errorSummary() {
+        if (!errorCollectorService.isEmpty()) {
+            errorCollectorService.report().forEach(LOGGER::info);
+            errorCollectorService.clear();
         }
     }
 
@@ -269,6 +294,8 @@ public class TradingService {
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void tick() {
+        LOGGER.debug("Tick");
+
         if (bailOut) {
             LOGGER.error("Exiting immediately to avoid erroneous trades.");
             System.exit(1);
@@ -298,7 +325,7 @@ public class TradingService {
                 try {
                     LOGGER.trace("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
 
-                    getTickers(exchange, activePairs)
+                    tickerService.getTickers(exchange, activePairs)
                         .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker));
                 } catch (ExchangeException e) {
                     LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
@@ -370,8 +397,8 @@ public class TradingService {
 
                 BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
-                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
-                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
+                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
+                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
 
                 if (longMinAmount == null) {
                     longMinAmount = new BigDecimal(0.001);
@@ -385,7 +412,7 @@ public class TradingService {
                     LOGGER.error("{} must have more than ${} to trade {}",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
-                        convertExchangePair(longExchange, currencyPair));
+                        exchangeService.convertExchangePair(longExchange, currencyPair));
                     return;
                 }
 
@@ -393,15 +420,18 @@ public class TradingService {
                     LOGGER.error("{} must have more than ${} to trade {}",
                         shortExchange.getExchangeSpecification().getExchangeName(),
                         shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
-                        convertExchangePair(shortExchange, currencyPair));
+                        exchangeService.convertExchangePair(shortExchange, currencyPair));
                     return;
                 }
 
+                int longScale = getScale(longExchange, currencyPair.base);
+                int shortScale = getScale(shortExchange, currencyPair.base);
+
                 BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
-                    longExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(longExchange, currencyPair)).getPriceScale(),
+                    longScale,
                     RoundingMode.HALF_EVEN);
                 BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
-                    shortExchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(shortExchange, currencyPair)).getPriceScale(),
+                    shortScale,
                     RoundingMode.HALF_EVEN);
 
                 BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getAmountStepSize();
@@ -554,10 +584,18 @@ public class TradingService {
 
                         BigDecimal longProfit = longVolume.multiply(longLimitPrice)
                                 .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
-                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                                .setScale(
+                                    Optional
+                                        .ofNullable(longExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
+                                        .orElse(USD_SCALE),
+                                    RoundingMode.HALF_EVEN);
                         BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
                                 .subtract(shortVolume.multiply(shortLimitPrice))
-                                .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
+                                .setScale(
+                                    Optional
+                                        .ofNullable(shortExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
+                                        .orElse(USD_SCALE),
+                                    RoundingMode.HALF_EVEN);
 
                         LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
                                 Currency.USD.getSymbol(),
@@ -605,14 +643,10 @@ public class TradingService {
         }
     }
 
-    private static ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
-        return (ExchangeConfiguration) exchange.getExchangeSpecification().getExchangeSpecificParametersItem(METADATA_KEY);
-    }
-
-    private static String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
+    private String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
         return String.format("%s:%s",
                 exchange.getExchangeSpecification().getExchangeName(),
-                convertExchangePair(exchange, currencyPair));
+            exchangeService.convertExchangePair(exchange, currencyPair));
     }
 
     private static String spreadKey(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
@@ -653,10 +687,10 @@ public class TradingService {
                     exchange.getExchangeSpecification().getExchangeName());
         }
 
-        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
+        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
-            BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
+            BigDecimal configuredFee = exchangeService.getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
                 if (!isQuiet) {
@@ -678,20 +712,6 @@ public class TradingService {
         return currencyPairMetaData.getTradingFee();
     }
 
-    private static Currency getExchangeHomeCurrency(Exchange exchange) {
-        return getExchangeMetadata(exchange).getHomeCurrency();
-    }
-
-    private static CurrencyPair convertExchangePair(Exchange exchange, CurrencyPair currencyPair) {
-        if (Currency.USD == currencyPair.base) {
-            return new CurrencyPair(getExchangeHomeCurrency(exchange), currencyPair.counter);
-        } else if (Currency.USD == currencyPair.counter) {
-            return new CurrencyPair(currencyPair.base, getExchangeHomeCurrency(exchange));
-        }
-
-        return currencyPair;
-    }
-
     private static String tradeCombination(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         return String.format("%s:%s:%s",
                 longExchange.getExchangeSpecification().getExchangeName(),
@@ -706,12 +726,12 @@ public class TradingService {
         }
 
         // the "short" exchange doesn't support margin
-        if (!getExchangeMetadata(shortExchange).getMargin()) {
+        if (!exchangeService.getExchangeMetadata(shortExchange).getMargin()) {
             return true;
         }
 
         // the "short" exchange doesn't support margin on this currency pair
-        if (getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
+        if (exchangeService.getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
             return true;
         }
 
@@ -734,11 +754,11 @@ public class TradingService {
                                   BigDecimal longVolume, BigDecimal shortVolume,
                                   boolean isPositionOpen) throws IOException, ExchangeException {
 
-        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, convertExchangePair(longExchange, currencyPair))
+        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, exchangeService.convertExchangePair(longExchange, currencyPair))
                 .limitPrice(longLimitPrice)
                 .originalAmount(longVolume)
                 .build();
-        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, convertExchangePair(shortExchange, currencyPair))
+        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, exchangeService.convertExchangePair(shortExchange, currencyPair))
                 .limitPrice(shortLimitPrice)
                 .originalAmount(shortVolume)
                 .build();
@@ -815,109 +835,6 @@ public class TradingService {
         return (shortPrice.subtract(longPrice)).divide(longPrice, RoundingMode.HALF_EVEN);
     }
 
-    private List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
-        MarketDataService marketDataService = exchange.getMarketDataService();
-
-        long start = System.currentTimeMillis();
-
-        try {
-            try {
-                CurrencyPairsParam param = () -> currencyPairs.stream()
-                        .map(currencyPair -> convertExchangePair(exchange, currencyPair))
-                        .collect(Collectors.toList());
-                List<Ticker> tickers = marketDataService.getTickers(param);
-
-                tickers.forEach(ticker ->
-                        LOGGER.debug("{}: {} {}/{}",
-                                ticker.getCurrencyPair(),
-                                exchange.getExchangeSpecification().getExchangeName(),
-                                ticker.getBid(), ticker.getAsk()));
-
-                long completion = System.currentTimeMillis() - start;
-
-                if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
-                    LOGGER.warn("Slow Tickers! Fetched {} tickers via getTickers() for {} in {} ms",
-                        tickers.size(),
-                        exchange.getExchangeSpecification().getExchangeName(),
-                        System.currentTimeMillis() - start);
-                }
-
-                return tickers;
-            } catch (UndeclaredThrowableException ute) {
-                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
-                throw ute.getCause();
-            }
-        } catch (NotYetImplementedForExchangeException e) {
-            LOGGER.debug("{} does not implement MarketDataService.getTickers()", exchange.getExchangeSpecification().getExchangeName());
-
-            List<Ticker> tickers = currencyPairs.parallelStream()
-                    .map(currencyPair -> {
-                        try {
-                            try {
-                                return marketDataService.getTicker(convertExchangePair(exchange, currencyPair));
-                            } catch (UndeclaredThrowableException ute) {
-                                // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
-                                throw ute.getCause();
-                            }
-                        } catch (IOException | NullPointerException | ExchangeException ex) {
-                            LOGGER.debug("Unable to fetch ticker for {} {}",
-                                    exchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair);
-                        } catch (Throwable t) {
-                            // TODO remove this general catch when we stop seeing oddball exceptions
-
-                            LOGGER.warn("Uncaught Throwable class was: {}", t.getClass().getName());
-
-                            if (t instanceof RuntimeException) {
-                                throw (RuntimeException) t;
-                            } else {
-                                LOGGER.error("Not re-throwing checked Exception!");
-                            }
-                        }
-
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
-            long completion = System.currentTimeMillis() - start;
-
-            if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
-                LOGGER.warn("Slow Tickers! Fetched {} tickers via parallelStream for {} getTicker(): {} ms",
-                    tickers.size(),
-                    exchange.getExchangeSpecification().getExchangeName(),
-                    System.currentTimeMillis() - start);
-            }
-
-            return tickers;
-        } catch (AwareException | ExchangeException | IOException e) {
-            LOGGER.debug("Unable to get ticker for {}: {}", exchange.getExchangeSpecification().getExchangeName(), e.getMessage());
-        } catch (Throwable t) {
-            // TODO remove this general catch when we stop seeing oddball exceptions
-            // I hate seeing general catches like this but the method proxying in rescu is throwing some weird ones
-            // to us that I'd like to capture and handle appropriately. It's impossible to tell what they actually are
-            // without laying a trap like this to catch, inspect and log them at runtime.
-
-            LOGGER.warn("Uncaught Throwable's actual class was: {}", t.getClass().getName());
-
-            if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-            } else {
-                LOGGER.error("Not re-throwing checked Exception!");
-            }
-        }
-
-        long completion = System.currentTimeMillis() - start;
-
-        if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
-            LOGGER.warn("Slow Tickers! Fetched empty ticker list for {} in {} ms",
-                exchange.getExchangeSpecification().getExchangeName(),
-                System.currentTimeMillis() - start);
-        }
-
-        return Collections.emptyList();
-    }
-
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
             LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
@@ -968,7 +885,7 @@ public class TradingService {
     }
 
     BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
-        CurrencyPair currencyPair = convertExchangePair(exchange, rawCurrencyPair);
+        CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
 
         try {
             OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
@@ -1069,9 +986,19 @@ public class TradingService {
     }
 
     private BigDecimal getAccountBalance(Exchange exchange) throws IOException {
-        Currency currency = getExchangeHomeCurrency(exchange);
+        Currency currency = exchangeService.getExchangeHomeCurrency(exchange);
 
         return getAccountBalance(exchange, currency);
+    }
+
+    private int getScale(Exchange exchange, Currency currency) {
+        if (exchange.getExchangeMetaData() != null) {
+            if (exchange.getExchangeMetaData().getCurrencies().get(currency) != null) {
+                return exchange.getExchangeMetaData().getCurrencies().get(currency).getScale();
+            }
+        }
+
+        return BTC_SCALE;
     }
 
     static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
