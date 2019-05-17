@@ -205,7 +205,27 @@ trading:
       homeCurrency: USDC
 
     -
-      #Bitstamp
+      exchangeClass: org.knowm.xchange.gemini.v1.GeminiExchange
+      apiKey: x
+      secretKey: x
+      tradingPairs:
+        - BTC/USD
+        - ETH/USD
+        - BCH/USD
+        - LTC/USD
+        - ZEC/USD
+      margin: false
+      fee: 0.0100
+
+    -
+      exchangeClass: org.knowm.xchange.cexio.CexIOExchange
+      userName: x
+      apiKey: x
+      secretKey: x
+      margin: false
+      fee: 0.0016
+
+    -
       exchangeClass: org.knowm.xchange.bitstamp.BitstampExchange
       apiKey: x
       secretKey: x
