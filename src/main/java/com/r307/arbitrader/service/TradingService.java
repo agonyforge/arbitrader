@@ -400,8 +400,8 @@ public class TradingService {
 
                 BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
-                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
-                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
+                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(longExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getMinimumAmount();
+                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(shortExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getMinimumAmount();
 
                 if (longMinAmount == null) {
                     longMinAmount = new BigDecimal(0.001);
