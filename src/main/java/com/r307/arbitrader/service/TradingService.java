@@ -64,6 +64,9 @@ public class TradingService {
     private static final BigDecimal TRADE_PORTION = new BigDecimal(0.9);
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
 
+    private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
+        null, null, null, null, null);
+
     private TradingConfiguration tradingConfiguration;
     private ExchangeFeeCache feeCache;
     private ConditionService conditionService;
@@ -397,8 +400,8 @@ public class TradingService {
 
                 BigDecimal maxExposure = getMaximumExposure(longExchange, shortExchange);
 
-                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(longExchange, currencyPair)).getMinimumAmount();
-                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().get(exchangeService.convertExchangePair(shortExchange, currencyPair)).getMinimumAmount();
+                BigDecimal longMinAmount = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(longExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getMinimumAmount();
+                BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(shortExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getMinimumAmount();
 
                 if (longMinAmount == null) {
                     longMinAmount = new BigDecimal(0.001);
@@ -434,15 +437,8 @@ public class TradingService {
                     shortScale,
                     RoundingMode.HALF_EVEN);
 
-                BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getAmountStepSize();
-                BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getAmountStepSize();
-
-                LOGGER.info("{} trade amount step size: {}",
-                    longExchange.getExchangeSpecification().getExchangeName(),
-                    longStepSize);
-                LOGGER.info("{} trade amount step size: {}",
-                    shortExchange.getExchangeSpecification().getExchangeName(),
-                    shortStepSize);
+                BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+                BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
                 if (longStepSize != null) {
                     longVolume = roundByStep(longVolume, longStepSize);
