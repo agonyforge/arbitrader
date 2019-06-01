@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -578,29 +577,6 @@ public class TradingService {
                                 Currency.USD.getSymbol(),
                                 shortVolume.multiply(shortTicker.getAsk()));
 
-                        BigDecimal longProfit = longVolume.multiply(longLimitPrice)
-                                .subtract(longVolume.multiply(activePosition.getLongTrade().getEntry()))
-                                .setScale(
-                                    Optional
-                                        .ofNullable(longExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
-                                        .orElse(USD_SCALE),
-                                    RoundingMode.HALF_EVEN);
-                        BigDecimal shortProfit = shortVolume.multiply(activePosition.getShortTrade().getEntry())
-                                .subtract(shortVolume.multiply(shortLimitPrice))
-                                .setScale(
-                                    Optional
-                                        .ofNullable(shortExchange.getExchangeMetaData().getCurrencies().get(currencyPair.counter).getScale())
-                                        .orElse(USD_SCALE),
-                                    RoundingMode.HALF_EVEN);
-
-                        LOGGER.info("Estimated profit: (long) {}{} + (short) {}{} = {}{}",
-                                Currency.USD.getSymbol(),
-                                longProfit,
-                                Currency.USD.getSymbol(),
-                                shortProfit,
-                                Currency.USD.getSymbol(),
-                                longProfit.add(shortProfit));
-
                         executeOrderPair(
                                 longExchange, shortExchange,
                                 currencyPair,
@@ -612,7 +588,11 @@ public class TradingService {
                     }
 
                     LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
-                    logCurrentExchangeBalances(longExchange, shortExchange);
+                    BigDecimal updatedBalance = logCurrentExchangeBalances(longExchange, shortExchange);
+                    LOGGER.info("Profit calculation: ${} - ${} = ${}",
+                        updatedBalance,
+                        activePosition.getEntryBalance(),
+                        updatedBalance.subtract(activePosition.getEntryBalance()));
 
                     activePosition = null;
 
@@ -801,19 +781,19 @@ public class TradingService {
 
         OpenOrders longOpenOrders;
         OpenOrders shortOpenOrders;
-        long waitStart = System.currentTimeMillis();
+        int count = 0;
 
         do {
             longOpenOrders = longExchange.getTradeService().getOpenOrders();
             shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
 
-            if ((System.currentTimeMillis() - waitStart) % 30000 == 0) {
+            if (count++ % 10 == 0) {
                 if (!longOpenOrders.getOpenOrders().isEmpty()) {
-                    LOGGER.warn("{} limit order has not filled.", longExchange.getExchangeSpecification().getExchangeName());
+                    LOGGER.warn("{} limit order has not yet filled", longExchange.getExchangeSpecification().getExchangeName());
                 }
 
                 if (!shortOpenOrders.getOpenOrders().isEmpty()) {
-                    LOGGER.warn("{} limit order has not filled.", shortExchange.getExchangeSpecification().getExchangeName());
+                    LOGGER.warn("{} limit order has not yet filled", shortExchange.getExchangeSpecification().getExchangeName());
                 }
             }
 
