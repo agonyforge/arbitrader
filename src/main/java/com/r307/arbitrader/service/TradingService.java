@@ -65,6 +65,8 @@ public class TradingService {
 
     private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
         null, null, null, null, null);
+    private static final CurrencyPairMetaData DEFAULT_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
+        new BigDecimal(0.0030), null, null, BTC_SCALE, null);
 
     private TradingConfiguration tradingConfiguration;
     private ExchangeFeeCache feeCache;
@@ -426,18 +428,14 @@ public class TradingService {
                     return;
                 }
 
-                int longScale = getScale(longExchange, currencyPair.base);
-                int shortScale = getScale(shortExchange, currencyPair.base);
+                int longScale = longExchange.getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(longExchange, currencyPair), this::getScale).getPriceScale();
+                int shortScale = longExchange.getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(shortExchange, currencyPair), this::getScale).getPriceScale();
 
-                BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(),
-                    longScale,
-                    RoundingMode.HALF_EVEN);
-                BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(),
-                    shortScale,
-                    RoundingMode.HALF_EVEN);
+                BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), longScale, RoundingMode.HALF_EVEN);
+                BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), shortScale, RoundingMode.HALF_EVEN);
 
-                BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
-                BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+                BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(longExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+                BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(shortExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
                 if (longStepSize != null) {
                     longVolume = roundByStep(longVolume, longStepSize);
@@ -873,12 +871,6 @@ public class TradingService {
                 price = order.getLimitPrice();
                 volume = volume.add(order.getRemainingAmount());
 
-                LOGGER.debug("Order: {} @ {}",
-                        order.getRemainingAmount().setScale(
-                            exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getPriceScale(),
-                            RoundingMode.HALF_EVEN),
-                        order.getLimitPrice());
-
                 if (volume.compareTo(allowedVolume) > 0) {
                     return price;
                 }
@@ -950,9 +942,9 @@ public class TradingService {
             }
         }
 
-        LOGGER.error("Unable to fetch {} balance for {}.",
-                currency.getDisplayName(),
-                exchange.getExchangeSpecification().getExchangeName());
+        LOGGER.error("{}: Unable to fetch {} balance",
+            exchange.getExchangeSpecification().getExchangeName(),
+            currency.getCurrencyCode());
 
         return BigDecimal.ZERO;
     }
@@ -967,14 +959,16 @@ public class TradingService {
         return getAccountBalance(exchange, currency);
     }
 
-    private int getScale(Exchange exchange, Currency currency) {
-        if (exchange.getExchangeMetaData() != null) {
-            if (exchange.getExchangeMetaData().getCurrencies().get(currency) != null) {
-                return exchange.getExchangeMetaData().getCurrencies().get(currency).getScale();
-            }
+    private CurrencyPairMetaData getScale(@SuppressWarnings("unused") CurrencyPair currencyPair, CurrencyPairMetaData metaData) {
+        // NOTE: Based on the data structures it appears that getBaseScale() is what we would want to use here
+        // but based on inspecting the actual live metadata for several currencies on several different exchanges
+        // it appears that getBaseScale() is always null and getPriceScale() gives the number of decimal places
+        // for the **base** currency (e.g. XRP), not the counter (e.g. USD). So that's weird, but we'll try it.
+        if (metaData != null && metaData.getPriceScale() != null) {
+            return metaData;
         }
 
-        return BTC_SCALE;
+        return DEFAULT_CURRENCY_PAIR_METADATA; // defaults to BTC_SCALE
     }
 
     static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
