@@ -871,12 +871,6 @@ public class TradingService {
                 price = order.getLimitPrice();
                 volume = volume.add(order.getRemainingAmount());
 
-                LOGGER.debug("Order: {} @ {}",
-                        order.getRemainingAmount().setScale(
-                            exchange.getExchangeMetaData().getCurrencyPairs().get(currencyPair).getPriceScale(),
-                            RoundingMode.HALF_EVEN),
-                        order.getLimitPrice());
-
                 if (volume.compareTo(allowedVolume) > 0) {
                     return price;
                 }
