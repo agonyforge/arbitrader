@@ -242,3 +242,15 @@ trading:
       margin: false
       fee: 0.0025
       homeCurrency: USD
+
+    -
+      exchangeClass: org.knowm.xchange.cobinhood.CobinhoodExchange
+      apiKey: x
+      tradingPairs:
+        - BTC/USD
+        - ETH/USD
+        - LTC/USD
+        - XRP/USD
+      margin: false
+      fee: 0.0000
+      homeCurrency: USDT
