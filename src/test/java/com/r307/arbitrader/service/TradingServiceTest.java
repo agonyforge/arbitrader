@@ -91,6 +91,19 @@ public class TradingServiceTest {
         assertEquals(BigDecimal.TEN, volume);
     }
 
+    @Test
+    public void testGetVolumeForOrderNull() throws IOException {
+        when(longExchange.getTradeService().getOrder(eq("nullOrder"))).thenReturn(null);
+
+        BigDecimal volume = tradingService.getVolumeForOrder(
+            longExchange,
+            currencyPair,
+            "nullOrder",
+            new BigDecimal(50.0));
+
+        assertEquals(new BigDecimal(50.0), volume);
+    }
+
     @Test(expected = OrderNotFoundException.class)
     public void testGetVolumeForOrderNotFound() {
         tradingService.getVolumeForOrder(
