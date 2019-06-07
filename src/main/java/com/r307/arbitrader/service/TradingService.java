@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -812,11 +813,12 @@ public class TradingService {
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
             LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
-            BigDecimal volume = exchange.getTradeService().getOrder(orderId)
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new OrderNotFoundException(orderId))
-                    .getOriginalAmount();
+            BigDecimal volume = Optional.of(exchange.getTradeService().getOrder(orderId))
+                .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new OrderNotFoundException(orderId))
+                .getOriginalAmount();
 
             LOGGER.debug("{}: Order {} volume is: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -855,6 +857,7 @@ public class TradingService {
         LOGGER.debug("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
+
         return defaultVolume;
     }
 
