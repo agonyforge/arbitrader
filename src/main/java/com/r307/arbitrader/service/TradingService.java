@@ -813,7 +813,7 @@ public class TradingService {
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
         try {
             LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
-            BigDecimal volume = Optional.of(exchange.getTradeService().getOrder(orderId))
+            BigDecimal volume = Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
                 .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
                 .stream()
                 .findFirst()
