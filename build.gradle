@@ -9,7 +9,7 @@ plugins {
     id 'org.springframework.boot' version '2.1.1.RELEASE'
     id 'io.spring.dependency-management' version '1.0.6.RELEASE'
     id 'info.solidsoft.pitest' version '1.4.6'
-    id 'org.owasp.dependencycheck' version '4.0.2'
+    id 'org.owasp.dependencycheck' version '5.3.0'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
