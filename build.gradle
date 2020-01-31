@@ -42,7 +42,7 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.3.19'
     compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.3.19'
     compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '4.3.19'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '4.3.19'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '4.4.1'
     compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '4.3.19'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
