@@ -36,7 +36,7 @@ dependencies {
     compile group: 'org.springframework.boot', name: 'spring-boot-starter'
 
     compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.3.19'
-    compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.3.19'
+    compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.4.1'
     compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.3.19'
     compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.3.19'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.3.19'
