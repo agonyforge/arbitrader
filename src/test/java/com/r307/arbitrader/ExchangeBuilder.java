@@ -216,7 +216,7 @@ public class ExchangeBuilder {
         }
 
         if (!balances.isEmpty()) {
-            Wallet wallet = new Wallet(balances);
+            Wallet wallet = Wallet.Builder.from(balances).build();
             AccountInfo accountInfo = new AccountInfo(wallet);
             AccountService accountService = mock(AccountService.class);
 
