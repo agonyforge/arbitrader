@@ -23,7 +23,7 @@ public class SpringContextSingleton implements ApplicationContextAware {
     }
 
     @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+    public void setApplicationContext(@SuppressWarnings("NullableProblems") ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
     }
 

@@ -61,13 +61,13 @@ public class TradingService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
 
-    private static final BigDecimal TRADE_PORTION = new BigDecimal(0.9);
+    private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
 
     private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
         null, null, null, null, null);
     private static final CurrencyPairMetaData DEFAULT_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
-        new BigDecimal(0.0030), null, null, BTC_SCALE, null);
+        new BigDecimal("0.0030"), null, null, BTC_SCALE, null);
 
     private TradingConfiguration tradingConfiguration;
     private ExchangeFeeCache feeCache;
@@ -394,7 +394,7 @@ public class TradingService {
                 BigDecimal shortFees = getExchangeFee(shortExchange, currencyPair, true);
 
                 BigDecimal fees = (longFees.add(shortFees))
-                        .multiply(new BigDecimal(2.0));
+                        .multiply(new BigDecimal("2.0"));
 
                 BigDecimal exitTarget = spreadIn
                         .subtract(tradingConfiguration.getExitTarget())
@@ -406,11 +406,11 @@ public class TradingService {
                 BigDecimal shortMinAmount = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(shortExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getMinimumAmount();
 
                 if (longMinAmount == null) {
-                    longMinAmount = new BigDecimal(0.001);
+                    longMinAmount = new BigDecimal("0.001");
                 }
 
                 if (shortMinAmount == null) {
-                    shortMinAmount = new BigDecimal(0.001);
+                    shortMinAmount = new BigDecimal("0.001");
                 }
 
                 if (maxExposure.compareTo(longMinAmount) <= 0) {
@@ -673,7 +673,7 @@ public class TradingService {
                             exchange.getExchangeSpecification().getExchangeName());
                 }
 
-                return new BigDecimal(0.0030);
+                return new BigDecimal("0.0030");
             }
 
             if (!isQuiet) {
