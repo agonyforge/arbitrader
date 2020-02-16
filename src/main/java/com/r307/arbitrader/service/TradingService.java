@@ -464,6 +464,8 @@ public class TradingService {
 
                 if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably");
+                } else if (conditionService.isBlackoutCondition(longExchange) || conditionService.isBlackoutCondition(shortExchange)) {
+                    LOGGER.warn("Cannot open position on one or more exchanges due to user configured blackout");
                 } else {
                     LOGGER.info("***** ENTRY *****");
 
@@ -549,7 +551,9 @@ public class TradingService {
                     LOGGER.error("Computed trade volume for exiting position was zero!");
                 }
 
-                if (!conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+                if (conditionService.isBlackoutCondition(longExchange) || conditionService.isBlackoutCondition(shortExchange)) {
+                    LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
+                } else if (!conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (conditionService.isForceCloseCondition()) {
