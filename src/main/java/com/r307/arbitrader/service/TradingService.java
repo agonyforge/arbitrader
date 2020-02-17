@@ -642,6 +642,18 @@ public class TradingService {
             return cachedFee;
         }
 
+        // if an explicit override is configured, default to that
+        if (exchangeService.getExchangeMetadata(exchange).getFeeOverride() != null) {
+            BigDecimal fee = exchangeService.getExchangeMetadata(exchange).getFeeOverride();
+            feeCache.setCachedFee(exchange, currencyPair, fee);
+
+            LOGGER.trace("Using explicitly configured fee override of {} for {}",
+                fee,
+                exchange.getExchangeSpecification().getExchangeName());
+
+            return fee;
+        }
+
         try {
             Map<CurrencyPair, Fee> fees = exchange.getAccountService().getDynamicTradingFees();
 
@@ -651,6 +663,9 @@ public class TradingService {
                 // We're going to cache this value. Fees don't change all that often and we don't want to use up
                 // our allowance of API calls just checking the fees.
                 feeCache.setCachedFee(exchange, currencyPair, fee);
+
+                LOGGER.trace("Using dynamic maker fee for {}",
+                    exchange.getExchangeSpecification().getExchangeName());
 
                 return fee;
             }

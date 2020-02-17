@@ -22,6 +22,7 @@ public class ExchangeConfiguration {
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal fee;
+    private BigDecimal feeOverride;
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
 
@@ -119,6 +120,14 @@ public class ExchangeConfiguration {
 
     public void setFee(BigDecimal fee) {
         this.fee = fee;
+    }
+
+    public BigDecimal getFeeOverride() {
+        return feeOverride;
+    }
+
+    public void setFeeOverride(BigDecimal feeOverride) {
+        this.feeOverride = feeOverride;
     }
 
     public Currency getHomeCurrency() {
