@@ -223,7 +223,7 @@ trading:
       apiKey: x
       secretKey: x
       margin: false
-      fee: 0.0016
+      feeOverride: 0.0016 # Cex.IO returns 0.16 as the fee but this will force it to 0.0016 which is the correct value
 
     -
       exchangeClass: org.knowm.xchange.bitstamp.BitstampExchange
