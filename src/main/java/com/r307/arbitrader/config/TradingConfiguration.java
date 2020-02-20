@@ -18,6 +18,7 @@ public class TradingConfiguration {
     private BigDecimal fixedExposure;
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
     private List<String> tradeBlacklist = new ArrayList<>();
+    private Long tradeTimeout;
 
     public BigDecimal getEntrySpread() {
         return entrySpread;
@@ -57,5 +58,13 @@ public class TradingConfiguration {
 
     public void setTradeBlacklist(List<String> tradeBlacklist) {
         this.tradeBlacklist = tradeBlacklist;
+    }
+
+    public Long getTradeTimeout() {
+        return tradeTimeout;
+    }
+
+    public void setTradeTimeout(Long tradeTimeout) {
+        this.tradeTimeout = tradeTimeout;
     }
 }

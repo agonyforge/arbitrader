@@ -39,6 +39,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -220,6 +221,10 @@ public class TradingService {
 
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
+        }
+
+        if (tradingConfiguration.getTradeTimeout() != null) {
+            LOGGER.info("Using trade timeout of {} minutes", tradingConfiguration.getTradeTimeout());
         }
 
         // load active trades from file, if there is one
@@ -523,7 +528,7 @@ public class TradingService {
                     && currencyPair.equals(activePosition.getCurrencyPair())
                     && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
                     && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
-                    && (spreadOut.compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition())) {
+                    && (spreadOut.compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition() || isTradeExpired())) {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
@@ -556,7 +561,9 @@ public class TradingService {
                 } else if (!conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
-                    if (conditionService.isForceCloseCondition()) {
+                    if (isTradeExpired()) {
+                        LOGGER.warn("***** TIMEOUT EXIT *****");
+                    } else if (conditionService.isForceCloseCondition()) {
                         LOGGER.warn("***** FORCED EXIT *****");
                     } else {
                         LOGGER.info("***** EXIT *****");
@@ -998,5 +1005,13 @@ public class TradingService {
             .divide(step, RoundingMode.HALF_EVEN)
             .round(MathContext.DECIMAL64)
             .multiply(step);
+    }
+
+    private boolean isTradeExpired() {
+        if (tradingConfiguration.getTradeTimeout() == null || activePosition == null) {
+            return false;
+        }
+
+        return activePosition.getEntryTime().plusMinutes(tradingConfiguration.getTradeTimeout()).isAfter(OffsetDateTime.now());
     }
 }

@@ -40,6 +40,11 @@ trading:
   tradeBlacklist:
     - Quoine:Kraken:ETH/USD
 
+  # (Optional)
+  # Set a time limit for open positions. If a position is open longer than the time limit it will be closed regardless
+  # of whether it will turn a profit or not. The value of this property is expressed in minutes. 86400 equals 1 day.
+  tradeTimeout: 86400
+
   # Connection information for each exchange goes in this list.
   #
   # To add a new exchange or remove one that you don't use, either add or remove the configuration from this list.
