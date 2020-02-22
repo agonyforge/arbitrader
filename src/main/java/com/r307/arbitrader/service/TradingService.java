@@ -562,6 +562,11 @@ public class TradingService {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (isTradeExpired()) {
+                        if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+                            LOGGER.debug("Not exiting for timeout because it would immediately re-enter");
+                            return;
+                        }
+
                         LOGGER.warn("***** TIMEOUT EXIT *****");
                     } else if (conditionService.isForceCloseCondition()) {
                         LOGGER.warn("***** FORCED EXIT *****");
