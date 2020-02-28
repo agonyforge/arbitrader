@@ -497,6 +497,7 @@ public class TradingService {
 
                     try {
                         activePosition = new ActivePosition();
+                        activePosition.setEntryTime(OffsetDateTime.now());
                         activePosition.setCurrencyPair(currencyPair);
                         activePosition.setExitTarget(exitTarget);
                         activePosition.setEntryBalance(totalBalance);
@@ -1013,10 +1014,10 @@ public class TradingService {
     }
 
     private boolean isTradeExpired() {
-        if (tradingConfiguration.getTradeTimeout() == null || activePosition == null) {
+        if (tradingConfiguration.getTradeTimeout() == null || activePosition == null || activePosition.getEntryTime() == null) {
             return false;
         }
 
-        return activePosition.getEntryTime().plusMinutes(tradingConfiguration.getTradeTimeout()).isAfter(OffsetDateTime.now());
+        return activePosition.getEntryTime().plusHours(tradingConfiguration.getTradeTimeout()).isAfter(OffsetDateTime.now());
     }
 }
