@@ -224,7 +224,7 @@ public class TradingService {
         }
 
         if (tradingConfiguration.getTradeTimeout() != null) {
-            LOGGER.info("Using trade timeout of {} minutes", tradingConfiguration.getTradeTimeout());
+            LOGGER.info("Using trade timeout of {} hours", tradingConfiguration.getTradeTimeout());
         }
 
         // load active trades from file, if there is one
