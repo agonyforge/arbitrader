@@ -839,7 +839,10 @@ public class TradingService {
     }
 
     private BigDecimal computeSpread(BigDecimal longPrice, BigDecimal shortPrice) {
-        return (shortPrice.subtract(longPrice)).divide(longPrice, RoundingMode.HALF_EVEN);
+        BigDecimal scaledLongPrice = longPrice.setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+        BigDecimal scaledShortPrice = shortPrice.setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+        return (scaledShortPrice.subtract(scaledLongPrice)).divide(scaledLongPrice, RoundingMode.HALF_EVEN);
     }
 
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
