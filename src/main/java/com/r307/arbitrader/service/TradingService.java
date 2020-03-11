@@ -59,7 +59,6 @@ public class TradingService {
     public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
 
     private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
@@ -70,6 +69,7 @@ public class TradingService {
     private static final CurrencyPairMetaData DEFAULT_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
         new BigDecimal("0.0030"), null, null, BTC_SCALE, null);
 
+    private ObjectMapper objectMapper;
     private TradingConfiguration tradingConfiguration;
     private ExchangeFeeCache feeCache;
     private ConditionService conditionService;
@@ -87,6 +87,7 @@ public class TradingService {
     private ActivePosition activePosition = null;
 
     public TradingService(
+        ObjectMapper objectMapper,
         TradingConfiguration tradingConfiguration,
         ExchangeFeeCache feeCache,
         ConditionService conditionService,
@@ -95,6 +96,7 @@ public class TradingService {
         TickerService tickerService,
         Map<String, TickerStrategy> tickerStrategies) {
 
+        this.objectMapper = objectMapper;
         this.tradingConfiguration = tradingConfiguration;
         this.feeCache = feeCache;
         this.conditionService = conditionService;
@@ -235,7 +237,7 @@ public class TradingService {
                 LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
             } else {
                 try {
-                    activePosition = OBJECT_MAPPER.readValue(stateFile, ActivePosition.class);
+                    activePosition = objectMapper.readValue(stateFile, ActivePosition.class);
 
                     LOGGER.info("Loaded active trades from file: {}", stateFile.getAbsolutePath());
                     LOGGER.info("Active trades: {}", activePosition);
@@ -520,7 +522,7 @@ public class TradingService {
                     }
 
                     try {
-                        FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
+                        FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
                     } catch (IOException e) {
                         LOGGER.error("Unable to write state file!", e);
                     }
@@ -1009,11 +1011,17 @@ public class TradingService {
         return DEFAULT_CURRENCY_PAIR_METADATA; // defaults to BTC_SCALE
     }
 
+    /*
+     * The formula is: step * round(input / step)
+     * All the BigDecimals make it really hard to read. We're using setScale() instead of round() because you can't
+     * set the precision on round() to zero. You can do it with setScale() and it will implicitly do the rounding.
+     */
     static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
         return input
             .divide(step, RoundingMode.HALF_EVEN)
-            .round(MathContext.DECIMAL64)
-            .multiply(step);
+            .setScale(0, RoundingMode.HALF_EVEN)
+            .multiply(step)
+            .setScale(input.scale(), RoundingMode.HALF_EVEN);
     }
 
     private boolean isTradeExpired() {

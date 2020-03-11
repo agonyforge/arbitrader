@@ -85,17 +85,17 @@ public class ExchangeBuilder {
         currencyPairs.forEach(currencyPair ->
             tickers.add(new Ticker.Builder()
                 .currencyPair(currencyPair)
-                .open(new BigDecimal(1000.000))
-                .last(new BigDecimal(1001.000))
-                .bid(new BigDecimal(1001.000))
-                .ask(new BigDecimal(1002.000))
-                .high(new BigDecimal(1005.00))
-                .low(new BigDecimal(1000.00))
-                .vwap(new BigDecimal(1000.50))
-                .volume(new BigDecimal(500000.00))
-                .quoteVolume(new BigDecimal(600000.00))
-                .bidSize(new BigDecimal(400.00))
-                .askSize(new BigDecimal(600.00))
+                .open(new BigDecimal("1000.000"))
+                .last(new BigDecimal("1001.000"))
+                .bid(new BigDecimal("1001.000"))
+                .ask(new BigDecimal("1002.000"))
+                .high(new BigDecimal("1005.00"))
+                .low(new BigDecimal("1000.00"))
+                .vwap(new BigDecimal("1000.50"))
+                .volume(new BigDecimal("500000.00"))
+                .quoteVolume(new BigDecimal("600000.00"))
+                .bidSize(new BigDecimal("400.00"))
+                .askSize(new BigDecimal("600.00"))
                 .build())
         );
 
@@ -116,9 +116,9 @@ public class ExchangeBuilder {
 
     public ExchangeBuilder withExchangeMetaData() {
         CurrencyPairMetaData currencyPairMetaData = new CurrencyPairMetaData(
-            new BigDecimal(0.0020),
-            new BigDecimal(0.0010),
-            new BigDecimal(1000.00000000),
+            new BigDecimal("0.0020"),
+            new BigDecimal("0.0010"),
+            new BigDecimal("1000.00000000"),
             BTC_SCALE,
             null,
             null);
@@ -153,8 +153,8 @@ public class ExchangeBuilder {
             currencyPair,
             UUID.randomUUID().toString(),
             new Date(),
-            new BigDecimal(100.0000)
-                .add(new BigDecimal(0.001))
+            new BigDecimal("100.0000")
+                .add(new BigDecimal("0.001"))
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
 
         when(tradeService.getOrder(eq("orderId"))).thenReturn(Collections.singleton(order));
@@ -249,7 +249,7 @@ public class ExchangeBuilder {
                 currencyPair,
                 UUID.randomUUID().toString(),
                 new Date(),
-                new BigDecimal(100.0000)
+                new BigDecimal("100.0000")
                     .add(new BigDecimal(i * 0.001))
                     .setScale(BTC_SCALE, RoundingMode.HALF_EVEN)));
         }
