@@ -1017,11 +1017,17 @@ public class TradingService {
      * set the precision on round() to zero. You can do it with setScale() and it will implicitly do the rounding.
      */
     static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
-        return input
+        LOGGER.info("input = {} step = {}", input, step);
+
+        BigDecimal result = input
             .divide(step, RoundingMode.HALF_EVEN)
             .setScale(0, RoundingMode.HALF_EVEN)
             .multiply(step)
             .setScale(input.scale(), RoundingMode.HALF_EVEN);
+
+        LOGGER.info("result = {}", result);
+
+        return result;
     }
 
     private boolean isTradeExpired() {

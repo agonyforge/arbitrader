@@ -343,4 +343,34 @@ public class TradingServiceTest {
 
         assertEquals(new BigDecimal("80.00"), result);
     }
+
+    @Test
+    public void testRoundByDecimals54() {
+        BigDecimal input = new BigDecimal("0.054");
+        BigDecimal step = new BigDecimal("0.01");
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal("0.050"), result);
+    }
+
+    @Test
+    public void testRoundByDecimals55() {
+        BigDecimal input = new BigDecimal("0.055");
+        BigDecimal step = new BigDecimal("0.01");
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal("0.060"), result);
+    }
+
+    @Test
+    public void testRoundByDecimals56() {
+        BigDecimal input = new BigDecimal("0.056");
+        BigDecimal step = new BigDecimal("0.01");
+
+        BigDecimal result = TradingService.roundByStep(input, step);
+
+        assertEquals(new BigDecimal("0.060"), result);
+    }
 }
