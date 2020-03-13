@@ -345,32 +345,32 @@ public class TradingServiceTest {
     }
 
     @Test
-    public void testRoundByDecimals54() {
-        BigDecimal input = new BigDecimal("0.054");
+    public void testRoundByDecimals34() {
+        BigDecimal input = new BigDecimal("0.034379584992664");
         BigDecimal step = new BigDecimal("0.01");
 
         BigDecimal result = TradingService.roundByStep(input, step);
 
-        assertEquals(new BigDecimal("0.050"), result);
+        assertEquals(new BigDecimal("0.03"), result);
     }
 
     @Test
-    public void testRoundByDecimals55() {
-        BigDecimal input = new BigDecimal("0.055");
+    public void testRoundByDecimals35() {
+        BigDecimal input = new BigDecimal("0.035379584992664");
         BigDecimal step = new BigDecimal("0.01");
 
         BigDecimal result = TradingService.roundByStep(input, step);
 
-        assertEquals(new BigDecimal("0.060"), result);
+        assertEquals(new BigDecimal("0.04"), result);
     }
 
     @Test
-    public void testRoundByDecimals56() {
-        BigDecimal input = new BigDecimal("0.056");
+    public void testRoundByDecimals36() {
+        BigDecimal input = new BigDecimal("0.036379584992664");
         BigDecimal step = new BigDecimal("0.01");
 
         BigDecimal result = TradingService.roundByStep(input, step);
 
-        assertEquals(new BigDecimal("0.060"), result);
+        assertEquals(new BigDecimal("0.04"), result);
     }
 }

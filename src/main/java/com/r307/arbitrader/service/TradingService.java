@@ -36,7 +36,6 @@ import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.time.OffsetDateTime;
@@ -376,7 +375,7 @@ public class TradingService {
                 && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) <= 0
                 && missedTrades.containsKey(tradeCombination)) {
 
-                LOGGER.info("{} has exited entry threshold: {}", tradeCombination, spreadIn);
+                LOGGER.debug("{} has exited entry threshold: {}", tradeCombination, spreadIn);
 
                 missedTrades.remove(tradeCombination);
             }
@@ -388,7 +387,7 @@ public class TradingService {
                         || !activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
                         if (!missedTrades.containsKey(tradeCombination)) {
-                            LOGGER.info("{} has entered entry threshold: {}", tradeCombination, spreadIn);
+                            LOGGER.debug("{} has entered entry threshold: {}", tradeCombination, spreadIn);
 
                             missedTrades.put(tradeCombination, spreadIn);
                         }
@@ -1023,7 +1022,7 @@ public class TradingService {
             .divide(step, RoundingMode.HALF_EVEN)
             .setScale(0, RoundingMode.HALF_EVEN)
             .multiply(step)
-            .setScale(input.scale(), RoundingMode.HALF_EVEN);
+            .setScale(step.scale(), RoundingMode.HALF_EVEN);
 
         LOGGER.info("result = {}", result);
 
@@ -1035,6 +1034,6 @@ public class TradingService {
             return false;
         }
 
-        return activePosition.getEntryTime().plusHours(tradingConfiguration.getTradeTimeout()).isAfter(OffsetDateTime.now());
+        return activePosition.getEntryTime().plusHours(tradingConfiguration.getTradeTimeout()).isBefore(OffsetDateTime.now());
     }
 }
