@@ -56,10 +56,18 @@ public class ExchangeBuilder {
     private TickerStrategy tickerStrategy = null;
     private Boolean isGetTickersImplemented = null;
     private List<Ticker> tickers = new ArrayList<>();
+    private List<CurrencyPair> tradingPairs = new ArrayList<>();
+    private Boolean isMarginSupported = false;
 
     public ExchangeBuilder(String name, CurrencyPair currencyPair) {
         this.name = name;
         this.currencyPair = currencyPair;
+    }
+
+    public ExchangeBuilder withMarginSupported(boolean isMarginSupported) {
+        this.isMarginSupported = isMarginSupported;
+
+        return this;
     }
 
     public ExchangeBuilder withOrderBook(int bids, int asks) {
@@ -81,6 +89,7 @@ public class ExchangeBuilder {
 
     public ExchangeBuilder withTickers(boolean isGetTickersImplemented, List<CurrencyPair> currencyPairs) {
         this.isGetTickersImplemented = isGetTickersImplemented;
+        this.tradingPairs.addAll(currencyPairs);
 
         currencyPairs.forEach(currencyPair ->
             tickers.add(new Ticker.Builder()
@@ -178,6 +187,8 @@ public class ExchangeBuilder {
         MarketDataService marketDataService = mock(MarketDataService.class);
 
         metadata.setHomeCurrency(homeCurrency);
+        metadata.setTradingPairs(tradingPairs);
+        metadata.setMargin(isMarginSupported);
 
         when(exchange.getExchangeSpecification()).thenReturn(specification);
         when(specification.getExchangeName()).thenReturn(name);

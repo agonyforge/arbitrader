@@ -52,7 +52,10 @@ public class TradingServiceTest {
         ConditionService conditionService = new ConditionService();
         ExchangeService exchangeService = new ExchangeService();
         ErrorCollectorService errorCollectorService = new ErrorCollectorService();
-        TickerService tickerService = new TickerService(errorCollectorService);
+        TickerService tickerService = new TickerService(
+            tradingConfiguration,
+            exchangeService,
+            errorCollectorService);
         TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
         TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 

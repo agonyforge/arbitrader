@@ -8,7 +8,6 @@ import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
@@ -42,13 +41,10 @@ import java.nio.charset.Charset;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
@@ -78,8 +74,6 @@ public class TradingService {
     private TickerService tickerService;
     private Map<String, TickerStrategy> tickerStrategies;
     private List<Exchange> exchanges = new ArrayList<>();
-    private List<TradeCombination> tradeCombinations = new ArrayList<>();
-    private Map<String, Ticker> allTickers = new HashMap<>();
     private Map<String, BigDecimal> minSpread = new HashMap<>();
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
     private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
@@ -187,39 +181,7 @@ public class TradingService {
                 tradingFee);
         });
 
-        LOGGER.info("Fetching all tickers for all exchanges...");
-
-        allTickers.clear();
-        exchanges.forEach(exchange -> tickerService.getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
-                .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
-
-        LOGGER.info("Trading the following exchanges and pairs:");
-
-        exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
-            // get the pairs common to both exchanges
-            Collection<CurrencyPair> currencyPairs = CollectionUtils.intersection(
-                exchangeService.getExchangeMetadata(longExchange).getTradingPairs(),
-                exchangeService.getExchangeMetadata(shortExchange).getTradingPairs());
-
-            currencyPairs.forEach(currencyPair -> {
-                if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    return;
-                }
-
-                Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-                Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
-
-                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
-                    return;
-                }
-
-                TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
-
-                tradeCombinations.add(combination);
-
-                LOGGER.info("{}", combination);
-            });
-        }));
+        tickerService.initializeTickers(exchanges);
 
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
@@ -267,6 +229,8 @@ public class TradingService {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
+        List<TradeCombination> tradeCombinations = tickerService.getTradeCombinations();
+
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = computeSpread(tradeCombination);
 
@@ -311,36 +275,11 @@ public class TradingService {
             System.exit(0);
         }
 
-        // fetch all the configured tickers for each exchange
-        allTickers.clear();
-
-        // find the currency pairs for each exchange that are both configured and actually in use for trading
-        // only fetch those tickers that are being used, to try to avoid API rate limiting
-        exchanges
-            .parallelStream()
-            .forEach(exchange -> {
-                List<CurrencyPair> activePairs = tradeCombinations
-                    .parallelStream()
-                    .filter(tradeCombination -> tradeCombination.getLongExchange().equals(exchange) || tradeCombination.getShortExchange().equals(exchange))
-                    .map(TradeCombination::getCurrencyPair)
-                    .distinct()
-                    .collect(Collectors.toList());
-
-                try {
-                    LOGGER.trace("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
-
-                    tickerService.getTickers(exchange, activePairs)
-                        .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker));
-                } catch (ExchangeException e) {
-                    LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
-                }
-            });
+        tickerService.refreshTickers();
 
         long exchangePollStartTime = System.currentTimeMillis();
 
-        // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
-        // executing trades than ones at the end of the list.
-        Collections.shuffle(tradeCombinations);
+        List<TradeCombination> tradeCombinations = tickerService.getTradeCombinations();
 
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = computeSpread(tradeCombination);
@@ -624,12 +563,6 @@ public class TradingService {
         }
     }
 
-    private String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
-        return String.format("%s:%s",
-                exchange.getExchangeSpecification().getExchangeName(),
-            exchangeService.convertExchangePair(exchange, currencyPair));
-    }
-
     private static String spreadKey(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         return String.format("%s:%s:%s",
                 longExchange.getExchangeSpecification().getExchangeName(),
@@ -706,42 +639,6 @@ public class TradingService {
         }
 
         return currencyPairMetaData.getTradingFee();
-    }
-
-    private static String tradeCombination(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
-        return String.format("%s:%s:%s",
-                longExchange.getExchangeSpecification().getExchangeName(),
-                shortExchange.getExchangeSpecification().getExchangeName(),
-                currencyPair);
-    }
-
-    private boolean isInvalidExchangePair(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
-        // both exchanges are the same
-        if (longExchange == shortExchange) {
-            return true;
-        }
-
-        // the "short" exchange doesn't support margin
-        if (!exchangeService.getExchangeMetadata(shortExchange).getMargin()) {
-            return true;
-        }
-
-        // the "short" exchange doesn't support margin on this currency pair
-        if (exchangeService.getExchangeMetadata(shortExchange).getMarginExclude().contains(currencyPair)) {
-            return true;
-        }
-
-        // this specific combination of exchanges/currency has been blocked in the configuration
-        //noinspection RedundantIfStatement
-        if (tradingConfiguration.getTradeBlacklist().contains(tradeCombination(longExchange, shortExchange, currencyPair))) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean isInvalidTicker(Ticker ticker) {
-        return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
@@ -1030,10 +927,10 @@ public class TradingService {
         Exchange shortExchange = tradeCombination.getShortExchange();
         CurrencyPair currencyPair = tradeCombination.getCurrencyPair();
 
-        Ticker longTicker = allTickers.get(tickerKey(longExchange, currencyPair));
-        Ticker shortTicker = allTickers.get(tickerKey(shortExchange, currencyPair));
+        Ticker longTicker = tickerService.getTicker(longExchange, currencyPair);
+        Ticker shortTicker = tickerService.getTicker(shortExchange, currencyPair);
 
-        if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
+        if (tickerService.isInvalidTicker(longTicker) || tickerService.isInvalidTicker(shortTicker)) {
             return null;
         }
 
