@@ -78,6 +78,7 @@ public class TradingService {
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
     private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
     private boolean bailOut = false;
+    private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
 
     public TradingService(
@@ -492,11 +493,16 @@ public class TradingService {
                 } else {
                     if (isTradeExpired()) {
                         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                            LOGGER.debug("Not exiting for timeout because it would immediately re-enter");
+                            if (!timeoutExitWarning) {
+                                LOGGER.warn("Timeout exit triggered");
+                                LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
+                                timeoutExitWarning = true;
+                            }
                             return;
                         }
 
                         LOGGER.warn("***** TIMEOUT EXIT *****");
+                        timeoutExitWarning = false;
                     } else if (conditionService.isForceCloseCondition()) {
                         LOGGER.warn("***** FORCED EXIT *****");
                     } else {
