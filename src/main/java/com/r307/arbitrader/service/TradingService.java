@@ -561,19 +561,16 @@ public class TradingService {
 
                 if (conditionService.isBlackoutCondition(longExchange) || conditionService.isBlackoutCondition(shortExchange)) {
                     LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
-                } else if (!conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+                } else if (isTradeExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+                    if (!timeoutExitWarning) {
+                        LOGGER.warn("Timeout exit triggered");
+                        LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
+                        timeoutExitWarning = true;
+                    }
+                } else if (!isTradeExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (isTradeExpired()) {
-                        if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                            if (!timeoutExitWarning) {
-                                LOGGER.warn("Timeout exit triggered");
-                                LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
-                                timeoutExitWarning = true;
-                            }
-                            return;
-                        }
-
                         LOGGER.warn("***** TIMEOUT EXIT *****");
                         timeoutExitWarning = false;
                     } else if (conditionService.isForceCloseCondition()) {
