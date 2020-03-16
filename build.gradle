@@ -16,7 +16,7 @@ plugins {
 apply plugin: 'docker'
 
 group 'com.r307'
-version '0.7.1-SNAPSHOT'
+version '0.8.1-SNAPSHOT'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
