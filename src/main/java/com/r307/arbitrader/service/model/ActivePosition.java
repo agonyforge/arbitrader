@@ -5,6 +5,7 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown=true)
@@ -14,6 +15,7 @@ public class ActivePosition {
     private CurrencyPair currencyPair;
     private BigDecimal exitTarget;
     private BigDecimal entryBalance; // USD balance of both exchanges summed when the trades were first opened
+    private OffsetDateTime entryTime;
 
     public Trade getLongTrade() {
         return longTrade;
@@ -47,6 +49,14 @@ public class ActivePosition {
         this.entryBalance = entryBalance;
     }
 
+    public OffsetDateTime getEntryTime() {
+        return entryTime;
+    }
+
+    public void setEntryTime(OffsetDateTime entryTime) {
+        this.entryTime = entryTime;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -56,12 +66,13 @@ public class ActivePosition {
             Objects.equals(getShortTrade(), that.getShortTrade()) &&
             Objects.equals(getCurrencyPair(), that.getCurrencyPair()) &&
             Objects.equals(getExitTarget(), that.getExitTarget()) &&
-            Objects.equals(getEntryBalance(), that.getEntryBalance());
+            Objects.equals(getEntryBalance(), that.getEntryBalance()) &&
+            Objects.equals(getEntryTime(), that.getEntryTime());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getLongTrade(), getShortTrade(), getCurrencyPair(), getExitTarget(), getEntryBalance());
+        return Objects.hash(getLongTrade(), getShortTrade(), getCurrencyPair(), getExitTarget(), getEntryBalance(), getEntryTime());
     }
 
     @Override
@@ -72,6 +83,7 @@ public class ActivePosition {
             ", currencyPair=" + currencyPair +
             ", exitTarget=" + exitTarget +
             ", entryBalance=" + entryBalance +
+            ", entryTime=" + entryTime +
             '}';
     }
 

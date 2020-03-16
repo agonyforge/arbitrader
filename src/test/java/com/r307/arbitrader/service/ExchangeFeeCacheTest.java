@@ -40,11 +40,11 @@ public class ExchangeFeeCacheTest {
 
     @Test
     public void testSetAndGet() {
-        exchangeFeeCache.setCachedFee(exchange, currencyPair, new BigDecimal(0.0025));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new BigDecimal(0.0010));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new BigDecimal(0.0030));
+        exchangeFeeCache.setCachedFee(exchange, currencyPair, new BigDecimal("0.0025"));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new BigDecimal("0.0010"));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new BigDecimal("0.0030"));
 
-        assertEquals(new BigDecimal(0.0025), exchangeFeeCache.getCachedFee(exchange, currencyPair));
+        assertEquals(new BigDecimal("0.0025"), exchangeFeeCache.getCachedFee(exchange, currencyPair));
     }
 
     @Test

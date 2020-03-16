@@ -36,9 +36,9 @@ import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,7 +58,6 @@ public class TradingService {
     public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
 
     private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
@@ -69,6 +68,7 @@ public class TradingService {
     private static final CurrencyPairMetaData DEFAULT_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
         new BigDecimal("0.0030"), null, null, BTC_SCALE, null);
 
+    private ObjectMapper objectMapper;
     private TradingConfiguration tradingConfiguration;
     private ExchangeFeeCache feeCache;
     private ConditionService conditionService;
@@ -83,9 +83,11 @@ public class TradingService {
     private Map<String, BigDecimal> maxSpread = new HashMap<>();
     private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
     private boolean bailOut = false;
+    private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
 
     public TradingService(
+        ObjectMapper objectMapper,
         TradingConfiguration tradingConfiguration,
         ExchangeFeeCache feeCache,
         ConditionService conditionService,
@@ -94,6 +96,7 @@ public class TradingService {
         TickerService tickerService,
         Map<String, TickerStrategy> tickerStrategies) {
 
+        this.objectMapper = objectMapper;
         this.tradingConfiguration = tradingConfiguration;
         this.feeCache = feeCache;
         this.conditionService = conditionService;
@@ -222,6 +225,10 @@ public class TradingService {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
         }
 
+        if (tradingConfiguration.getTradeTimeout() != null) {
+            LOGGER.info("Using trade timeout of {} hours", tradingConfiguration.getTradeTimeout());
+        }
+
         // load active trades from file, if there is one
         File stateFile = new File(STATE_FILE);
 
@@ -230,7 +237,7 @@ public class TradingService {
                 LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
             } else {
                 try {
-                    activePosition = OBJECT_MAPPER.readValue(stateFile, ActivePosition.class);
+                    activePosition = objectMapper.readValue(stateFile, ActivePosition.class);
 
                     LOGGER.info("Loaded active trades from file: {}", stateFile.getAbsolutePath());
                     LOGGER.info("Active trades: {}", activePosition);
@@ -369,7 +376,7 @@ public class TradingService {
                 && spreadIn.compareTo(tradingConfiguration.getEntrySpread()) <= 0
                 && missedTrades.containsKey(tradeCombination)) {
 
-                LOGGER.info("{} has exited entry threshold: {}", tradeCombination, spreadIn);
+                LOGGER.debug("{} has exited entry threshold: {}", tradeCombination, spreadIn);
 
                 missedTrades.remove(tradeCombination);
             }
@@ -381,7 +388,7 @@ public class TradingService {
                         || !activePosition.getShortTrade().getExchange().equals(shortExchange.getExchangeSpecification().getExchangeName())) {
 
                         if (!missedTrades.containsKey(tradeCombination)) {
-                            LOGGER.info("{} has entered entry threshold: {}", tradeCombination, spreadIn);
+                            LOGGER.debug("{} has entered entry threshold: {}", tradeCombination, spreadIn);
 
                             missedTrades.put(tradeCombination, spreadIn);
                         }
@@ -492,6 +499,7 @@ public class TradingService {
 
                     try {
                         activePosition = new ActivePosition();
+                        activePosition.setEntryTime(OffsetDateTime.now());
                         activePosition.setCurrencyPair(currencyPair);
                         activePosition.setExitTarget(exitTarget);
                         activePosition.setEntryBalance(totalBalance);
@@ -514,7 +522,7 @@ public class TradingService {
                     }
 
                     try {
-                        FileUtils.write(new File(STATE_FILE), OBJECT_MAPPER.writeValueAsString(activePosition), Charset.defaultCharset());
+                        FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
                     } catch (IOException e) {
                         LOGGER.error("Unable to write state file!", e);
                     }
@@ -523,7 +531,7 @@ public class TradingService {
                     && currencyPair.equals(activePosition.getCurrencyPair())
                     && longExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
                     && shortExchange.getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
-                    && (spreadOut.compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition())) {
+                    && (spreadOut.compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition() || isTradeExpired())) {
 
                 BigDecimal longVolume = getVolumeForOrder(
                     longExchange,
@@ -553,10 +561,19 @@ public class TradingService {
 
                 if (conditionService.isBlackoutCondition(longExchange) || conditionService.isBlackoutCondition(shortExchange)) {
                     LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
-                } else if (!conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+                } else if (isTradeExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+                    if (!timeoutExitWarning) {
+                        LOGGER.warn("Timeout exit triggered");
+                        LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
+                        timeoutExitWarning = true;
+                    }
+                } else if (!isTradeExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
-                    if (conditionService.isForceCloseCondition()) {
+                    if (isTradeExpired()) {
+                        LOGGER.warn("***** TIMEOUT EXIT *****");
+                        timeoutExitWarning = false;
+                    } else if (conditionService.isForceCloseCondition()) {
                         LOGGER.warn("***** FORCED EXIT *****");
                     } else {
                         LOGGER.info("***** EXIT *****");
@@ -826,7 +843,10 @@ public class TradingService {
     }
 
     private BigDecimal computeSpread(BigDecimal longPrice, BigDecimal shortPrice) {
-        return (shortPrice.subtract(longPrice)).divide(longPrice, RoundingMode.HALF_EVEN);
+        BigDecimal scaledLongPrice = longPrice.setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+        BigDecimal scaledShortPrice = shortPrice.setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+        return (scaledShortPrice.subtract(scaledLongPrice)).divide(scaledLongPrice, RoundingMode.HALF_EVEN);
     }
 
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
@@ -993,10 +1013,30 @@ public class TradingService {
         return DEFAULT_CURRENCY_PAIR_METADATA; // defaults to BTC_SCALE
     }
 
+    /*
+     * The formula is: step * round(input / step)
+     * All the BigDecimals make it really hard to read. We're using setScale() instead of round() because you can't
+     * set the precision on round() to zero. You can do it with setScale() and it will implicitly do the rounding.
+     */
     static BigDecimal roundByStep(BigDecimal input, BigDecimal step) {
-        return input
+        LOGGER.info("input = {} step = {}", input, step);
+
+        BigDecimal result = input
             .divide(step, RoundingMode.HALF_EVEN)
-            .round(MathContext.DECIMAL64)
-            .multiply(step);
+            .setScale(0, RoundingMode.HALF_EVEN)
+            .multiply(step)
+            .setScale(step.scale(), RoundingMode.HALF_EVEN);
+
+        LOGGER.info("result = {}", result);
+
+        return result;
+    }
+
+    private boolean isTradeExpired() {
+        if (tradingConfiguration.getTradeTimeout() == null || activePosition == null || activePosition.getEntryTime() == null) {
+            return false;
+        }
+
+        return activePosition.getEntryTime().plusHours(tradingConfiguration.getTradeTimeout()).isBefore(OffsetDateTime.now());
     }
 }
