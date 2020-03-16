@@ -42,8 +42,8 @@ trading:
 
   # (Optional)
   # Set a time limit for open positions. If a position is open longer than the time limit it will be closed regardless
-  # of whether it will turn a profit or not. The value of this property is expressed in minutes. 86400 equals 1 day.
-  tradeTimeout: 86400
+  # of whether it will turn a profit or not. The value of this property is expressed in hours. 24 equals 1 day.
+  tradeTimeout: 48
 
   # Connection information for each exchange goes in this list.
   #
