@@ -814,22 +814,29 @@ public class TradingService {
 
         LOGGER.info("Waiting for limit orders to complete...");
 
-        OpenOrders longOpenOrders;
-        OpenOrders shortOpenOrders;
+        OpenOrders longOpenOrders = null;
+        OpenOrders shortOpenOrders = null;
         int count = 0;
 
         do {
-            longOpenOrders = longExchange.getTradeService().getOpenOrders();
-            shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+            try {
+                longOpenOrders = longExchange.getTradeService().getOpenOrders();
 
-            if (count++ % 10 == 0) {
-                if (!longOpenOrders.getOpenOrders().isEmpty()) {
+                if (count++ % 10 == 0) {
                     LOGGER.warn("{} limit order has not yet filled", longExchange.getExchangeSpecification().getExchangeName());
                 }
+            } catch (IOException e) {
+                LOGGER.warn("IOE fetching open orders from {}", longExchange.getExchangeSpecification().getExchangeName());
+            }
 
-                if (!shortOpenOrders.getOpenOrders().isEmpty()) {
+            try {
+                shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+
+                if (count++ % 10 == 0) {
                     LOGGER.warn("{} limit order has not yet filled", shortExchange.getExchangeSpecification().getExchangeName());
                 }
+            } catch (IOException e) {
+                LOGGER.warn("IOE fetching open orders from {}", shortExchange.getExchangeSpecification().getExchangeName());
             }
 
             try {
@@ -837,7 +844,10 @@ public class TradingService {
             } catch (InterruptedException e) {
                 LOGGER.trace("Sleep interrupted!", e);
             }
-        } while (!longOpenOrders.getOpenOrders().isEmpty() || !shortOpenOrders.getOpenOrders().isEmpty());
+        } while (longOpenOrders == null
+            || shortOpenOrders == null
+            || !longOpenOrders.getOpenOrders().isEmpty()
+            || !shortOpenOrders.getOpenOrders().isEmpty());
 
         LOGGER.info("Trades executed successfully!");
     }
