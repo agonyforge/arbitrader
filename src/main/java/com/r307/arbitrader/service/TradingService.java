@@ -439,6 +439,10 @@ public class TradingService {
                 int longScale = longExchange.getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(longExchange, currencyPair), this::getScale).getPriceScale();
                 int shortScale = longExchange.getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(shortExchange, currencyPair), this::getScale).getPriceScale();
 
+                LOGGER.info("Max exposure: {}", maxExposure);
+                LOGGER.info("Long ticker ASK: {}", longTicker.getAsk());
+                LOGGER.info("Short ticker BID: {}", shortTicker.getBid());
+
                 BigDecimal longVolume = maxExposure.divide(longTicker.getAsk(), longScale, RoundingMode.HALF_EVEN);
                 BigDecimal shortVolume = maxExposure.divide(shortTicker.getBid(), shortScale, RoundingMode.HALF_EVEN);
 
