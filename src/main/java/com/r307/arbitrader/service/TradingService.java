@@ -445,6 +445,9 @@ public class TradingService {
                 BigDecimal longStepSize = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(longExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
                 BigDecimal shortStepSize = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(shortExchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
+                LOGGER.info("Long exchange volume before rounding: {}", longVolume);
+                LOGGER.info("Short exchange volume before rounding: {}", shortVolume);
+
                 if (longStepSize != null) {
                     longVolume = roundByStep(longVolume, longStepSize);
                 }
@@ -452,6 +455,9 @@ public class TradingService {
                 if (shortStepSize != null) {
                     shortVolume = roundByStep(shortVolume, shortStepSize);
                 }
+
+                LOGGER.info("Long exchange volume after rounding: {}", longVolume);
+                LOGGER.info("Short exchange volume after rounding: {}", shortVolume);
 
                 BigDecimal longLimitPrice;
                 BigDecimal shortLimitPrice;
