@@ -5,6 +5,7 @@ build/
 out/
 
 *.iml
+.env
 /application.yaml
 /arbitrader-state.json
 /blackout

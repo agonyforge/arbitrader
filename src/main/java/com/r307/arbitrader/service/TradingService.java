@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
@@ -363,14 +364,31 @@ public class TradingService {
                     return;
                 }
 
-                int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
-                int shortScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
+                // A lot of these are configured to 2 or even 0 which makes us round off significant values.
+                // As much as I'd like to use the configured values it seems better to default to 8 figures.
+//                int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
+//                int shortScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
+
+                int longScale = BTC_SCALE;
+                int shortScale = BTC_SCALE;
+
+                LOGGER.debug("Max exposure: {}", maxExposure);
+                LOGGER.debug("Long scale: {}", longScale);
+                LOGGER.debug("Short scale: {}", shortScale);
+                LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
+                LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
 
                 BigDecimal longVolume = maxExposure.divide(spread.getLongTicker().getAsk(), longScale, RoundingMode.HALF_EVEN);
                 BigDecimal shortVolume = maxExposure.divide(spread.getShortTicker().getBid(), shortScale, RoundingMode.HALF_EVEN);
 
                 BigDecimal longStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
                 BigDecimal shortStepSize = spread.getShortExchange().getExchangeMetaData().getCurrencyPairs().getOrDefault(exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+
+                LOGGER.debug("Long step size: {}", longStepSize);
+                LOGGER.debug("Short step size: {}", shortStepSize);
+
+                LOGGER.debug("Long exchange volume before rounding: {}", longVolume);
+                LOGGER.debug("Short exchange volume before rounding: {}", shortVolume);
 
                 if (longStepSize != null) {
                     longVolume = roundByStep(longVolume, longStepSize);
@@ -379,6 +397,9 @@ public class TradingService {
                 if (shortStepSize != null) {
                     shortVolume = roundByStep(shortVolume, shortStepSize);
                 }
+
+                LOGGER.debug("Long exchange volume after rounding: {}", longVolume);
+                LOGGER.debug("Short exchange volume after rounding: {}", shortVolume);
 
                 BigDecimal longLimitPrice;
                 BigDecimal shortLimitPrice;
@@ -498,15 +519,6 @@ public class TradingService {
                     LOGGER.debug("Not enough liquidity to execute both trades profitably!");
                 } else {
                     if (isTradeExpired()) {
-                        if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                            if (!timeoutExitWarning) {
-                                LOGGER.warn("Timeout exit triggered");
-                                LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
-                                timeoutExitWarning = true;
-                            }
-                            return;
-                        }
-
                         LOGGER.warn("***** TIMEOUT EXIT *****");
                         timeoutExitWarning = false;
                     } else if (conditionService.isForceCloseCondition()) {
@@ -713,27 +725,48 @@ public class TradingService {
         int count = 0;
 
         do {
-            longOpenOrders = longExchange.getTradeService().getOpenOrders();
-            shortOpenOrders = shortExchange.getTradeService().getOpenOrders();
+            longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
+            shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
 
-            if (count++ % 10 == 0) {
-                if (!longOpenOrders.getOpenOrders().isEmpty()) {
-                    LOGGER.warn("{} limit order has not yet filled", longExchange.getExchangeSpecification().getExchangeName());
-                }
-
-                if (!shortOpenOrders.getOpenOrders().isEmpty()) {
-                    LOGGER.warn("{} limit order has not yet filled", shortExchange.getExchangeSpecification().getExchangeName());
-                }
+            if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
+                LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
             }
+
+            if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
+                LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
+            }
+
+            count++;
 
             try {
                 Thread.sleep(3000);
             } catch (InterruptedException e) {
                 LOGGER.trace("Sleep interrupted!", e);
             }
-        } while (!longOpenOrders.getOpenOrders().isEmpty() || !shortOpenOrders.getOpenOrders().isEmpty());
+        } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
+            || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
 
         LOGGER.info("Trades executed successfully!");
+    }
+
+    private String collectOpenOrders(Exchange exchange, OpenOrders openOrders) {
+        String header = String.format("%s has the following open orders:\n", exchange.getExchangeSpecification().getExchangeName());
+
+        return header + openOrders.getOpenOrders()
+            .stream()
+            .map(LimitOrder::toString)
+            .collect(Collectors.joining("\n"));
+    }
+
+    private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) {
+        try {
+            return Optional.of(exchange.getTradeService().getOpenOrders());
+        } catch (IOException e) {
+            LOGGER.error("{} threw IOException while fetching open orders: ",
+                exchange.getExchangeSpecification().getExchangeName(), e);
+        }
+
+        return Optional.empty();
     }
 
     private BigDecimal computeSpread(BigDecimal longPrice, BigDecimal shortPrice) {
