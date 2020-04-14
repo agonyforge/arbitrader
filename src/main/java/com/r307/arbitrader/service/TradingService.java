@@ -494,41 +494,52 @@ public class TradingService {
 
                 LOGGER.debug("Volumes: {}/{}", longVolume, shortVolume);
 
-                BigDecimal longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
-                BigDecimal shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
+                BigDecimal longLimitPrice = null;
+                BigDecimal shortLimitPrice = null;
 
-                LOGGER.debug("Limit prices: {}/{}", longLimitPrice, shortLimitPrice);
-
-                BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
-
-                LOGGER.debug("Spread verification: {}", spreadVerification);
-
-                if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
-                    LOGGER.error("Computed trade volume for exiting position was zero!");
+                try {
+                    longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
+                    shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
+                } catch (ExchangeException e) {
+                    LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
+                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                        spread.getShortExchange().getDefaultExchangeSpecification().getExchangeName(),
+                        e.getMessage());
                 }
 
-                if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
-                    LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
-                } else if (isTradeExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
-                    if (!timeoutExitWarning) {
-                        LOGGER.warn("Timeout exit triggered");
-                        LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
-                        timeoutExitWarning = true;
-                    }
-                } else if (!isTradeExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
-                    LOGGER.debug("Not enough liquidity to execute both trades profitably!");
-                } else {
-                    if (isTradeExpired()) {
-                        LOGGER.warn("***** TIMEOUT EXIT *****");
-                        timeoutExitWarning = false;
-                    } else if (conditionService.isForceCloseCondition()) {
-                        LOGGER.warn("***** FORCED EXIT *****");
-                    } else {
-                        LOGGER.info("***** EXIT *****");
+                if (longLimitPrice != null && shortLimitPrice != null) {
+                    LOGGER.debug("Limit prices: {}/{}", longLimitPrice, shortLimitPrice);
+
+                    BigDecimal spreadVerification = computeSpread(longLimitPrice, shortLimitPrice);
+
+                    LOGGER.debug("Spread verification: {}", spreadVerification);
+
+                    if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
+                        LOGGER.error("Computed trade volume for exiting position was zero!");
                     }
 
-                    try {
-                        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
+                    if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
+                        LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
+                    } else if (isTradeExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+                        if (!timeoutExitWarning) {
+                            LOGGER.warn("Timeout exit triggered");
+                            LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
+                            timeoutExitWarning = true;
+                        }
+                    } else if (!isTradeExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+                        LOGGER.debug("Not enough liquidity to execute both trades profitably!");
+                    } else {
+                        if (isTradeExpired()) {
+                            LOGGER.warn("***** TIMEOUT EXIT *****");
+                            timeoutExitWarning = false;
+                        } else if (conditionService.isForceCloseCondition()) {
+                            LOGGER.warn("***** FORCED EXIT *****");
+                        } else {
+                            LOGGER.info("***** EXIT *****");
+                        }
+
+                        try {
+                            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                                 spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                                 spread.getCurrencyPair(),
                                 longVolume,
@@ -536,7 +547,7 @@ public class TradingService {
                                 longLimitPrice.subtract(spread.getLongTicker().getBid()),
                                 Currency.USD.getSymbol(),
                                 longVolume.multiply(spread.getLongTicker().getBid()));
-                        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
+                            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
                                 spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                                 spread.getCurrencyPair(),
                                 shortVolume,
@@ -545,29 +556,30 @@ public class TradingService {
                                 Currency.USD.getSymbol(),
                                 shortVolume.multiply(spread.getShortTicker().getAsk()));
 
-                        executeOrderPair(
+                            executeOrderPair(
                                 spread.getLongExchange(), spread.getShortExchange(),
                                 spread.getCurrencyPair(),
                                 longLimitPrice, shortLimitPrice,
                                 longVolume, shortVolume,
                                 false);
-                    } catch (IOException e) {
-                        LOGGER.error("IOE executing limit orders: ", e);
-                    }
+                        } catch (IOException e) {
+                            LOGGER.error("IOE executing limit orders: ", e);
+                        }
 
-                    LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
-                    BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
-                    LOGGER.info("Profit calculation: ${} - ${} = ${}",
-                        updatedBalance,
-                        activePosition.getEntryBalance(),
-                        updatedBalance.subtract(activePosition.getEntryBalance()));
+                        LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
+                        BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
+                        LOGGER.info("Profit calculation: ${} - ${} = ${}",
+                            updatedBalance,
+                            activePosition.getEntryBalance(),
+                            updatedBalance.subtract(activePosition.getEntryBalance()));
 
-                    activePosition = null;
+                        activePosition = null;
 
-                    FileUtils.deleteQuietly(new File(STATE_FILE));
+                        FileUtils.deleteQuietly(new File(STATE_FILE));
 
-                    if (conditionService.isForceCloseCondition()) {
-                        conditionService.clearForceCloseCondition();
+                        if (conditionService.isForceCloseCondition()) {
+                            conditionService.clearForceCloseCondition();
+                        }
                     }
                 }
             }
@@ -845,7 +857,7 @@ public class TradingService {
                 }
             }
         } catch (IOException e) {
-            LOGGER.error("IOE", e);
+            LOGGER.error("IOE fetching {} {} order volume", exchange.getExchangeSpecification().getExchangeName(), currencyPair, e);
         }
 
         throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
