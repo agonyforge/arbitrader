@@ -6,9 +6,9 @@ import org.knowm.xchange.currency.CurrencyPair;
 import java.util.Objects;
 
 public class TradeCombination {
-    private Exchange longExchange;
-    private Exchange shortExchange;
-    private CurrencyPair currencyPair;
+    private final Exchange longExchange;
+    private final Exchange shortExchange;
+    private final CurrencyPair currencyPair;
 
     public TradeCombination(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
         this.longExchange = longExchange;

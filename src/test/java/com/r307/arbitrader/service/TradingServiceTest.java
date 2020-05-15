@@ -15,6 +15,7 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -35,6 +36,9 @@ public class TradingServiceTest {
     private Exchange shortExchange;
 
     private TradingConfiguration tradingConfiguration;
+
+    @Mock
+    private SpreadService spreadService;
 
     private TradingService tradingService;
 
@@ -84,6 +88,7 @@ public class TradingServiceTest {
             conditionService,
             exchangeService,
             errorCollectorService,
+            spreadService,
             tickerService,
             tickerStrategies));
     }

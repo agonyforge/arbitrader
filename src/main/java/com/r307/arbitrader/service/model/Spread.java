@@ -7,13 +7,13 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 import java.math.BigDecimal;
 
 public class Spread {
-    private CurrencyPair currencyPair;
-    private Exchange longExchange;
-    private Exchange shortExchange;
-    private Ticker longTicker;
-    private Ticker shortTicker;
-    private BigDecimal in;
-    private BigDecimal out;
+    private final CurrencyPair currencyPair;
+    private final Exchange longExchange;
+    private final Exchange shortExchange;
+    private final Ticker longTicker;
+    private final Ticker shortTicker;
+    private final BigDecimal in;
+    private final BigDecimal out;
 
     public Spread(
         CurrencyPair currencyPair,

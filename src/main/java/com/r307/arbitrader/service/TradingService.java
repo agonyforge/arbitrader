@@ -63,21 +63,18 @@ public class TradingService {
 
     private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
         null, null, null, null, null);
-    private static final CurrencyPairMetaData DEFAULT_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
-        new BigDecimal("0.0030"), null, null, BTC_SCALE, null);
 
-    private ObjectMapper objectMapper;
-    private TradingConfiguration tradingConfiguration;
-    private ExchangeFeeCache feeCache;
-    private ConditionService conditionService;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
-    private TickerService tickerService;
-    private Map<String, TickerStrategy> tickerStrategies;
-    private List<Exchange> exchanges = new ArrayList<>();
-    private Map<String, BigDecimal> minSpread = new HashMap<>();
-    private Map<String, BigDecimal> maxSpread = new HashMap<>();
-    private Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
+    private final ObjectMapper objectMapper;
+    private final TradingConfiguration tradingConfiguration;
+    private final ExchangeFeeCache feeCache;
+    private final ConditionService conditionService;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
+    private final SpreadService spreadService;
+    private final TickerService tickerService;
+    private final Map<String, TickerStrategy> tickerStrategies;
+    private final List<Exchange> exchanges = new ArrayList<>();
+    private final Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
     private boolean bailOut = false;
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
@@ -89,6 +86,7 @@ public class TradingService {
         ConditionService conditionService,
         ExchangeService exchangeService,
         ErrorCollectorService errorCollectorService,
+        SpreadService spreadService,
         TickerService tickerService,
         Map<String, TickerStrategy> tickerStrategies) {
 
@@ -98,6 +96,7 @@ public class TradingService {
         this.conditionService = conditionService;
         this.exchangeService = exchangeService;
         this.errorCollectorService = errorCollectorService;
+        this.spreadService = spreadService;
         this.tickerService = tickerService;
         this.tickerStrategies = tickerStrategies;
     }
@@ -227,7 +226,7 @@ public class TradingService {
     /**
      * Display a summary once every 6 hours with the current spreads.
      */
-    @Scheduled(cron = "0 0 0/6 * * *")
+    @Scheduled(cron = "0 0 0/6 * * *") // every 6 hours
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
@@ -363,11 +362,6 @@ public class TradingService {
                         exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()));
                     return;
                 }
-
-                // A lot of these are configured to 2 or even 0 which makes us round off significant values.
-                // As much as I'd like to use the configured values it seems better to default to 8 figures.
-//                int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
-//                int shortScale = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs().compute(exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()), this::getScale).getPriceScale();
 
                 int longScale = BTC_SCALE;
                 int shortScale = BTC_SCALE;
@@ -583,13 +577,6 @@ public class TradingService {
                     }
                 }
             }
-
-            String spreadKey = spreadKey(spread.getLongExchange(), spread.getShortExchange(), spread.getCurrencyPair());
-
-            minSpread.put(spreadKey, spread.getIn().min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-            maxSpread.put(spreadKey, spread.getIn().max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-            minSpread.put(spreadKey, spread.getOut().min(minSpread.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-            maxSpread.put(spreadKey, spread.getOut().max(maxSpread.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
         });
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
@@ -597,13 +584,6 @@ public class TradingService {
         if (exchangePollDuration > 3000) {
             LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
         }
-    }
-
-    private static String spreadKey(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair) {
-        return String.format("%s:%s:%s",
-                longExchange.getExchangeSpecification().getExchangeName(),
-                shortExchange.getExchangeSpecification().getExchangeName(),
-                currencyPair);
     }
 
     private BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
@@ -940,18 +920,6 @@ public class TradingService {
         return getAccountBalance(exchange, currency);
     }
 
-    private CurrencyPairMetaData getScale(@SuppressWarnings("unused") CurrencyPair currencyPair, CurrencyPairMetaData metaData) {
-        // NOTE: Based on the data structures it appears that getBaseScale() is what we would want to use here
-        // but based on inspecting the actual live metadata for several currencies on several different exchanges
-        // it appears that getBaseScale() is always null and getPriceScale() gives the number of decimal places
-        // for the **base** currency (e.g. XRP), not the counter (e.g. USD). So that's weird, but we'll try it.
-        if (metaData != null && metaData.getPriceScale() != null) {
-            return metaData;
-        }
-
-        return DEFAULT_CURRENCY_PAIR_METADATA; // defaults to BTC_SCALE
-    }
-
     /*
      * The formula is: step * round(input / step)
      * All the BigDecimals make it really hard to read. We're using setScale() instead of round() because you can't
@@ -994,7 +962,7 @@ public class TradingService {
         BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
         BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
 
-        return new Spread(
+        Spread spread = new Spread(
             currencyPair,
             longExchange,
             shortExchange,
@@ -1002,5 +970,9 @@ public class TradingService {
             shortTicker,
             spreadIn,
             spreadOut);
+
+        spreadService.publish(spread);
+
+        return spread;
     }
 }
