@@ -10,8 +10,8 @@ import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown=true)
 public class ActivePosition {
-    private Trade longTrade = new Trade();
-    private Trade shortTrade = new Trade();
+    private final Trade longTrade = new Trade();
+    private final Trade shortTrade = new Trade();
     private CurrencyPair currencyPair;
     private BigDecimal exitTarget;
     private BigDecimal entryBalance; // USD balance of both exchanges summed when the trades were first opened
