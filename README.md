@@ -1,6 +1,7 @@
 # Arbitrader
 ![AWS CodeBuild](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiUnhycTV0MEFLb293K1Y0QlBjOUxESnBaWXM3V3BLMGhEU2Zjcm0yWHpnRGhFdmxYWm45M2dqVU1ZUjRSdldhR0NsUEYyWk0xVWJZUVZBUXhGZmJUZjhrPSIsIml2UGFyYW1ldGVyU3BlYyI6InNER0tuUnhKQ0pUMVhTUVAiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
 [![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=scionaltera/arbitrader)](https://dependabot.com)    
+[![Ko-fi Blog](https://img.shields.io/badge/Blog-Ko--fi-informational?logo=Ko-fi)](https://ko-fi.com/scionaltera)  
 **A market neutral cryptocurrency trading bot.**
 
 ## What is it?
