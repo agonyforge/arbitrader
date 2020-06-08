@@ -43,7 +43,7 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.4.2'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.4.2'
     compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '4.4.2'
+    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '5.0.0'
     compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '4.4.2'
     compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '4.4.2'
 
