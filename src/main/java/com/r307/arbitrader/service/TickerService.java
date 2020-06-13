@@ -50,7 +50,8 @@ public class TickerService {
         LOGGER.info("Fetching all tickers for all exchanges...");
 
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
+        exchanges
+            .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
             .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         LOGGER.info("Trading the following exchanges and pairs:");
