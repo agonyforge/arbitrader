@@ -28,9 +28,9 @@ import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
 public class TickerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TickerService.class);
 
-    private TradingConfiguration tradingConfiguration;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
+    private final TradingConfiguration tradingConfiguration;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
 
     Map<String, Ticker> allTickers = new HashMap<>();
     List<TradeCombination> tradeCombinations = new ArrayList<>();

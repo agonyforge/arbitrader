@@ -51,7 +51,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
             .peek(partition -> {
                 if (tickerBatchDelay != null) {
                     try {
-                        LOGGER.debug("Taking a nap...");
+                        LOGGER.debug("Sleeping for {} ms...", tickerBatchDelay);
                         Thread.sleep(tickerBatchDelay);
                     } catch (InterruptedException e) {
                         LOGGER.trace("Sleep interrupted");
@@ -68,7 +68,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
                                 LOGGER.debug("Fetched ticker: {} {} {}/{}",
                                     exchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair,
+                                    ticker.getCurrencyPair(),
                                     ticker.getBid(),
                                     ticker.getAsk());
 
