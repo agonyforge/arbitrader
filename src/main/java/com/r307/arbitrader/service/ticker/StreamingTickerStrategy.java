@@ -18,7 +18,8 @@ import java.util.stream.Collectors;
 public class StreamingTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingTickerStrategy.class);
 
-    // TODO not sure if this needs reconnect logic or if it is handled internally - needs testing
+    // TODO not sure if this list is necessary but we'll keep it around for now
+    @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
     private final List<Disposable> subscriptions = new ArrayList<>();
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
     private final ErrorCollectorService errorCollectorService;
