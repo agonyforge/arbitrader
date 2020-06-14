@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service.ticker;
 
+import com.r307.arbitrader.service.ErrorCollectorService;
 import info.bitrich.xchangestream.core.StreamingExchange;
 import io.reactivex.disposables.Disposable;
 import org.knowm.xchange.Exchange;
@@ -9,11 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import javax.inject.Inject;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -23,6 +21,12 @@ public class StreamingTickerStrategy implements TickerStrategy {
     // TODO not sure if this needs reconnect logic or if it is handled internally - needs testing
     private final List<Disposable> subscriptions = new ArrayList<>();
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
+    private final ErrorCollectorService errorCollectorService;
+
+    @Inject
+    public StreamingTickerStrategy(ErrorCollectorService errorCollectorService) {
+        this.errorCollectorService = errorCollectorService;
+    }
 
     @Override
     public List<Ticker> getTickers(Exchange stdExchange, List<CurrencyPair> currencyPairs) {
@@ -35,19 +39,21 @@ public class StreamingTickerStrategy implements TickerStrategy {
 
         if (!tickers.containsKey(exchange)) {
             exchange.connect().blockingAwait();
-            subscriptions.addAll(subscribe(exchange, currencyPairs));
-
-            return Collections.emptyList();
+            subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
-        return tickers.get(exchange).entrySet()
-            .stream()
-            .filter(entry -> currencyPairs.contains(entry.getKey()))
-            .map(Map.Entry::getValue)
-            .collect(Collectors.toList());
+        if (tickers.containsKey(exchange)) {
+            return tickers.get(exchange).entrySet()
+                .stream()
+                .filter(entry -> currencyPairs.contains(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+        }
+
+        return Collections.emptyList();
     }
 
-    private List<Disposable> subscribe(StreamingExchange exchange, List<CurrencyPair> currencyPairs) {
+    private List<Disposable> subscribeAll(StreamingExchange exchange, List<CurrencyPair> currencyPairs) {
         return currencyPairs
             .stream()
             .map(pair -> exchange.getStreamingMarketDataService().getTicker(pair).subscribe(
@@ -61,11 +67,15 @@ public class StreamingTickerStrategy implements TickerStrategy {
                         ticker.getBid(),
                         ticker.getAsk());
                 },
-                throwable -> LOGGER.error("{} subscription error: {}",
-                    exchange.getExchangeSpecification().getExchangeName(),
-                    throwable.getMessage(),
-                    throwable
-                )))
+                throwable -> {
+                    errorCollectorService.collect(exchange, throwable);
+                    LOGGER.debug("Unexpected checked exception: " + throwable.getMessage(), throwable);
+                }))
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public String toString() {
+        return "Streaming";
     }
 }

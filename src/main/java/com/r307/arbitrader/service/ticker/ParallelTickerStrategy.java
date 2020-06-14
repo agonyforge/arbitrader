@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 public class ParallelTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelTickerStrategy.class);
 
-    private NotificationConfiguration notificationConfiguration;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
+    private final NotificationConfiguration notificationConfiguration;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
 
     @Inject
     public ParallelTickerStrategy(
@@ -100,5 +100,10 @@ public class ParallelTickerStrategy implements TickerStrategy {
         }
 
         return tickers;
+    }
+
+    @Override
+    public String toString() {
+        return "Parallel";
     }
 }
