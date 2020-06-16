@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.service.ErrorCollectorService;
+import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
 import io.reactivex.disposables.Disposable;
 import org.knowm.xchange.Exchange;
@@ -39,7 +40,11 @@ public class StreamingTickerStrategy implements TickerStrategy {
         StreamingExchange exchange = (StreamingExchange)stdExchange;
 
         if (!tickers.containsKey(exchange)) {
-            exchange.connect().blockingAwait();
+            ProductSubscription.ProductSubscriptionBuilder builder = ProductSubscription.create();
+
+            currencyPairs.forEach(builder::addTicker);
+
+            exchange.connect(builder.build()).blockingAwait();
             subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
