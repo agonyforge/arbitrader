@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 public class SingleCallTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(SingleCallTickerStrategy.class);
 
-    private NotificationConfiguration notificationConfiguration;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
+    private final NotificationConfiguration notificationConfiguration;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
 
     @Inject
     public SingleCallTickerStrategy(
@@ -77,5 +77,10 @@ public class SingleCallTickerStrategy implements TickerStrategy {
         }
 
         return Collections.emptyList();
+    }
+
+    @Override
+    public String toString() {
+        return "Single Call";
     }
 }

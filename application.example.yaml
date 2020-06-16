@@ -54,8 +54,16 @@ trading:
   # for more exchanges!
   exchanges:
     -
-      # This is the name of the class from XChange that implements the connection to the exchange.
-      exchangeClass: org.knowm.xchange.kraken.KrakenExchange
+      # In XChange version 5.0.0 they added WebSocket based exchange implementations, which are much more efficient
+      # than polling because they wait for the exchange to send updates rather than asking the server for the current
+      # ticker every few seconds.
+      #
+      # To use WebSocket based exchanges, use the version of the exchange with "Streaming" in the name.
+      # Not all exchanges support streaming, so you'll need to check the XChange project on GitHub to see whether the
+      # exchange you are using has a "Streaming" version or not.
+      #
+      # This is how you provide the name of the class from XChange that implements the connection to the exchange.
+      exchangeClass: info.bitrich.xchangestream.kraken.KrakenStreamingExchange
 
       # The API key for Kraken.
       apiKey: x

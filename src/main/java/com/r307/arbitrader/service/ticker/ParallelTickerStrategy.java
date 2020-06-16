@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 public class ParallelTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelTickerStrategy.class);
 
-    private NotificationConfiguration notificationConfiguration;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
+    private final NotificationConfiguration notificationConfiguration;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
 
     @Inject
     public ParallelTickerStrategy(
@@ -51,7 +51,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
             .peek(partition -> {
                 if (tickerBatchDelay != null) {
                     try {
-                        LOGGER.debug("Taking a nap...");
+                        LOGGER.debug("Sleeping for {} ms...", tickerBatchDelay);
                         Thread.sleep(tickerBatchDelay);
                     } catch (InterruptedException e) {
                         LOGGER.trace("Sleep interrupted");
@@ -68,7 +68,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
                                 LOGGER.debug("Fetched ticker: {} {} {}/{}",
                                     exchange.getExchangeSpecification().getExchangeName(),
-                                    currencyPair,
+                                    ticker.getCurrencyPair(),
                                     ticker.getBid(),
                                     ticker.getAsk());
 
@@ -100,5 +100,10 @@ public class ParallelTickerStrategy implements TickerStrategy {
         }
 
         return tickers;
+    }
+
+    @Override
+    public String toString() {
+        return "Parallel";
     }
 }

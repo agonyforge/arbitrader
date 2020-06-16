@@ -8,6 +8,7 @@ import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
+import info.bitrich.xchangestream.core.StreamingExchangeFactory;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
@@ -134,7 +135,11 @@ public class TradingService {
 
             specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
-            exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
+            if (specification.getExchangeClassName().contains("Streaming")) {
+                exchanges.add(StreamingExchangeFactory.INSTANCE.createExchange(specification));
+            } else {
+                exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
+            }
         });
 
         exchanges.forEach(exchange -> {
@@ -159,22 +164,30 @@ public class TradingService {
                 LOGGER.error("Unable to fetch account balance: ", e);
             }
 
-            try {
-                CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
-                exchange.getMarketDataService().getTickers(param);
+            if (exchange.getExchangeSpecification().getExchangeClassName().contains("Streaming")) {
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("streamingTickerStrategy"));
+            } else {
+                try {
+                    CurrencyPairsParam param = () -> exchangeService.getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
+                    exchange.getMarketDataService().getTickers(param);
 
-                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
-            } catch (NotYetImplementedForExchangeException e) {
-                LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
-                                "individually instead. This may result in API rate limiting.",
+                    exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
+                } catch (NotYetImplementedForExchangeException e) {
+                    LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
+                            "individually instead. This may result in API rate limiting.",
                         exchange.getExchangeSpecification().getExchangeName());
 
-                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("parallelTickerStrategy"));
-            } catch (IOException e) {
-                LOGGER.debug("IOException fetching tickers for {}: ", exchange.getExchangeSpecification().getExchangeName(), e);
+                    exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("parallelTickerStrategy"));
+                } catch (IOException e) {
+                    LOGGER.debug("IOException fetching tickers for {}: ", exchange.getExchangeSpecification().getExchangeName(), e);
+                }
             }
 
             BigDecimal tradingFee = getExchangeFee(exchange, exchangeService.convertExchangePair(exchange, CurrencyPair.BTC_USD), false);
+
+            LOGGER.info("{} ticker strategy: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY));
 
             LOGGER.info("{} {} trading fee: {}",
                 exchange.getExchangeSpecification().getExchangeName(),

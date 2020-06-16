@@ -28,9 +28,9 @@ import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
 public class TickerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TickerService.class);
 
-    private TradingConfiguration tradingConfiguration;
-    private ExchangeService exchangeService;
-    private ErrorCollectorService errorCollectorService;
+    private final TradingConfiguration tradingConfiguration;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
 
     Map<String, Ticker> allTickers = new HashMap<>();
     List<TradeCombination> tradeCombinations = new ArrayList<>();
@@ -50,7 +50,8 @@ public class TickerService {
         LOGGER.info("Fetching all tickers for all exchanges...");
 
         allTickers.clear();
-        exchanges.forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
+        exchanges
+            .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
             .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
 
         LOGGER.info("Trading the following exchanges and pairs:");
@@ -63,13 +64,9 @@ public class TickerService {
 
             currencyPairs.forEach(currencyPair -> {
                 if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    return;
-                }
-
-                Ticker longTicker = getTicker(longExchange, currencyPair);
-                Ticker shortTicker = getTicker(shortExchange, currencyPair);
-
-                if (isInvalidTicker(longTicker) || isInvalidTicker(shortTicker)) {
+                    LOGGER.debug("Invalid exchange pair: {}/{}",
+                        longExchange.getExchangeSpecification().getExchangeName(),
+                        shortExchange.getExchangeSpecification().getExchangeName());
                     return;
                 }
 
@@ -134,7 +131,15 @@ public class TickerService {
         TickerStrategy tickerStrategy = (TickerStrategy)exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY);
 
         try {
-            return tickerStrategy.getTickers(exchange, currencyPairs);
+            List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+
+            tickers.forEach(ticker -> LOGGER.debug("Ticker: {} {} {}/{}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                ticker.getCurrencyPair(),
+                ticker.getBid(),
+                ticker.getAsk()));
+
+            return tickers;
         } catch (RuntimeException re) {
             LOGGER.debug("Unexpected runtime exception: " + re.getMessage(), re);
             errorCollectorService.collect(exchange, re);

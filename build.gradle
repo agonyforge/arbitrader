@@ -16,7 +16,7 @@ plugins {
 apply plugin: 'docker'
 
 group 'com.r307'
-version '0.8.5-SNAPSHOT'
+version '0.9.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -37,15 +37,15 @@ dependencies {
 
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
 
-    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-kraken', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '4.4.2'
-    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '4.4.2'
+    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-coinbasepro', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-gemini', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.0'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
