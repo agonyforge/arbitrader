@@ -38,7 +38,7 @@ dependencies {
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
 
     compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.0'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.0'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.2'
     compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.0'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.0'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.0'
