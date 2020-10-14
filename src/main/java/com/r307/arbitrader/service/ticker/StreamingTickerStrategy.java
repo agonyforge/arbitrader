@@ -4,6 +4,7 @@ import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
 import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
+import info.bitrich.xchangestream.gemini.GeminiStreamingExchange;
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
 import org.knowm.xchange.Exchange;
@@ -69,8 +70,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
             .map(pair -> {
                 // TODO: Temp fix while https://github.com/knowm/XChange/pull/3761 is not merged and released
                 final Observable<Ticker> tickerObservable;
-                final String exchangeName = exchange.getExchangeSpecification().getExchangeName();
-                if (exchangeName.contains("Gemini")) {
+                if (exchange instanceof GeminiStreamingExchange) {
                     tickerObservable = exchange.getStreamingMarketDataService().getTicker(exchangeService.convertExchangePair(exchange, pair), 10);
                 }
                 else {
@@ -82,7 +82,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
                         tickers.get(exchange).put(pair, ticker);
 
                         LOGGER.debug("Received ticker: {} {} {}/{}",
-                            exchangeName,
+                            exchange.getExchangeSpecification().getExchangeName(),
                             ticker.getCurrencyPair(),
                             ticker.getBid(),
                             ticker.getAsk());
