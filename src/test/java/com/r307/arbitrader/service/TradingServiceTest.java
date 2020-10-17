@@ -17,6 +17,7 @@ import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.mail.javamail.JavaMailSender;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -45,6 +46,7 @@ public class TradingServiceTest {
     @Before
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
+        final JavaMailSender javaMailSenderMock = mock(JavaMailSender.class);
 
         ObjectMapper objectMapper = new JsonConfiguration().objectMapper();
 
@@ -60,6 +62,7 @@ public class TradingServiceTest {
             tradingConfiguration,
             exchangeService,
             errorCollectorService);
+        NotificationService notificationService = new NotificationService(javaMailSenderMock, notificationConfiguration);
         TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
         TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 
@@ -90,6 +93,7 @@ public class TradingServiceTest {
             errorCollectorService,
             spreadService,
             tickerService,
+            notificationService,
             tickerStrategies));
     }
 

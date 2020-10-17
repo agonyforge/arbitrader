@@ -7,3 +7,12 @@ spring:
   jackson:
     serialization:
       write-dates-as-timestamps: false
+  mail:
+    # Your mail server host
+    host: smtp.mail.com
+    username: username@mail.com
+    password: password
+    port: 465
+    properties:
+      # If your email supports SSL or TLS, set this property to true
+      mail.smtp.ssl.enable: true
