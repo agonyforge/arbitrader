@@ -8,8 +8,8 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '2.3.4.RELEASE'
     id 'io.spring.dependency-management' version '1.0.10.RELEASE'
-    id 'info.solidsoft.pitest' version '1.5.1'
-    id 'org.owasp.dependencycheck' version '5.3.2.1'
+    id 'info.solidsoft.pitest' version '1.5.2'
+    id 'org.owasp.dependencycheck' version '6.0.2'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
@@ -54,7 +54,7 @@ dependencies {
     compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
     compile group: 'org.apache.commons', name: 'commons-text', version: '1.9'
 
-    testCompile group: 'junit', name: 'junit', version: '4.13'
+    testCompile group: 'junit', name: 'junit', version: '4.13.1'
     testCompile group: 'org.mockito', name: 'mockito-core', version: '3.5.13'
 }
 
