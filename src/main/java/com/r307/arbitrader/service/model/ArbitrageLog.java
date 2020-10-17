@@ -17,8 +17,6 @@ import java.time.OffsetDateTime;
  * For retrocompatibility, in case you need to add a new field, it should always be added at the end.
  */
 public class ArbitrageLog {
-    private static final Field[] CSV_HEADERS = ArbitrageLog.class.getDeclaredFields();
-
     private String shortExchange;
     private BigDecimal shortSpread;
     private BigDecimal shortSlip;
@@ -83,21 +81,21 @@ public class ArbitrageLog {
     }
 
     public String csvHeaders() {
-        final StringBuilder stringBuilder = new StringBuilder();
-        for (int i = 0; i < CSV_HEADERS.length; i++) {
-            final Field field = CSV_HEADERS[i];
-            final String genericTypeName = field.getGenericType().getTypeName();
-
-            if (!genericTypeName.equalsIgnoreCase("java.lang.reflect.Field[]")) {
-                final String csvHeader = field.getName();
-                stringBuilder.append("\"").append(StringEscapeUtils.escapeCsv(csvHeader)).append("\"");
-
-                if (i != CSV_HEADERS.length - 1) {
-                    stringBuilder.append(",");
-                }
-            }
-        }
-        return stringBuilder.append("\n").toString();
+        return new StringBuilder()
+            .append("\"shortExchange\",")
+            .append("\"shortSpread\",")
+            .append("\"shortSlip\",")
+            .append("\"shortAmount\",")
+            .append("\"shortCurrency\",")
+            .append("\"longExchange\",")
+            .append("\"longSpread\",")
+            .append("\"longSlip\",")
+            .append("\"longAmount\",")
+            .append("\"longCurrency\",")
+            .append("\"profit\",")
+            .append("\"timestamp\"")
+            .append("\n")
+            .toString();
     }
 
     public String toCsv() {

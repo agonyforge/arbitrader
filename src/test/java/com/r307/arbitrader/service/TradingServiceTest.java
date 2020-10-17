@@ -33,10 +33,12 @@ import java.util.Map;
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;
 
 public class TradingServiceTest {
     private static final CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
+    private static final int CSV_NUMBER_OF_COLUMNS = 12;
 
     private Exchange longExchange;
     private Exchange shortExchange;
@@ -413,10 +415,13 @@ public class TradingServiceTest {
         List<String> lines = FileUtils.readLines(file, StandardCharsets.UTF_8);
         assertEquals(2, lines.size());
 
+        // Get headers
         String[] split = lines.get(0).split("\",\"");
-        // We subtract one because it's the array that holds the csv headers (CSV_HEADERS)
-        final int numberOfFields = ArbitrageLog.class.getDeclaredFields().length - 1;
-        assertEquals("Header size does not match number of columns", numberOfFields, split.length);
+        assertEquals("Header size does not match number of columns", CSV_NUMBER_OF_COLUMNS, split.length);
+
+        // Assert headers does not end with a comma
+        final String lastColumn = split[split.length - 1];
+        assertFalse(lastColumn.endsWith(","));
 
         // Append one line
         tradingService.persistArbitrageToCsvFile(arbitrageLog);
@@ -425,7 +430,7 @@ public class TradingServiceTest {
         assertEquals(3, lines.size());
 
         split = lines.get(2).split("\",\"");
-        assertEquals("Number of elements (columns) per line does not match the number of columns", numberOfFields, split.length);
+        assertEquals("Number of elements (columns) per line does not match the number of columns", CSV_NUMBER_OF_COLUMNS, split.length);
 
         FileUtils.deleteQuietly(file);
     }
