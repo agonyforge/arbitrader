@@ -62,7 +62,7 @@ public class TradingServiceTest {
             tradingConfiguration,
             exchangeService,
             errorCollectorService);
-        NotificationService notificationService = new NotificationService(javaMailSenderMock, notificationConfiguration);
+        NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration);
         TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
         TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 

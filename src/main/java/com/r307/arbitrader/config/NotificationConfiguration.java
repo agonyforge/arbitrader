@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class NotificationConfiguration {
     private Slack slack = new Slack();
     private Logs logs = new Logs();
-    private Email email = new Email();
+    private Mail mail = new Mail();
 
     public Slack getSlack() {
         return slack;
@@ -26,12 +26,12 @@ public class NotificationConfiguration {
         this.logs = logs;
     }
 
-    public Email getEmail() {
-        return email;
+    public Mail getMail() {
+        return mail;
     }
 
-    public void setEmail(Email email) {
-        this.email = email;
+    public void setMail(Mail mail) {
+        this.mail = mail;
     }
 
     public class Slack {
@@ -76,7 +76,7 @@ public class NotificationConfiguration {
         }
     }
 
-    public class Email {
+    public class Mail {
         private Boolean active;
         private String from;
         private String to;
