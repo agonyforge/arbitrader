@@ -5,6 +5,7 @@ import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
+import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
@@ -39,6 +40,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,6 +60,7 @@ public class TradingService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
+    protected static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
 
     private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
@@ -302,11 +305,14 @@ public class TradingService {
                 return;
             }
 
+            final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
+            final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
+
             LOGGER.debug("Long/Short: {}/{} {} {}",
-                    spread.getLongExchange().getExchangeSpecification().getExchangeName(),
-                    spread.getShortExchange().getExchangeSpecification().getExchangeName(),
-                    spread.getCurrencyPair(),
-                    spread.getIn());
+                longExchangeName,
+                shortExchangeName,
+                spread.getCurrencyPair(),
+                spread.getIn());
 
             if (activePosition != null
                 && spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) <= 0
@@ -320,8 +326,8 @@ public class TradingService {
             if (!bailOut && !conditionService.isForceCloseCondition() && spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0) {
                 if (activePosition != null) {
                     if (!activePosition.getCurrencyPair().equals(spread.getCurrencyPair())
-                        || !activePosition.getLongTrade().getExchange().equals(spread.getLongExchange().getExchangeSpecification().getExchangeName())
-                        || !activePosition.getShortTrade().getExchange().equals(spread.getShortExchange().getExchangeSpecification().getExchangeName())) {
+                        || !activePosition.getLongTrade().getExchange().equals(longExchangeName)
+                        || !activePosition.getShortTrade().getExchange().equals(shortExchangeName)) {
 
                         if (!missedTrades.containsKey(tradeCombination)) {
                             LOGGER.debug("{} has entered entry threshold: {}", tradeCombination, spread.getIn());
@@ -362,7 +368,7 @@ public class TradingService {
 
                 if (maxExposure.compareTo(longMinAmount) <= 0) {
                     LOGGER.error("{} must have more than ${} to trade {}",
-                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                        longExchangeName,
                         longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
                         exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()));
                     return;
@@ -370,7 +376,7 @@ public class TradingService {
 
                 if (maxExposure.compareTo(shortMinAmount) <= 0) {
                     LOGGER.error("{} must have more than ${} to trade {}",
-                        spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                        shortExchangeName,
                         shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
                         exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()));
                     return;
@@ -415,9 +421,11 @@ public class TradingService {
                     longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK);
                     shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID);
                 } catch (ExchangeException e) {
-                    LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
-                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    LOGGER.warn("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
+                        longExchangeName,
                         spread.getShortExchange().getDefaultExchangeSpecification().getExchangeName(),
+                        spread.getCurrencyPair().base,
+                        spread.getCurrencyPair().counter,
                         e.getMessage());
                     return;
                 }
@@ -436,7 +444,7 @@ public class TradingService {
                     LOGGER.info("Entry spread: {}", spread.getIn());
                     LOGGER.info("Exit spread target: {}", exitTarget);
                     LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
-                            spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                            longExchangeName,
                             spread.getCurrencyPair(),
                             longVolume,
                             longLimitPrice,
@@ -444,7 +452,7 @@ public class TradingService {
                             Currency.USD.getSymbol(),
                             longVolume.multiply(longLimitPrice));
                     LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
-                            spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                            shortExchangeName,
                             spread.getCurrencyPair(),
                             shortVolume,
                             shortLimitPrice,
@@ -484,8 +492,8 @@ public class TradingService {
                 }
             } else if (activePosition != null
                     && spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
-                    && spread.getLongExchange().getExchangeSpecification().getExchangeName().equals(activePosition.getLongTrade().getExchange())
-                    && spread.getShortExchange().getExchangeSpecification().getExchangeName().equals(activePosition.getShortTrade().getExchange())
+                    && longExchangeName.equals(activePosition.getLongTrade().getExchange())
+                    && shortExchangeName.equals(activePosition.getShortTrade().getExchange())
                     && (spread.getOut().compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition() || isTradeExpired())) {
 
                 BigDecimal longVolume = getVolumeForOrder(
@@ -508,9 +516,11 @@ public class TradingService {
                     longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
                     shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
                 } catch (ExchangeException e) {
-                    LOGGER.warn("Failed to fetch order books for {}/{} to compute entry prices: {}",
-                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    LOGGER.warn("Failed to fetch order books (on active position) for {}/{} and currency {}/{} to compute entry prices: {}",
+                        longExchangeName,
                         spread.getShortExchange().getDefaultExchangeSpecification().getExchangeName(),
+                        spread.getCurrencyPair().base,
+                        spread.getCurrencyPair().counter,
                         e.getMessage());
                 }
 
@@ -547,7 +557,7 @@ public class TradingService {
 
                         try {
                             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
-                                spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                                longExchangeName,
                                 spread.getCurrencyPair(),
                                 longVolume,
                                 longLimitPrice,
@@ -555,7 +565,7 @@ public class TradingService {
                                 Currency.USD.getSymbol(),
                                 longVolume.multiply(spread.getLongTicker().getBid()));
                             LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
-                                spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                                shortExchangeName,
                                 spread.getCurrencyPair(),
                                 shortVolume,
                                 shortLimitPrice,
@@ -575,10 +585,29 @@ public class TradingService {
 
                         LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
                         BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
+                        final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
+
                         LOGGER.info("Profit calculation: ${} - ${} = ${}",
                             updatedBalance,
                             activePosition.getEntryBalance(),
-                            updatedBalance.subtract(activePosition.getEntryBalance()));
+                            profit);
+
+                        final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
+                            .withShortExchange(shortExchangeName)
+                            .withShortCurrency(spread.getCurrencyPair().toString())
+                            .withShortSpread(shortLimitPrice)
+                            .withShortSlip(spread.getShortTicker().getAsk().subtract(shortLimitPrice))
+                            .withShortAmount(shortVolume.multiply(spread.getShortTicker().getAsk()))
+                            .withLongExchange(longExchangeName)
+                            .withLongCurrency(spread.getCurrencyPair().toString())
+                            .withLongSpread(longLimitPrice)
+                            .withLongSlip(longLimitPrice.subtract(spread.getLongTicker().getBid()))
+                            .withLongAmount(longVolume.multiply(spread.getLongTicker().getBid()))
+                            .withProfit(profit)
+                            .withTimestamp(OffsetDateTime.now())
+                            .build();
+
+                        persistArbitrageToCsvFile(arbitrageLog);
 
                         activePosition = null;
 
@@ -987,5 +1016,20 @@ public class TradingService {
         spreadService.publish(spread);
 
         return spread;
+    }
+
+    protected void persistArbitrageToCsvFile(ArbitrageLog arbitrageLog) {
+        final File csvFile = new File(TRADE_HISTORY_FILE);
+
+        try {
+            if (!csvFile.exists()) {
+                // Add headers first
+                FileUtils.write(csvFile, arbitrageLog.csvHeaders(), StandardCharsets.UTF_8, csvFile.exists());
+            }
+            FileUtils.write(csvFile, arbitrageLog.toCsv(), StandardCharsets.UTF_8, csvFile.exists());
+        }
+        catch (IOException e) {
+            LOGGER.error("Unable to log the trade into the csv file. Reason: {}", e.getMessage());
+        }
     }
 }

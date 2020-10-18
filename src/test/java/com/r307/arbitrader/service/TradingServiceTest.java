@@ -6,9 +6,11 @@ import com.r307.arbitrader.config.JsonConfiguration;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
 import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
+import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -18,19 +20,25 @@ import org.knowm.xchange.dto.Order;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;
 
 public class TradingServiceTest {
     private static final CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
+    private static final int CSV_NUMBER_OF_COLUMNS = 12;
 
     private Exchange longExchange;
     private Exchange shortExchange;
@@ -380,5 +388,50 @@ public class TradingServiceTest {
         BigDecimal result = TradingService.roundByStep(input, step);
 
         assertEquals(new BigDecimal("0.04"), result);
+    }
+
+    @Test
+    public void testLogArbitrageToCsv() throws IOException {
+        final File file = new File(TradingService.TRADE_HISTORY_FILE);
+        FileUtils.deleteQuietly(file);
+
+        final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
+            .withShortExchange("CoinbasePro")
+            .withShortCurrency("BTC/USD")
+            .withShortSpread(new BigDecimal("0.008"))
+            .withShortSlip(new BigDecimal("-0.001"))
+            .withShortAmount(BigDecimal.valueOf(10))
+            .withLongExchange("Bitstamp")
+            .withLongCurrency("BTC/USD")
+            .withLongSpread(new BigDecimal("-0.003"))
+            .withLongSlip(new BigDecimal("-0.001"))
+            .withLongAmount(BigDecimal.valueOf(10))
+            .withProfit(new BigDecimal("0.01"))
+            .withTimestamp(OffsetDateTime.now())
+            .build();
+
+        tradingService.persistArbitrageToCsvFile(arbitrageLog);
+
+        List<String> lines = FileUtils.readLines(file, StandardCharsets.UTF_8);
+        assertEquals(2, lines.size());
+
+        // Get headers
+        String[] split = lines.get(0).split("\",\"");
+        assertEquals("Header size does not match number of columns", CSV_NUMBER_OF_COLUMNS, split.length);
+
+        // Assert headers does not end with a comma
+        final String lastColumn = split[split.length - 1];
+        assertFalse(lastColumn.endsWith(","));
+
+        // Append one line
+        tradingService.persistArbitrageToCsvFile(arbitrageLog);
+
+        lines = FileUtils.readLines(file, StandardCharsets.UTF_8);
+        assertEquals(3, lines.size());
+
+        split = lines.get(2).split("\",\"");
+        assertEquals("Number of elements (columns) per line does not match the number of columns", CSV_NUMBER_OF_COLUMNS, split.length);
+
+        FileUtils.deleteQuietly(file);
     }
 }
