@@ -7,3 +7,6 @@ spring:
   jackson:
     serialization:
       write-dates-as-timestamps: false
+  banner:
+    image:
+      location: src/main/resources/banner.txt
