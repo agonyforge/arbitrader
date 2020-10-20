@@ -5,6 +5,7 @@ import com.r307.arbitrader.service.NotificationServiceImpl;
 import com.r307.arbitrader.service.model.Spread;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -40,6 +41,7 @@ public class MailConfiguration {
     }
 
     @Bean
+    @ConfigurationProperties(prefix = "spring.mail")
     @ConditionalOnMissingBean(value = JavaMailSender.class)
     public JavaMailSender javaMailSender() {
         return new JavaMailSenderImpl();
