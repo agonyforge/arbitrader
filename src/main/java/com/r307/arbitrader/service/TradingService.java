@@ -2,8 +2,8 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
-import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
@@ -76,6 +76,7 @@ public class TradingService {
     private final ErrorCollectorService errorCollectorService;
     private final SpreadService spreadService;
     private final TickerService tickerService;
+    private final NotificationService notificationService;
     private final Map<String, TickerStrategy> tickerStrategies;
     private final List<Exchange> exchanges = new ArrayList<>();
     private final Map<TradeCombination, BigDecimal> missedTrades = new HashMap<>();
@@ -92,6 +93,7 @@ public class TradingService {
         ErrorCollectorService errorCollectorService,
         SpreadService spreadService,
         TickerService tickerService,
+        NotificationService notificationService,
         Map<String, TickerStrategy> tickerStrategies) {
 
         this.objectMapper = objectMapper;
@@ -103,6 +105,7 @@ public class TradingService {
         this.spreadService = spreadService;
         this.tickerService = tickerService;
         this.tickerStrategies = tickerStrategies;
+        this.notificationService = notificationService;
     }
 
     @PostConstruct
@@ -479,6 +482,10 @@ public class TradingService {
                                 longLimitPrice, shortLimitPrice,
                                 longVolume, shortVolume,
                                 true);
+
+                        notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
+                            longLimitPrice, shortVolume, shortLimitPrice);
+
                     } catch (IOException e) {
                         LOGGER.error("IOE executing limit orders: ", e);
                         activePosition = null;
@@ -608,6 +615,10 @@ public class TradingService {
                             .build();
 
                         persistArbitrageToCsvFile(arbitrageLog);
+
+                        // Email notification must be sent before we set activePosition = null
+                        notificationService.sendEmailNotificationBodyForExitTrade(spread, longVolume, longLimitPrice, shortVolume,
+                            shortLimitPrice, activePosition.getEntryBalance(), updatedBalance);
 
                         activePosition = null;
 

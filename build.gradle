@@ -34,6 +34,7 @@ dependencies {
     compile group: 'javax.inject', name: 'javax.inject', version: '1'
 
     compile group: 'org.springframework.boot', name: 'spring-boot-starter'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-mail'
 
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
 
@@ -55,7 +56,7 @@ dependencies {
     compile group: 'org.apache.commons', name: 'commons-text', version: '1.9'
 
     testCompile group: 'junit', name: 'junit', version: '4.13.1'
-    testCompile group: 'org.mockito', name: 'mockito-core', version: '3.5.13'
+    testCompile group: 'org.mockito', name: 'mockito-core', version: '3.5.15'
 }
 
 task buildDocker(type: Docker) {

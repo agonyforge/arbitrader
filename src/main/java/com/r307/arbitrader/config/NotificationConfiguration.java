@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class NotificationConfiguration {
     private Slack slack = new Slack();
     private Logs logs = new Logs();
+    private Mail mail = new Mail();
 
     public Slack getSlack() {
         return slack;
@@ -23,6 +24,14 @@ public class NotificationConfiguration {
 
     public void setLogs(Logs logs) {
         this.logs = logs;
+    }
+
+    public Mail getMail() {
+        return mail;
+    }
+
+    public void setMail(Mail mail) {
+        this.mail = mail;
     }
 
     public class Slack {
@@ -64,6 +73,36 @@ public class NotificationConfiguration {
 
         public void setSlowTickerWarning(Integer slowTickerWarning) {
             this.slowTickerWarning = slowTickerWarning;
+        }
+    }
+
+    public class Mail {
+        private Boolean active;
+        private String from;
+        private String to;
+
+        public Boolean getActive() {
+            return active;
+        }
+
+        public void setActive(Boolean active) {
+            this.active = active;
+        }
+
+        public String getFrom() {
+            return from;
+        }
+
+        public void setFrom(String from) {
+            this.from = from;
+        }
+
+        public String getTo() {
+            return to;
+        }
+
+        public void setTo(String to) {
+            this.to = to;
         }
     }
 }
