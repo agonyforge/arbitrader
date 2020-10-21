@@ -337,6 +337,8 @@ public class TradingService {
     private void entryPosition(Spread spread, String shortExchangeName, String longExchangeName) {
         final BigDecimal longFees = getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
         final BigDecimal shortFees = getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
+        final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
 
         final BigDecimal fees = (longFees.add(shortFees))
             .multiply(new BigDecimal("2.0"));
@@ -346,22 +348,7 @@ public class TradingService {
             .subtract(fees);
 
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
-        final BigDecimal longMinAmount = getMinimumAmountForEntryPosition(spread, spread.getLongExchange());
-        final BigDecimal shortMinAmount = getMinimumAmountForEntryPosition(spread, spread.getShortExchange());
-
-        if (maxExposure.compareTo(longMinAmount) <= 0) {
-            LOGGER.error("{} must have more than ${} to trade {}",
-                longExchangeName,
-                longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
-                exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()));
-            return;
-        }
-
-        if (maxExposure.compareTo(shortMinAmount) <= 0) {
-            LOGGER.error("{} must have more than ${} to trade {}",
-                shortExchangeName,
-                shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
-                exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()));
+        if (!validateMaxExposure(maxExposure, spread, currencyPairLongExchange, currencyPairShortExchange)) {
             return;
         }
 
@@ -378,9 +365,9 @@ public class TradingService {
         final BigDecimal shortVolume = getVolumeForEntryPosition(spread.getShortExchange(), maxExposure, spread, shortScale);
 
         final BigDecimal longStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+            .getOrDefault(currencyPairLongExchange, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
         final BigDecimal shortStepSize = spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+            .getOrDefault(currencyPairShortExchange, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
         LOGGER.debug("Long step size: {}", longStepSize);
         LOGGER.debug("Short step size: {}", shortStepSize);
@@ -419,28 +406,9 @@ public class TradingService {
             return;
         }
 
-        LOGGER.info("***** ENTRY *****");
+        logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, longVolume, shortVolume, longLimitPrice, shortLimitPrice);
 
         BigDecimal totalBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
-
-        LOGGER.info("Entry spread: {}", spread.getIn());
-        LOGGER.info("Exit spread target: {}", exitTarget);
-        LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
-            longExchangeName,
-            spread.getCurrencyPair(),
-            longVolume,
-            longLimitPrice,
-            longLimitPrice.subtract(spread.getLongTicker().getAsk()),
-            Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice));
-        LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
-            shortExchangeName,
-            spread.getCurrencyPair(),
-            shortVolume,
-            shortLimitPrice,
-            spread.getShortTicker().getBid().subtract(shortLimitPrice),
-            Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice));
 
         try {
             activePosition = new ActivePosition();
@@ -471,6 +439,40 @@ public class TradingService {
         } catch (IOException e) {
             LOGGER.error("Unable to write state file!", e);
         }
+    }
+
+    /**
+     * Validate the maxExposure value on the short and long exchange.
+     * @param maxExposure
+     * @param spread
+     * @param longCurrencyPair
+     * @param shortCurrencyPair
+     * @return true if the maxExposure is valid (less or equal to long and short minimum amount). Otherwise returns false
+     */
+    private boolean validateMaxExposure(BigDecimal maxExposure, Spread spread, CurrencyPair longCurrencyPair, CurrencyPair shortCurrencyPair) {
+        final BigDecimal longMinAmount = getMinimumAmountForEntryPosition(spread, spread.getLongExchange());
+        final BigDecimal shortMinAmount = getMinimumAmountForEntryPosition(spread, spread.getShortExchange());
+
+        final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
+        final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
+
+        if (maxExposure.compareTo(longMinAmount) <= 0) {
+            LOGGER.error("{} must have more than ${} to trade {}",
+                longExchangeName,
+                longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
+                longCurrencyPair);
+            return false;
+        }
+
+        if (maxExposure.compareTo(shortMinAmount) <= 0) {
+            LOGGER.error("{} must have more than ${} to trade {}",
+                shortExchangeName,
+                shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
+                shortCurrencyPair);
+            return false;
+        }
+
+        return true;
     }
 
     private void exitPosition(Spread spread, String shortExchangeName, String longExchangeName) {
@@ -530,81 +532,109 @@ public class TradingService {
                 LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
                 timeoutExitWarning = true;
             }
-        } else {
-            if (isTradeExpired()) {
-                LOGGER.warn("***** TIMEOUT EXIT *****");
-                timeoutExitWarning = false;
-            } else if (conditionService.isForceCloseCondition()) {
-                LOGGER.warn("***** FORCED EXIT *****");
-            } else {
-                LOGGER.info("***** EXIT *****");
-            }
-
-            try {
-                LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
-                    longExchangeName,
-                    spread.getCurrencyPair(),
-                    longVolume,
-                    longLimitPrice,
-                    longLimitPrice.subtract(spread.getLongTicker().getBid()),
-                    Currency.USD.getSymbol(),
-                    longVolume.multiply(spread.getLongTicker().getBid()));
-                LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
-                    shortExchangeName,
-                    spread.getCurrencyPair(),
-                    shortVolume,
-                    shortLimitPrice,
-                    spread.getShortTicker().getAsk().subtract(shortLimitPrice),
-                    Currency.USD.getSymbol(),
-                    shortVolume.multiply(spread.getShortTicker().getAsk()));
-
-                executeOrderPair(
-                    spread.getLongExchange(), spread.getShortExchange(),
-                    spread.getCurrencyPair(),
-                    longLimitPrice, shortLimitPrice,
-                    longVolume, shortVolume,
-                    false);
-            } catch (IOException e) {
-                LOGGER.error("IOE executing limit orders: ", e);
-                // TODO: Why don't we return here? Could it be because the IOException could be, for example, a timeout exception
-                // and we don't know for sure whether the trade was accepted or not?
-                // Maybe we should return here and send a notification so the user is aware of this situation
-            }
-
-            LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
-            BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
-            final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
-
-            LOGGER.info("Profit calculation: ${} - ${} = ${}",
-                updatedBalance,
-                activePosition.getEntryBalance(),
-                profit);
-
-            final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
-                .withShortExchange(shortExchangeName)
-                .withShortCurrency(spread.getCurrencyPair().toString())
-                .withShortSpread(shortLimitPrice)
-                .withShortSlip(spread.getShortTicker().getAsk().subtract(shortLimitPrice))
-                .withShortAmount(shortVolume.multiply(spread.getShortTicker().getAsk()))
-                .withLongExchange(longExchangeName)
-                .withLongCurrency(spread.getCurrencyPair().toString())
-                .withLongSpread(longLimitPrice)
-                .withLongSlip(longLimitPrice.subtract(spread.getLongTicker().getBid()))
-                .withLongAmount(longVolume.multiply(spread.getLongTicker().getBid()))
-                .withProfit(profit)
-                .withTimestamp(OffsetDateTime.now())
-                .build();
-
-            persistArbitrageToCsvFile(arbitrageLog);
-
-            activePosition = null;
-
-            FileUtils.deleteQuietly(new File(STATE_FILE));
-
-            if (conditionService.isForceCloseCondition()) {
-                conditionService.clearForceCloseCondition();
-            }
+            return;
         }
+
+        logExitTrade();
+
+        try {
+            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
+                longExchangeName,
+                spread.getCurrencyPair(),
+                longVolume,
+                longLimitPrice,
+                longLimitPrice.subtract(spread.getLongTicker().getBid()),
+                Currency.USD.getSymbol(),
+                longVolume.multiply(spread.getLongTicker().getBid()));
+            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
+                shortExchangeName,
+                spread.getCurrencyPair(),
+                shortVolume,
+                shortLimitPrice,
+                spread.getShortTicker().getAsk().subtract(shortLimitPrice),
+                Currency.USD.getSymbol(),
+                shortVolume.multiply(spread.getShortTicker().getAsk()));
+
+            executeOrderPair(
+                spread.getLongExchange(), spread.getShortExchange(),
+                spread.getCurrencyPair(),
+                longLimitPrice, shortLimitPrice,
+                longVolume, shortVolume,
+                false);
+        } catch (IOException e) {
+            LOGGER.error("IOE executing limit orders: ", e);
+            // TODO: Why don't we return here? Could it be because the IOException could be, for example, a timeout exception
+            // and we don't know for sure whether the trade was accepted or not?
+            // Maybe we should return here and send a notification so the user is aware of this situation
+        }
+
+        LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
+        BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
+        final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
+
+        LOGGER.info("Profit calculation: ${} - ${} = ${}",
+            updatedBalance,
+            activePosition.getEntryBalance(),
+            profit);
+
+        final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
+            .withShortExchange(shortExchangeName)
+            .withShortCurrency(spread.getCurrencyPair().toString())
+            .withShortSpread(shortLimitPrice)
+            .withShortSlip(spread.getShortTicker().getAsk().subtract(shortLimitPrice))
+            .withShortAmount(shortVolume.multiply(spread.getShortTicker().getAsk()))
+            .withLongExchange(longExchangeName)
+            .withLongCurrency(spread.getCurrencyPair().toString())
+            .withLongSpread(longLimitPrice)
+            .withLongSlip(longLimitPrice.subtract(spread.getLongTicker().getBid()))
+            .withLongAmount(longVolume.multiply(spread.getLongTicker().getBid()))
+            .withProfit(profit)
+            .withTimestamp(OffsetDateTime.now())
+            .build();
+
+        persistArbitrageToCsvFile(arbitrageLog);
+
+        activePosition = null;
+
+        FileUtils.deleteQuietly(new File(STATE_FILE));
+
+        if (conditionService.isForceCloseCondition()) {
+            conditionService.clearForceCloseCondition();
+        }
+    }
+
+    private void logExitTrade() {
+        if (isTradeExpired()) {
+            LOGGER.warn("***** TIMEOUT EXIT *****");
+            timeoutExitWarning = false;
+        } else if (conditionService.isForceCloseCondition()) {
+            LOGGER.warn("***** FORCED EXIT *****");
+        } else {
+            LOGGER.info("***** EXIT *****");
+        }
+    }
+
+    private void logEntryTrade(Spread spread, String shortExchangeName, String longExchangeName, BigDecimal exitTarget,
+                               BigDecimal longVolume, BigDecimal shortVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice) {
+        LOGGER.info("***** ENTRY *****");
+        LOGGER.info("Entry spread: {}", spread.getIn());
+        LOGGER.info("Exit spread target: {}", exitTarget);
+        LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
+            longExchangeName,
+            spread.getCurrencyPair(),
+            longVolume,
+            longLimitPrice,
+            longLimitPrice.subtract(spread.getLongTicker().getAsk()),
+            Currency.USD.getSymbol(),
+            longVolume.multiply(longLimitPrice));
+        LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
+            shortExchangeName,
+            spread.getCurrencyPair(),
+            shortVolume,
+            shortLimitPrice,
+            spread.getShortTicker().getBid().subtract(shortLimitPrice),
+            Currency.USD.getSymbol(),
+            shortVolume.multiply(shortLimitPrice));
     }
 
     private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, Spread spread, int longScale) {
