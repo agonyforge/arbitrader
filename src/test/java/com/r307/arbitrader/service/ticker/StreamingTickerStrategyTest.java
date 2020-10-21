@@ -11,6 +11,7 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertTrue;
@@ -34,7 +35,8 @@ public class StreamingTickerStrategyTest {
     public void testInvalidExchange() throws Exception {
         Exchange nonStreamingExchange = new ExchangeBuilder("CrazyCoinz",CurrencyPair.BTC_USD).build();
 
-        List<Ticker> result = streamingTickerStrategy.getTickers(nonStreamingExchange, List.of(CurrencyPair.BTC_USD));
+        List<Ticker> result = streamingTickerStrategy.getTickers(
+            nonStreamingExchange, Collections.singletonList(CurrencyPair.BTC_USD));
 
         assertTrue(result.isEmpty());
     }
