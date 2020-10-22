@@ -426,20 +426,20 @@ public class TradingService {
             activePosition.getShortTrade().setVolume(shortVolume);
             activePosition.getShortTrade().setEntry(shortLimitPrice);
 
-                        executeOrderPair(
-                                spread.getLongExchange(), spread.getShortExchange(),
-                                spread.getCurrencyPair(),
-                                longLimitPrice, shortLimitPrice,
-                                longVolume, shortVolume,
-                                true);
+            executeOrderPair(
+                    spread.getLongExchange(), spread.getShortExchange(),
+                    spread.getCurrencyPair(),
+                    longLimitPrice, shortLimitPrice,
+                    longVolume, shortVolume,
+                    true);
 
-                        notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
-                            longLimitPrice, shortVolume, shortLimitPrice);
+            notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
+                    longLimitPrice, shortVolume, shortLimitPrice);
 
-                    } catch (IOException e) {
-                        LOGGER.error("IOE executing limit orders: ", e);
-                        activePosition = null;
-                    }
+            } catch (IOException e) {
+                LOGGER.error("IOE executing limit orders: ", e);
+                activePosition = null;
+            }
 
         try {
             FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
