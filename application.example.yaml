@@ -2,6 +2,19 @@
 # Copy this file to "application.yaml" and fill out the settings that you want for your bot.
 # When you run the JAR file, make sure the config file is in the current directory so it can be read.
 
+# If you wish to be notified by email on every trade then you need to add your mail server configuration here and
+# configure the email notifications in notifications.mail section
+spring:
+  mail:
+    # Your mail server host
+    host: smtp.mail.com
+    username: username@mail.com
+    password: password
+    port: 465
+    properties:
+      # If your email supports SSL or TLS, set this property to true
+      mail.smtp.ssl.enable: true
+
 # All the logs you see on the console will also be shipped to Slack.
 notifications:
   slack:
@@ -15,6 +28,13 @@ notifications:
     # exchange's API is. Because there are so many factors it made sense to be able to configure the warning so you can
     # control how noisy your logs are.
     slowTickerWarning: 4000
+  mail:
+    # Set to true to enable email notifications for each trade
+    active: false
+    # The origin email address to set in the email notification
+    from: from@email.com
+    # The destination email address for email notifications
+    to: to@email.com
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.
@@ -242,7 +262,7 @@ trading:
       exchangeClass: org.knowm.xchange.bitstamp.BitstampExchange
       apiKey: x
       secretKey: x
-      
+
       # Bitstamp requires username for authentication to the API
       userName: x
 
