@@ -364,8 +364,18 @@ public class TradingService {
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
 
-        final BigDecimal longVolume = getVolumeForEntryPosition(spread.getLongExchange(), maxExposure, spread, longScale);
-        final BigDecimal shortVolume = getVolumeForEntryPosition(spread.getShortExchange(), maxExposure, spread, shortScale);
+        final BigDecimal longVolume = getVolumeForEntryPosition(
+            spread.getLongExchange(),
+            maxExposure,
+            spread.getLongTicker().getAsk(),
+            spread.getCurrencyPair(),
+            longScale);
+        final BigDecimal shortVolume = getVolumeForEntryPosition(
+            spread.getShortExchange(),
+            maxExposure,
+            spread.getShortTicker().getBid(),
+            spread.getCurrencyPair(),
+            shortScale);
 
         final BigDecimal longStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(currencyPairLongExchange, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
@@ -648,13 +658,13 @@ public class TradingService {
             shortVolume.multiply(shortLimitPrice));
     }
 
-    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, Spread spread, int longScale) {
-        final BigDecimal volume = maxExposure.divide(spread.getLongTicker().getAsk(), longScale, RoundingMode.HALF_EVEN);
-        final BigDecimal longStepSize = exchange.getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(exchange, spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
+        final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
+        final BigDecimal stepSize = exchange.getExchangeMetaData().getCurrencyPairs()
+            .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
-        if (longStepSize != null) {
-            return roundByStep(volume, longStepSize);
+        if (stepSize != null) {
+            return roundByStep(volume, stepSize);
         }
 
         return volume;
