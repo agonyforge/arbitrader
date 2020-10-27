@@ -367,13 +367,13 @@ public class TradingService {
         final BigDecimal longVolume = getVolumeForEntryPosition(
             spread.getLongExchange(),
             maxExposure,
-            spread.getLongTicker(),
+            spread.getLongTicker().getAsk(),
             spread.getCurrencyPair(),
             longScale);
         final BigDecimal shortVolume = getVolumeForEntryPosition(
             spread.getShortExchange(),
             maxExposure,
-            spread.getShortTicker(),
+            spread.getShortTicker().getBid(),
             spread.getCurrencyPair(),
             shortScale);
 
@@ -658,8 +658,8 @@ public class TradingService {
             shortVolume.multiply(shortLimitPrice));
     }
 
-    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, Ticker ticker, CurrencyPair currencyPair, int scale) {
-        final BigDecimal volume = maxExposure.divide(ticker.getAsk(), scale, RoundingMode.HALF_EVEN);
+    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
+        final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
         final BigDecimal stepSize = exchange.getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
