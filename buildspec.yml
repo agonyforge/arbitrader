@@ -31,14 +31,17 @@ phases:
           docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
           docker push scionaltera/arbitrader:latest
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
+          docker push ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
           docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker push ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
         else
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
           docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker push ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:
