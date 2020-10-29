@@ -20,32 +20,21 @@ phases:
   build:
     commands:
       - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
+      - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+      - docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
   post_build:
     commands:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
       - |
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
-          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
-          docker push scionaltera/arbitrader:latest
-          docker push scionaltera/arbitrader:${PROJECT_VERSION}
-          docker logout
-          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION} ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
           docker push scionaltera/arbitrader:latest
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
-          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
-          docker logout
-          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG} ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
         else
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
-          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
-          docker logout
-          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
+          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG} ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
