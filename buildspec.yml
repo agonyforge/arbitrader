@@ -29,10 +29,11 @@ phases:
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
           docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
-          docker push scionaltera/arbitrader:latest
-          docker push ghcr.io/scionaltera/arbitrader:latest
+          docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:latest
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
           docker push ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
+          docker push scionaltera/arbitrader:latest
+          docker push ghcr.io/scionaltera/arbitrader:latest
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
           docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
