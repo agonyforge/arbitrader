@@ -4,6 +4,8 @@ env:
   parameter-store:
     DOCKER_HUB_USERNAME: "docker-hub-username"
     DOCKER_HUB_PASSWORD: "docker-hub-password"
+    GITHUB_USERNAME: "github-username"
+    GITHUB_TOKEN:    "github-token"
 
 phases:
   install:
@@ -15,7 +17,6 @@ phases:
       - export BRANCH_TAG=`echo $CODEBUILD_SOURCE_VERSION | sed 's|/|-|g'`
       - echo Project version is ${PROJECT_VERSION}
       - echo Branch tag is ${BRANCH_TAG}
-      - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
   build:
     commands:
       - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
@@ -25,13 +26,26 @@ phases:
       - |
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
+          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+          docker push scionaltera/arbitrader:latest
+          docker push scionaltera/arbitrader:${PROJECT_VERSION}
+          docker logout
+          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN}
           docker push scionaltera/arbitrader:latest
           docker push scionaltera/arbitrader:${PROJECT_VERSION}
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+          docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker logout
+          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
         else
           docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+          docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+          docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker logout
+          docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN}
           docker push scionaltera/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
