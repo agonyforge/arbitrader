@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
+import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
 
 @Component
 public class TickerService {
@@ -86,11 +86,8 @@ public class TickerService {
 
         // find the currencies that are actively in use for each exchange
         tradeCombinations.forEach(tradeCombination -> {
-            Set<CurrencyPair> longCurrencies = queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
-            Set<CurrencyPair> shortCurrencies = queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
-
-            longCurrencies.add(tradeCombination.getCurrencyPair());
-            shortCurrencies.add(tradeCombination.getCurrencyPair());
+            queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
+            queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
         });
 
         // for each exchange, fetch its active currencies

@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.JsonConfiguration;
 import com.r307.arbitrader.config.NotificationConfiguration;
@@ -17,7 +18,12 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
+import org.knowm.xchange.dto.marketdata.OrderBook;
+import org.knowm.xchange.dto.trade.LimitOrder;
+import org.knowm.xchange.instrument.Instrument;
+import org.knowm.xchange.service.marketdata.MarketDataService;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.mail.javamail.JavaMailSender;
 
@@ -26,7 +32,11 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,37 +57,38 @@ public class TradingServiceTest {
     private TradingConfiguration tradingConfiguration;
 
     @Mock
+    private ExchangeService exchangeService;
     private SpreadService spreadService;
 
+    @Mock
     private TradingService tradingService;
 
     @Before
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
         final JavaMailSender javaMailSenderMock = mock(JavaMailSender.class);
+//        exchangeService = Mockito.mock(ExchangeService.class);
 
         ObjectMapper objectMapper = new JsonConfiguration().objectMapper();
 
-        tradingConfiguration = new TradingConfiguration();
-
-        NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
-
-        ExchangeFeeCache feeCache = new ExchangeFeeCache();
         ConditionService conditionService = new ConditionService();
-        ExchangeService exchangeService = new ExchangeService();
+        NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
         ErrorCollectorService errorCollectorService = new ErrorCollectorService();
+
+//        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+//        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+//        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
+//        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
+//        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
+//
+//        exchangeService = new ExchangeService(tickerStrategies, new ExchangeFeeCache());
         TickerService tickerService = new TickerService(
-            tradingConfiguration,
+            new TradingConfiguration(),
             exchangeService,
             errorCollectorService);
+        spreadService = new SpreadService(tickerService);
         NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration);
-        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-
-        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
-
-        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
-        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
+        tradingConfiguration = new TradingConfiguration();
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
                 .withExchangeMetaData()
@@ -95,14 +106,11 @@ public class TradingServiceTest {
         tradingService = spy(new TradingService(
             objectMapper,
             tradingConfiguration,
-            feeCache,
             conditionService,
             exchangeService,
-            errorCollectorService,
             spreadService,
             tickerService,
-            notificationService,
-            tickerStrategies));
+            notificationService));
     }
 
     @Test
@@ -118,15 +126,22 @@ public class TradingServiceTest {
 
     @Test
     public void testGetVolumeForOrderNull() throws IOException {
+        final BigDecimal defaultValue = new BigDecimal("50.0");
+
+        doReturn(defaultValue)
+            .when(exchangeService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class));
         when(longExchange.getTradeService().getOrder(eq("nullOrder"))).thenReturn(null);
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
 
         BigDecimal volume = tradingService.getVolumeForOrder(
             longExchange,
             currencyPair,
             "nullOrder",
-            new BigDecimal("50.0"));
+            defaultValue);
 
-        assertEquals(new BigDecimal("50.0"), volume);
+        assertEquals(defaultValue, volume);
     }
 
     @Test(expected = OrderNotFoundException.class)
@@ -141,8 +156,11 @@ public class TradingServiceTest {
     @Test
     public void testGetVolumeForOrderNotAvailable() throws IOException {
         doReturn(new BigDecimal("90.0"))
-            .when(tradingService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+            .when(exchangeService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class));
+
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
 
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
@@ -156,8 +174,11 @@ public class TradingServiceTest {
     @Test
     public void testGetVolumeForOrderIOException() throws IOException {
         doReturn(new BigDecimal("90.0"))
-            .when(tradingService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+            .when(exchangeService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class));
+
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
 
         BigDecimal volume = tradingService.getVolumeForOrder(
                 longExchange,
@@ -171,8 +192,8 @@ public class TradingServiceTest {
     @Test
     public void testGetVolumeFallbackToDefaultZeroBalance() throws IOException {
         doReturn(BigDecimal.ZERO)
-            .when(tradingService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+            .when(exchangeService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class));
 
         BigDecimal volume = tradingService.getVolumeForOrder(
             longExchange,
@@ -186,8 +207,10 @@ public class TradingServiceTest {
     @Test
     public void testGetVolumeFallbackToDefaultIOException() throws IOException {
         doThrow(new IOException("Boom!"))
-            .when(tradingService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class), anyInt());
+            .when(exchangeService)
+            .getAccountBalance(any(Exchange.class), any(Currency.class));
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
 
         BigDecimal volume = tradingService.getVolumeForOrder(
             longExchange,
@@ -201,6 +224,9 @@ public class TradingServiceTest {
     // the best price point has enough volume to fill my order
     @Test
     public void testLimitPriceLongSufficientVolume() {
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
+
         BigDecimal allowedVolume = new BigDecimal("1.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
@@ -210,6 +236,9 @@ public class TradingServiceTest {
     // the best price point has enough volume to fill my order
     @Test
     public void testLimitPriceShortSufficientVolume() {
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
+
         BigDecimal allowedVolume = new BigDecimal("1.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
@@ -219,6 +248,8 @@ public class TradingServiceTest {
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
     public void testLimitPriceLongInsufficientVolume() {
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
         BigDecimal allowedVolume = new BigDecimal("11.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
@@ -228,6 +259,8 @@ public class TradingServiceTest {
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
     public void testLimitPriceShortInsufficientVolume() {
+        when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
+            .thenReturn(currencyPair);
         BigDecimal allowedVolume = new BigDecimal("11.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
@@ -261,10 +294,18 @@ public class TradingServiceTest {
 
     // should return 90% of the smallest account balance
     @Test
-    public void testGetMaximumExposure() {
-        BigDecimal exposure = tradingService.getMaximumExposure(longExchange, shortExchange);
+    public void testGetMaximumExposure() throws IOException {
+        final BigDecimal minAccountBalance = new BigDecimal("100.00");
+        final BigDecimal tradePortion = new BigDecimal("0.9");
+        final BigDecimal expectedExposure = minAccountBalance.multiply(tradePortion)
+            .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
-        assertEquals(new BigDecimal("90.00").setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
+        when(exchangeService.getAccountBalance(any(Exchange.class)))
+            .thenReturn(minAccountBalance);
+
+        BigDecimal actual = tradingService.getMaximumExposure(longExchange, shortExchange);
+
+        assertEquals(expectedExposure, actual);
     }
 
     @Test
@@ -276,7 +317,7 @@ public class TradingServiceTest {
 
     @Test
     public void testGetMaximumExposureException() throws IOException {
-        when(tradingService.getAccountBalance(shortExchange, Currency.USD, USD_SCALE)).thenThrow(new IOException("Boom!"));
+        when(exchangeService.getAccountBalance(shortExchange, Currency.USD, USD_SCALE)).thenThrow(new IOException("Boom!"));
 
         BigDecimal exposure = tradingService.getMaximumExposure();
 
@@ -396,7 +437,7 @@ public class TradingServiceTest {
 
     @Test
     public void testLogArbitrageToCsv() throws IOException {
-        final File file = new File(TradingService.TRADE_HISTORY_FILE);
+        final File file = new File(TradingScheduler.TRADE_HISTORY_FILE);
         FileUtils.deleteQuietly(file);
 
         final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()

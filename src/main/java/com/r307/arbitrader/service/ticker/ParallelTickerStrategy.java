@@ -3,6 +3,7 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.TickerService;
 import org.apache.commons.collections4.ListUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -15,7 +16,9 @@ import org.springframework.stereotype.Component;
 import javax.inject.Inject;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -40,8 +43,8 @@ public class ParallelTickerStrategy implements TickerStrategy {
     @Override
     public List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         MarketDataService marketDataService = exchange.getMarketDataService();
-        Integer tickerBatchDelay = exchangeService.getExchangeMetadata(exchange).getTicker().get("batchDelay");
-        int tickerPartitionSize = exchangeService.getExchangeMetadata(exchange).getTicker()
+        Integer tickerBatchDelay = getTickerExchangeDelay(exchange);
+        int tickerPartitionSize = getTickerPartitionSize(exchange)
             .getOrDefault("batchSize", Integer.MAX_VALUE);
 
         long start = System.currentTimeMillis();
@@ -100,6 +103,14 @@ public class ParallelTickerStrategy implements TickerStrategy {
         }
 
         return tickers;
+    }
+
+    private Integer getTickerExchangeDelay(Exchange exchange) {
+        return exchangeService.getExchangeMetadata(exchange).getTicker().get("batchDelay");
+    }
+
+    private Map<String, Integer> getTickerPartitionSize(Exchange exchange) {
+        return exchangeService.getExchangeMetadata(exchange).getTicker();
     }
 
     @Override

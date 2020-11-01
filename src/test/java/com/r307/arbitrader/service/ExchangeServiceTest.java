@@ -2,14 +2,21 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.config.NotificationConfiguration;
+import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
+import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -19,6 +26,15 @@ public class ExchangeServiceTest {
 
     private ExchangeService exchangeService;
 
+    @Mock
+    private NotificationConfiguration notificationConfiguration;
+    @Mock
+    private ErrorCollectorService errorCollectorService;
+    @Mock
+    private TickerService tickerService;
+    @Mock
+    private ExchangeFeeCache exchangeFeeCache;
+
     @Before
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
@@ -27,7 +43,13 @@ public class ExchangeServiceTest {
             .withHomeCurrency(Currency.USDT)
             .build();
 
-        exchangeService = new ExchangeService();
+        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
+
+        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
+        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
+        exchangeService = new ExchangeService(tickerStrategies, exchangeFeeCache);
     }
 
     @Test

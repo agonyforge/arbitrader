@@ -13,13 +13,16 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,24 +38,31 @@ public class TickerServiceTest {
     private ErrorCollectorService errorCollectorService;
 
     private TickerService tickerService;
+    private ExchangeService exchangeService;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
-        ExchangeService exchangeService = new ExchangeService();
         TradingConfiguration tradingConfiguration = new TradingConfiguration();
+
+        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
+        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
+        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
+
+        exchangeService = new ExchangeService(tickerStrategies, new ExchangeFeeCache());
+        tickerService = new TickerService(
+            tradingConfiguration,
+            exchangeService,
+            errorCollectorService);
 
         errorCollectorService = new ErrorCollectorService();
 
         singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
         parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 
-        tickerService = new TickerService(
-            tradingConfiguration,
-            exchangeService,
-            errorCollectorService);
+
     }
 
     @Test

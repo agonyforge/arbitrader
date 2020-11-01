@@ -1,0 +1,232 @@
+package com.r307.arbitrader.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.model.ActivePosition;
+import com.r307.arbitrader.service.model.Spread;
+import com.r307.arbitrader.service.model.TradeCombination;
+import info.bitrich.xchangestream.core.StreamingExchangeFactory;
+import org.knowm.xchange.Exchange;
+import org.knowm.xchange.ExchangeFactory;
+import org.knowm.xchange.ExchangeSpecification;
+import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+import java.io.File;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+public class TradingScheduler {
+    public static final String METADATA_KEY = "arbitrader-metadata";
+    public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TradingScheduler.class);
+    private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
+    protected static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
+
+    private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
+    private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
+
+    private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
+        null, null, null, null, null);
+
+    private final ObjectMapper objectMapper;
+    private final TradingConfiguration tradingConfiguration;
+    private final ConditionService conditionService;
+    private final ExchangeService exchangeService;
+    private final ErrorCollectorService errorCollectorService;
+    private final SpreadService spreadService;
+    private final TickerService tickerService;
+    private final List<Exchange> exchanges = new ArrayList<>();
+    private final TradingService tradingService;
+    private boolean bailOut = false;
+    private ActivePosition activePosition = null;
+
+    public TradingScheduler(
+        ObjectMapper objectMapper,
+        TradingConfiguration tradingConfiguration,
+        ConditionService conditionService,
+        ExchangeService exchangeService,
+        TradingService tradingService,
+        ErrorCollectorService errorCollectorService,
+        SpreadService spreadService,
+        TickerService tickerService) {
+
+        this.objectMapper = objectMapper;
+        this.tradingConfiguration = tradingConfiguration;
+        this.conditionService = conditionService;
+        this.exchangeService = exchangeService;
+        this.errorCollectorService = errorCollectorService;
+        this.spreadService = spreadService;
+        this.tickerService = tickerService;
+        this.tradingService = tradingService;
+    }
+
+    @PostConstruct
+    public void connectExchanges() {
+        tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
+            ExchangeSpecification specification = new ExchangeSpecification(exchangeMetadata.getExchangeClass());
+
+            specification.setUserName(exchangeMetadata.getUserName());
+            specification.setApiKey(exchangeMetadata.getApiKey());
+            specification.setSecretKey(exchangeMetadata.getSecretKey());
+
+            if (exchangeMetadata.getSslUri() != null) {
+                specification.setSslUri(exchangeMetadata.getSslUri());
+            }
+
+            if (exchangeMetadata.getHost() != null) {
+                specification.setHost(exchangeMetadata.getHost());
+            }
+
+            if (exchangeMetadata.getPort() != null) {
+                specification.setPort(exchangeMetadata.getPort());
+            }
+
+            if (!exchangeMetadata.getCustom().isEmpty()) {
+                exchangeMetadata.getCustom().forEach((key, value) -> {
+                    if ("true".equals(value) || "false".equals(value)) {
+                        specification.setExchangeSpecificParametersItem(key, Boolean.valueOf(value));
+                    } else {
+                        specification.setExchangeSpecificParametersItem(key, value);
+                    }
+                });
+            }
+
+            specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
+
+            if (specification.getExchangeClassName().contains("Streaming")) {
+                exchanges.add(StreamingExchangeFactory.INSTANCE.createExchange(specification));
+            } else {
+                exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
+            }
+        });
+
+        exchanges.forEach(exchangeService::setUpExchange);
+
+        tickerService.initializeTickers(exchanges);
+
+        if (tradingConfiguration.getFixedExposure() != null) {
+            LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
+        }
+
+        if (tradingConfiguration.getTradeTimeout() != null) {
+            LOGGER.info("Using trade timeout of {} hours", tradingConfiguration.getTradeTimeout());
+        }
+
+        // load active trades from file, if there is one
+        File stateFile = new File(STATE_FILE);
+
+        if (stateFile.exists()) {
+            if (!stateFile.canRead()) {
+                LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
+            } else {
+                try {
+                    activePosition = objectMapper.readValue(stateFile, ActivePosition.class);
+
+                    LOGGER.info("Loaded active trades from file: {}", stateFile.getAbsolutePath());
+                    LOGGER.info("Active trades: {}", activePosition);
+                } catch (IOException e) {
+                    LOGGER.error("Unable to parse state file {}: ", stateFile.getAbsolutePath(), e);
+                }
+            }
+        }
+    }
+
+
+
+    /**
+     * As often as once per minute, display a summary of any non-critical error messages. Summarizing them greatly
+     * reduces how noisy the logs are while still providing the same information.
+     */
+    @Scheduled(cron = "0 * * * * *")
+    public void errorSummary() {
+        if (!errorCollectorService.isEmpty()) {
+            errorCollectorService.report().forEach(LOGGER::info);
+            errorCollectorService.clear();
+        }
+    }
+
+    /**
+     * Display a summary once every 6 hours with the current spreads.
+     */
+    @Scheduled(cron = "0 0 0/6 * * *") // every 6 hours
+    public void summary() {
+        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
+
+        List<TradeCombination> tradeCombinations = tickerService.getTradeCombinations();
+
+        tradeCombinations.forEach(tradeCombination -> {
+            Spread spread = spreadService.computeSpread(tradeCombination);
+
+            if (spread == null) {
+                return;
+            }
+
+            if (activePosition == null && BigDecimal.ZERO.compareTo(spread.getIn()) < 0) {
+                LOGGER.info("{}/{} {} {} -> {}",
+                    spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getCurrencyPair(),
+                    spread.getIn(),
+                    tradingConfiguration.getEntrySpread());
+            } else if (activePosition != null
+                && activePosition.getCurrencyPair().equals(spread.getCurrencyPair())
+                && activePosition.getLongTrade().getExchange().equals(spread.getLongExchange().getExchangeSpecification().getExchangeName())
+                && activePosition.getShortTrade().getExchange().equals(spread.getShortExchange().getExchangeSpecification().getExchangeName())) {
+
+                LOGGER.info("{}/{} {} {} -> {}",
+                    spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getCurrencyPair(),
+                    spread.getOut(),
+                    activePosition.getExitTarget());
+            }
+        });
+    }
+
+    @Scheduled(initialDelay = 5000, fixedRate = 3000)
+    public void tick() {
+        LOGGER.debug("Tick");
+
+        if (bailOut) {
+            LOGGER.error("Exiting immediately to avoid erroneous trades.");
+            System.exit(1);
+        }
+
+        if (activePosition == null && conditionService.isExitWhenIdleCondition()) {
+            LOGGER.info("Exiting at user request");
+            conditionService.clearExitWhenIdleCondition();
+            System.exit(0);
+        }
+
+        tickerService.refreshTickers();
+
+        long exchangePollStartTime = System.currentTimeMillis();
+        startTradingProcess();
+
+        long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
+
+        if (exchangePollDuration > 3000) {
+            LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
+        }
+    }
+
+    public void startTradingProcess() {
+        tickerService.getTradeCombinations()
+            .forEach(tradeCombination -> {
+                Spread spread = spreadService.computeSpread(tradeCombination);
+
+                if (spread != null) {
+                    tradingService.trade(spread);
+                }
+        });
+    }
+}

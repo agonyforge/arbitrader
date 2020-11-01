@@ -36,8 +36,8 @@ import java.util.UUID;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
-import static com.r307.arbitrader.service.TradingService.METADATA_KEY;
-import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
+import static com.r307.arbitrader.service.TradingScheduler.METADATA_KEY;
+import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -250,7 +250,7 @@ public class ExchangeBuilder {
         return exchange;
     }
 
-    private static List<LimitOrder> generateOrders(CurrencyPair currencyPair, Order.OrderType type) {
+    public static List<LimitOrder> generateOrders(CurrencyPair currencyPair, Order.OrderType type) {
         List<LimitOrder> orders = new ArrayList<>();
 
         for (int i = 0; i < 100; i++) {
