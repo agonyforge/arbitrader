@@ -3,7 +3,7 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.TradingScheduler;
+import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -23,15 +23,16 @@ public class StreamingTickerStrategyTest {
     private ErrorCollectorService errorCollectorService;
     @Mock
     private ExchangeService exchangeService;
+    @Mock
+    private StreamingTickerEventPublisher streamingTickerEventPublisher;
 
     private StreamingTickerStrategy streamingTickerStrategy;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        final TradingScheduler tradingSchedulerMock = Mockito.mock(TradingScheduler.class);
 
-        streamingTickerStrategy = new StreamingTickerStrategy(errorCollectorService, exchangeService, tradingSchedulerMock);
+        streamingTickerStrategy = new StreamingTickerStrategy(errorCollectorService, exchangeService, streamingTickerEventPublisher);
     }
 
     @Test

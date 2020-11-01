@@ -13,7 +13,6 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -83,8 +82,8 @@ public class TickerServiceTest {
 
         tickerService.initializeTickers(exchanges);
 
-        assertEquals(1, tickerService.tradeCombinations.size());
-        assertTrue(tickerService.tradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
+        assertEquals(1, tickerService.pollingExchangeTradeCombinations.size());
+        assertTrue(tickerService.pollingExchangeTradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
     }
 
     @Test
@@ -102,7 +101,7 @@ public class TickerServiceTest {
             .withMarginSupported(false)
             .build();
 
-        tickerService.tradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
+        tickerService.pollingExchangeTradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
 
         tickerService.refreshTickers();
 
@@ -175,11 +174,11 @@ public class TickerServiceTest {
     public void testGetTradeCombinations() {
         TradeCombination combination = mock(TradeCombination.class);
 
-        tickerService.tradeCombinations.add(combination);
+        tickerService.pollingExchangeTradeCombinations.add(combination);
 
-        List<TradeCombination> result = tickerService.getTradeCombinations();
+        List<TradeCombination> result = tickerService.getTradeCombinations(false);
 
-        assertNotSame(tickerService.tradeCombinations, result);
+        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
         assertTrue(result.contains(combination));
     }
 

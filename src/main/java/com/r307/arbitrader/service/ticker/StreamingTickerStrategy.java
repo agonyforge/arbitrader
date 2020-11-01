@@ -2,7 +2,8 @@ package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.TradingScheduler;
+import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
 import info.bitrich.xchangestream.gemini.GeminiStreamingExchange;
@@ -29,13 +30,14 @@ public class StreamingTickerStrategy implements TickerStrategy {
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
     private final ErrorCollectorService errorCollectorService;
     private final ExchangeService exchangeService;
-    private final TradingScheduler tradingScheduler;
+    private final StreamingTickerEventPublisher streamingTickerEventPublisher;
 
     @Inject
-    public StreamingTickerStrategy(ErrorCollectorService errorCollectorService, ExchangeService exchangeService, TradingScheduler tradingScheduler) {
+    public StreamingTickerStrategy(ErrorCollectorService errorCollectorService, ExchangeService exchangeService,
+                                   StreamingTickerEventPublisher streamingTickerEventPublisher) {
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
-        this.tradingScheduler = tradingScheduler;
+        this.streamingTickerEventPublisher = streamingTickerEventPublisher;
     }
 
     @Override
@@ -71,19 +73,21 @@ public class StreamingTickerStrategy implements TickerStrategy {
         return currencyPairs
             .stream()
             .map(pair -> {
+                final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, pair);
+
                 // TODO: Temp fix while https://github.com/knowm/XChange/pull/3761 is not merged and released
                 final Observable<Ticker> tickerObservable;
                 if (exchange instanceof GeminiStreamingExchange) {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(exchangeService.convertExchangePair(exchange, pair), 100);
+                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair, 100);
                 }
                 else {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(exchangeService.convertExchangePair(exchange, pair));
+                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair);
                 }
                 return tickerObservable
                     .map(ticker -> getTicker(exchange, pair, ticker))
-                    .doOnNext(ticker -> onNext(exchange, ticker))
+                    .doOnNext(ticker -> log(exchange, ticker))
                     .subscribe(
-                        ticker -> tradingScheduler.startTradingProcess(),
+                        ticker -> streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, true)),
                         throwable -> {
                             errorCollectorService.collect(exchange, throwable);
                             LOGGER.debug("Unexpected checked exception: {}", throwable.getMessage(), throwable);
@@ -97,7 +101,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
         return tickers.get(exchange).put(pair, ticker);
     }
 
-    private void onNext(StreamingExchange exchange, Ticker ticker) {
+    private void log(StreamingExchange exchange, Ticker ticker) {
         LOGGER.debug("Received ticker: {} {} {}/{}",
             exchange.getExchangeSpecification().getExchangeName(),
             ticker.getCurrencyPair(),

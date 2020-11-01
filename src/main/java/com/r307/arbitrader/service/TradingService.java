@@ -77,8 +77,8 @@ public class TradingService {
         this.notificationService = notificationService;
     }
 
-    public void startTradingProcess() {
-        tickerService.getTradeCombinations()
+    public void startTradingProcess(boolean isStreaming) {
+        tickerService.getTradeCombinations(isStreaming)
             .forEach(tradeCombination -> {
                 Spread spread = spreadService.computeSpread(tradeCombination);
 

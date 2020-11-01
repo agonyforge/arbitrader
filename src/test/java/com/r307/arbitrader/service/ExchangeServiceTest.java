@@ -31,8 +31,6 @@ public class ExchangeServiceTest {
     @Mock
     private ErrorCollectorService errorCollectorService;
     @Mock
-    private TickerService tickerService;
-    @Mock
     private ExchangeFeeCache exchangeFeeCache;
 
     @Before
