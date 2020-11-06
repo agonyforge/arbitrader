@@ -2,10 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.ExchangeConfiguration;
-import com.r307.arbitrader.config.NotificationConfiguration;
-import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
-import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
-import com.r307.arbitrader.service.ticker.TickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -27,11 +24,9 @@ public class ExchangeServiceTest {
     private ExchangeService exchangeService;
 
     @Mock
-    private NotificationConfiguration notificationConfiguration;
-    @Mock
-    private ErrorCollectorService errorCollectorService;
-    @Mock
     private ExchangeFeeCache exchangeFeeCache;
+    @Mock
+    private TickerStrategyProvider tickerStrategyProvider;
 
     @Before
     public void setUp() throws IOException {
@@ -41,13 +36,7 @@ public class ExchangeServiceTest {
             .withHomeCurrency(Currency.USDT)
             .build();
 
-        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
-
-        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
-        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
-        exchangeService = new ExchangeService(tickerStrategies, exchangeFeeCache);
+        exchangeService = new ExchangeService(exchangeFeeCache, tickerStrategyProvider);
     }
 
     @Test

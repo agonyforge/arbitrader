@@ -7,6 +7,7 @@ import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
+import com.r307.arbitrader.service.model.TradeCombination;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
@@ -78,17 +79,28 @@ public class TradingService {
     }
 
     public void startTradingProcess(boolean isStreaming) {
-        tickerService.getTradeCombinations(isStreaming)
-            .forEach(tradeCombination -> {
-                Spread spread = spreadService.computeSpread(tradeCombination);
+        final List<TradeCombination> tradeCombinations;
+        if (isStreaming) {
+            tradeCombinations = tickerService.getStreamingExchangeTradeCombinations();
+        }
+        else {
+            tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
+        }
 
-                if (spread != null) {
-                    trade(spread);
-                }
-            });
+        tradeCombinations.forEach(tradeCombination -> {
+            Spread spread = spreadService.computeSpread(tradeCombination);
+            if (spread != null) {
+                trade(spread);
+            }
+        });
     }
 
     public void trade(Spread spread) {
+        if (bailOut) {
+            LOGGER.error("Exiting immediately to avoid erroneous trades.");
+            System.exit(1);
+        }
+
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
 

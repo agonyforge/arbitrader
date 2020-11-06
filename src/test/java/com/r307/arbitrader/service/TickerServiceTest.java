@@ -7,12 +7,14 @@ import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
 import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -39,6 +41,9 @@ public class TickerServiceTest {
     private TickerService tickerService;
     private ExchangeService exchangeService;
 
+    @Mock
+    private TickerStrategyProvider tickerStrategyProvider;
+
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
@@ -46,11 +51,7 @@ public class TickerServiceTest {
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
         TradingConfiguration tradingConfiguration = new TradingConfiguration();
 
-        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
-        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
-        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
-
-        exchangeService = new ExchangeService(tickerStrategies, new ExchangeFeeCache());
+        exchangeService = new ExchangeService(new ExchangeFeeCache(), tickerStrategyProvider);
         tickerService = new TickerService(
             tradingConfiguration,
             exchangeService,
@@ -176,7 +177,7 @@ public class TickerServiceTest {
 
         tickerService.pollingExchangeTradeCombinations.add(combination);
 
-        List<TradeCombination> result = tickerService.getTradeCombinations(false);
+        List<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
 
         assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
         assertTrue(result.contains(combination));

@@ -46,7 +46,6 @@ public class TradingScheduler {
     private final TickerService tickerService;
     private final List<Exchange> exchanges = new ArrayList<>();
     private final TradingService tradingService;
-    private boolean bailOut = false;
     private ActivePosition activePosition = null;
 
     public TradingScheduler(
@@ -161,7 +160,7 @@ public class TradingScheduler {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
-        List<TradeCombination> tradeCombinations = tickerService.getTradeCombinations(false);
+        List<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
 
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = spreadService.computeSpread(tradeCombination);
@@ -193,13 +192,8 @@ public class TradingScheduler {
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
-    public void tick() {
+    public void pollForPriceData() {
         LOGGER.debug("Tick");
-
-        if (bailOut) {
-            LOGGER.error("Exiting immediately to avoid erroneous trades.");
-            System.exit(1);
-        }
 
         if (activePosition == null && conditionService.isExitWhenIdleCondition()) {
             LOGGER.info("Exiting at user request");
@@ -210,7 +204,7 @@ public class TradingScheduler {
         tickerService.refreshTickers();
 
         long exchangePollStartTime = System.currentTimeMillis();
-        startTradingProcess(false);
+        startTradingProcess();
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
 
@@ -219,8 +213,8 @@ public class TradingScheduler {
         }
     }
 
-    public void startTradingProcess(boolean isStreaming) {
-        tickerService.getTradeCombinations(isStreaming)
+    public void startTradingProcess() {
+        tickerService.getPollingExchangeTradeCombinations()
             .forEach(tradeCombination -> {
                 Spread spread = spreadService.computeSpread(tradeCombination);
 

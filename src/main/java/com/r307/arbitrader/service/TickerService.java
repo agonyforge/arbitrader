@@ -120,14 +120,7 @@ public class TickerService {
         return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
-    public List<TradeCombination> getTradeCombinations(boolean streamingExchange) {
-        if (streamingExchange) {
-            final List<TradeCombination> streamingResult = new ArrayList<>(streamingExchangeTradeCombinations);
-            Collections.shuffle(streamingResult);
-
-            return streamingResult;
-        }
-
+    public List<TradeCombination> getPollingExchangeTradeCombinations() {
         final List<TradeCombination> allResult = new ArrayList<>(pollingExchangeTradeCombinations);
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
@@ -135,6 +128,13 @@ public class TickerService {
         Collections.shuffle(allResult);
 
         return allResult;
+    }
+
+    public List<TradeCombination> getStreamingExchangeTradeCombinations() {
+        final List<TradeCombination> streamingResult = new ArrayList<>(streamingExchangeTradeCombinations);
+        Collections.shuffle(streamingResult);
+
+        return streamingResult;
     }
 
     // TODO test public API instead of private

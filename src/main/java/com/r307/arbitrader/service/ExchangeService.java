@@ -1,7 +1,9 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -22,7 +24,6 @@ import java.math.RoundingMode;
 import java.util.Map;
 
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
-import static com.r307.arbitrader.service.TradingScheduler.METADATA_KEY;
 
 @Component
 public class ExchangeService {
@@ -31,13 +32,13 @@ public class ExchangeService {
     public static final String METADATA_KEY = "arbitrader-metadata";
     public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
 
-    private final Map<String, TickerStrategy> tickerStrategies;
     private final ExchangeFeeCache feeCache;
+    private final TickerStrategyProvider tickerStrategyProvider;
 
     @Inject
-    public ExchangeService(Map<String, TickerStrategy> tickerStrategies, ExchangeFeeCache feeCache) {
-        this.tickerStrategies = tickerStrategies;
+    public ExchangeService(ExchangeFeeCache feeCache, TickerStrategyProvider tickerStrategyProvider) {
         this.feeCache = feeCache;
+        this.tickerStrategyProvider = tickerStrategyProvider;
     }
 
     public ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
@@ -81,20 +82,26 @@ public class ExchangeService {
         }
 
 
-        if (exchange.getExchangeSpecification().getExchangeClassName().contains("Streaming")) {
-            exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("streamingTickerStrategy"));
+        if (Utils.isStreamingExchange(exchange)) {
+            final TickerStrategy streamingTickerStrategy = tickerStrategyProvider.getStreamingTickerStrategy(this);
+
+            exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, streamingTickerStrategy);
         } else {
             try {
                 CurrencyPairsParam param = () -> getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
                 exchange.getMarketDataService().getTickers(param);
 
-                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("singleCallTickerStrategy"));
+                final TickerStrategy singleCallTickerStrategy = tickerStrategyProvider.getSingleCallTickerStrategy(this);
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, singleCallTickerStrategy);
             } catch (NotYetImplementedForExchangeException e) {
                 LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
                         "individually instead. This may result in API rate limiting.",
                     exchange.getExchangeSpecification().getExchangeName());
 
-                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, tickerStrategies.get("parallelTickerStrategy"));
+                final TickerStrategy parallelTickerStrategy = tickerStrategyProvider.getParallelTickerStrategy(this);
+
+                exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, parallelTickerStrategy);
             } catch (IOException e) {
                 LOGGER.debug("IOException fetching tickers for {}: ", exchange.getExchangeSpecification().getExchangeName(), e);
             }

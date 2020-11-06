@@ -67,7 +67,6 @@ public class TradingServiceTest {
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
         final JavaMailSender javaMailSenderMock = mock(JavaMailSender.class);
-//        exchangeService = Mockito.mock(ExchangeService.class);
 
         ObjectMapper objectMapper = new JsonConfiguration().objectMapper();
 
@@ -75,13 +74,6 @@ public class TradingServiceTest {
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
         ErrorCollectorService errorCollectorService = new ErrorCollectorService();
 
-//        TickerStrategy singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-//        TickerStrategy parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-//        Map<String, TickerStrategy> tickerStrategies = new HashMap<>();
-//        tickerStrategies.put("singleCallTickerStrategy", singleCallTickerStrategy);
-//        tickerStrategies.put("parallelTickerStrategy", parallelTickerStrategy);
-//
-//        exchangeService = new ExchangeService(tickerStrategies, new ExchangeFeeCache());
         TickerService tickerService = new TickerService(
             new TradingConfiguration(),
             exchangeService,

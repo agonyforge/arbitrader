@@ -1,5 +1,6 @@
 package com.r307.arbitrader;
 
+import info.bitrich.xchangestream.core.StreamingExchange;
 import org.knowm.xchange.Exchange;
 
 public final class Utils {
@@ -7,6 +8,6 @@ public final class Utils {
     private Utils() {}
 
     public static boolean isStreamingExchange(Exchange exchange) {
-        return exchange.getExchangeSpecification().getExchangeClassName().contains("Streaming");
+        return exchange instanceof StreamingExchange;
     }
 }

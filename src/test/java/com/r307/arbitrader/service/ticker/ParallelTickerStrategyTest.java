@@ -11,6 +11,7 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -27,13 +28,15 @@ public class ParallelTickerStrategyTest {
     private ErrorCollectorService errorCollectorService;
 
     private TickerStrategy tickerStrategy;
+    @Mock
+    private TickerStrategyProvider tickerStrategyProvider;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
-        ExchangeService exchangeService = new ExchangeService(new HashMap<>(), new ExchangeFeeCache());
+        ExchangeService exchangeService = new ExchangeService(new ExchangeFeeCache(), tickerStrategyProvider);
 
         errorCollectorService = new ErrorCollectorService();
 
