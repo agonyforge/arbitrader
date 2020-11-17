@@ -13,8 +13,8 @@ public class AppConfig {
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         // Open to discussion
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(2);
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
         executor.setQueueCapacity(5);
         executor.setThreadNamePrefix("async-trade-pool-");
         executor.initialize();
