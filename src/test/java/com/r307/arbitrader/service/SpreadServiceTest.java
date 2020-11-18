@@ -6,6 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ public class SpreadServiceTest {
     @Before
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
+        final TickerService tickerServiceMock = Mockito.mock(TickerService.class);
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
             .withExchangeMetaData()
@@ -28,7 +30,7 @@ public class SpreadServiceTest {
             .withExchangeMetaData()
             .build();
 
-        spreadService = new SpreadService();
+        spreadService = new SpreadService(tickerServiceMock);
     }
 
     @Test

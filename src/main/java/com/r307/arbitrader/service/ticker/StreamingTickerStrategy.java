@@ -2,6 +2,8 @@ package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
 import info.bitrich.xchangestream.gemini.GeminiStreamingExchange;
@@ -28,11 +30,14 @@ public class StreamingTickerStrategy implements TickerStrategy {
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
     private final ErrorCollectorService errorCollectorService;
     private final ExchangeService exchangeService;
+    private final StreamingTickerEventPublisher streamingTickerEventPublisher;
 
     @Inject
-    public StreamingTickerStrategy(ErrorCollectorService errorCollectorService, ExchangeService exchangeService) {
+    public StreamingTickerStrategy(ErrorCollectorService errorCollectorService, ExchangeService exchangeService,
+                                   StreamingTickerEventPublisher streamingTickerEventPublisher) {
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
+        this.streamingTickerEventPublisher = streamingTickerEventPublisher;
     }
 
     @Override
@@ -68,31 +73,40 @@ public class StreamingTickerStrategy implements TickerStrategy {
         return currencyPairs
             .stream()
             .map(pair -> {
+                final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, pair);
+
                 // TODO: Temp fix while https://github.com/knowm/XChange/pull/3761 is not merged and released
                 final Observable<Ticker> tickerObservable;
                 if (exchange instanceof GeminiStreamingExchange) {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(exchangeService.convertExchangePair(exchange, pair), 10);
+                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair, 100);
                 }
                 else {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(exchangeService.convertExchangePair(exchange, pair));
+                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair);
                 }
-                return tickerObservable.subscribe(
-                    ticker -> {
-                        tickers.computeIfAbsent(exchange, e -> new HashMap<>());
-                        tickers.get(exchange).put(pair, ticker);
-
-                        LOGGER.debug("Received ticker: {} {} {}/{}",
-                            exchange.getExchangeSpecification().getExchangeName(),
-                            ticker.getCurrencyPair(),
-                            ticker.getBid(),
-                            ticker.getAsk());
-                    },
-                    throwable -> {
-                        errorCollectorService.collect(exchange, throwable);
-                        LOGGER.debug("Unexpected checked exception: {}", throwable.getMessage(), throwable);
+                return tickerObservable
+                    .map(ticker -> getTicker(exchange, pair, ticker))
+                    .doOnNext(ticker -> log(exchange, ticker))
+                    .subscribe(
+                        ticker -> streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, true)),
+                        throwable -> {
+                            errorCollectorService.collect(exchange, throwable);
+                            LOGGER.debug("Unexpected checked exception: {}", throwable.getMessage(), throwable);
                     });
             })
             .collect(Collectors.toList());
+    }
+
+    private Ticker getTicker(StreamingExchange exchange, CurrencyPair pair, Ticker ticker) {
+        tickers.computeIfAbsent(exchange, e -> new HashMap<>());
+        return tickers.get(exchange).put(pair, ticker);
+    }
+
+    private void log(StreamingExchange exchange, Ticker ticker) {
+        LOGGER.debug("Received ticker: {} {} {}/{}",
+            exchange.getExchangeSpecification().getExchangeName(),
+            ticker.getCurrencyPair(),
+            ticker.getBid(),
+            ticker.getAsk());
     }
 
     @Override

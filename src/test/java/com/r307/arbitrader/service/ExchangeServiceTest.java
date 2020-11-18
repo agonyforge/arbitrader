@@ -2,14 +2,18 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -19,6 +23,11 @@ public class ExchangeServiceTest {
 
     private ExchangeService exchangeService;
 
+    @Mock
+    private ExchangeFeeCache exchangeFeeCache;
+    @Mock
+    private TickerStrategyProvider tickerStrategyProvider;
+
     @Before
     public void setUp() throws IOException {
         MockitoAnnotations.initMocks(this);
@@ -27,7 +36,7 @@ public class ExchangeServiceTest {
             .withHomeCurrency(Currency.USDT)
             .build();
 
-        exchangeService = new ExchangeService();
+        exchangeService = new ExchangeService(exchangeFeeCache, tickerStrategyProvider);
     }
 
     @Test

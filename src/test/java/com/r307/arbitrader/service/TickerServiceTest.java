@@ -7,19 +7,23 @@ import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
 import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
+import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,24 +39,30 @@ public class TickerServiceTest {
     private ErrorCollectorService errorCollectorService;
 
     private TickerService tickerService;
+    private ExchangeService exchangeService;
+
+    @Mock
+    private TickerStrategyProvider tickerStrategyProvider;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
-        ExchangeService exchangeService = new ExchangeService();
         TradingConfiguration tradingConfiguration = new TradingConfiguration();
+
+        exchangeService = new ExchangeService(new ExchangeFeeCache(), tickerStrategyProvider);
+        tickerService = new TickerService(
+            tradingConfiguration,
+            exchangeService,
+            errorCollectorService);
 
         errorCollectorService = new ErrorCollectorService();
 
         singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
         parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
 
-        tickerService = new TickerService(
-            tradingConfiguration,
-            exchangeService,
-            errorCollectorService);
+
     }
 
     @Test
@@ -73,8 +83,8 @@ public class TickerServiceTest {
 
         tickerService.initializeTickers(exchanges);
 
-        assertEquals(1, tickerService.tradeCombinations.size());
-        assertTrue(tickerService.tradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
+        assertEquals(1, tickerService.pollingExchangeTradeCombinations.size());
+        assertTrue(tickerService.pollingExchangeTradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
     }
 
     @Test
@@ -92,7 +102,7 @@ public class TickerServiceTest {
             .withMarginSupported(false)
             .build();
 
-        tickerService.tradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
+        tickerService.pollingExchangeTradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
 
         tickerService.refreshTickers();
 
@@ -165,11 +175,11 @@ public class TickerServiceTest {
     public void testGetTradeCombinations() {
         TradeCombination combination = mock(TradeCombination.class);
 
-        tickerService.tradeCombinations.add(combination);
+        tickerService.pollingExchangeTradeCombinations.add(combination);
 
-        List<TradeCombination> result = tickerService.getTradeCombinations();
+        List<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
 
-        assertNotSame(tickerService.tradeCombinations, result);
+        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
         assertTrue(result.contains(combination));
     }
 

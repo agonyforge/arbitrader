@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.r307.arbitrader.service.TradingService.TICKER_STRATEGY_KEY;
+import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
 
 @Component
 public class TickerService {
@@ -33,7 +34,8 @@ public class TickerService {
     private final ErrorCollectorService errorCollectorService;
 
     Map<String, Ticker> allTickers = new HashMap<>();
-    List<TradeCombination> tradeCombinations = new ArrayList<>();
+    List<TradeCombination> pollingExchangeTradeCombinations = new ArrayList<>();
+    List<TradeCombination> streamingExchangeTradeCombinations = new ArrayList<>();
 
     @Inject
     public TickerService(
@@ -70,9 +72,14 @@ public class TickerService {
                     return;
                 }
 
-                TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
+                final TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
 
-                tradeCombinations.add(combination);
+                if (Utils.isStreamingExchange(longExchange) && Utils.isStreamingExchange(shortExchange)) {
+                    streamingExchangeTradeCombinations.add(combination);
+                }
+
+                // We still want to use streaming exchanges when we are polling
+                pollingExchangeTradeCombinations.add(combination);
 
                 LOGGER.info("{}", combination);
             });
@@ -85,12 +92,9 @@ public class TickerService {
         Map<Exchange, Set<CurrencyPair>> queue = new HashMap<>();
 
         // find the currencies that are actively in use for each exchange
-        tradeCombinations.forEach(tradeCombination -> {
-            Set<CurrencyPair> longCurrencies = queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
-            Set<CurrencyPair> shortCurrencies = queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
-
-            longCurrencies.add(tradeCombination.getCurrencyPair());
-            shortCurrencies.add(tradeCombination.getCurrencyPair());
+        pollingExchangeTradeCombinations.forEach(tradeCombination -> {
+            queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
+            queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
         });
 
         // for each exchange, fetch its active currencies
@@ -116,14 +120,21 @@ public class TickerService {
         return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
-    public List<TradeCombination> getTradeCombinations() {
-        List<TradeCombination> result = new ArrayList<>(tradeCombinations);
+    public List<TradeCombination> getPollingExchangeTradeCombinations() {
+        final List<TradeCombination> allResult = new ArrayList<>(pollingExchangeTradeCombinations);
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
-        Collections.shuffle(result);
+        Collections.shuffle(allResult);
 
-        return result;
+        return allResult;
+    }
+
+    public List<TradeCombination> getStreamingExchangeTradeCombinations() {
+        final List<TradeCombination> streamingResult = new ArrayList<>(streamingExchangeTradeCombinations);
+        Collections.shuffle(streamingResult);
+
+        return streamingResult;
     }
 
     // TODO test public API instead of private
