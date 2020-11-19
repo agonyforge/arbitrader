@@ -212,7 +212,7 @@ public class TradingService {
 
         BigDecimal totalBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
 
-//        try {
+        try {
         activePosition = new ActivePosition();
         activePosition.setEntryTime(OffsetDateTime.now());
         activePosition.setCurrencyPair(spread.getCurrencyPair());
@@ -225,20 +225,20 @@ public class TradingService {
         activePosition.getShortTrade().setVolume(shortVolume);
         activePosition.getShortTrade().setEntry(shortLimitPrice);
 
-//            executeOrderPair(
-//                    spread.getLongExchange(), spread.getShortExchange(),
-//                    spread.getCurrencyPair(),
-//                    longLimitPrice, shortLimitPrice,
-//                    longVolume, shortVolume,
-//                    true);
+            executeOrderPair(
+                    spread.getLongExchange(), spread.getShortExchange(),
+                    spread.getCurrencyPair(),
+                    longLimitPrice, shortLimitPrice,
+                    longVolume, shortVolume,
+                    true);
 
         notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
             longLimitPrice, shortVolume, shortLimitPrice);
 
-//            } catch (IOException e) {
-//                LOGGER.error("IOE executing limit orders: ", e);
-//                activePosition = null;
-//            }
+            } catch (IOException e) {
+                LOGGER.error("IOE executing limit orders: ", e);
+                activePosition = null;
+            }
 
         try {
             FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
@@ -343,7 +343,7 @@ public class TradingService {
 
         logExitTrade();
 
-//        try {
+        try {
         LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
             longExchangeName,
             spread.getCurrencyPair(),
@@ -361,18 +361,18 @@ public class TradingService {
             Currency.USD.getSymbol(),
             shortVolume.multiply(spread.getShortTicker().getAsk()));
 
-//            executeOrderPair(
-//                spread.getLongExchange(), spread.getShortExchange(),
-//                spread.getCurrencyPair(),
-//                longLimitPrice, shortLimitPrice,
-//                longVolume, shortVolume,
-//                false);
-//        } catch (IOException e) {
-//            LOGGER.error("IOE executing limit orders: ", e);
-//            // TODO: Why don't we return here? Could it be because the IOException could be, for example, a timeout exception
-//            // and we don't know for sure whether the trade was accepted or not?
-//            // Maybe we should return here and send a notification so the user is aware of this situation
-//        }
+            executeOrderPair(
+                spread.getLongExchange(), spread.getShortExchange(),
+                spread.getCurrencyPair(),
+                longLimitPrice, shortLimitPrice,
+                longVolume, shortVolume,
+                false);
+        } catch (IOException e) {
+            LOGGER.error("IOE executing limit orders: ", e);
+            // TODO: Why don't we return here? Could it be because the IOException could be, for example, a timeout exception
+            // and we don't know for sure whether the trade was accepted or not?
+            // Maybe we should return here and send a notification so the user is aware of this situation
+        }
 
         LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
         BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());

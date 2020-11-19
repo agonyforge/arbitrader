@@ -19,9 +19,9 @@ phases:
       - echo Branch tag is ${BRANCH_TAG}
   build:
     commands:
-      - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
       - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
       - docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
+      - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
   post_build:
     commands:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
