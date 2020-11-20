@@ -75,15 +75,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
             .map(pair -> {
                 final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, pair);
 
-                // TODO: Temp fix while https://github.com/knowm/XChange/pull/3761 is not merged and released
-                final Observable<Ticker> tickerObservable;
-                if (exchange instanceof GeminiStreamingExchange) {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair, 100);
-                }
-                else {
-                    tickerObservable = exchange.getStreamingMarketDataService().getTicker(currencyPair);
-                }
-                return tickerObservable
+                return exchange.getStreamingMarketDataService().getTicker(currencyPair)
                     .map(ticker -> getTicker(exchange, pair, ticker))
                     .doOnNext(ticker -> log(exchange, ticker))
                     .subscribe(
