@@ -76,21 +76,19 @@ public class StreamingTickerStrategy implements TickerStrategy {
                 final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, pair);
 
                 return exchange.getStreamingMarketDataService().getTicker(currencyPair)
-                    .map(ticker -> getTicker(exchange, pair, ticker))
                     .doOnNext(ticker -> log(exchange, ticker))
                     .subscribe(
-                        ticker -> streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, true)),
+                        ticker -> {
+                            tickers.computeIfAbsent(exchange, e -> new HashMap<>());
+                            tickers.get(exchange).put(pair, ticker);
+                            streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, true));
+                        },
                         throwable -> {
                             errorCollectorService.collect(exchange, throwable);
                             LOGGER.debug("Unexpected checked exception: {}", throwable.getMessage(), throwable);
                     });
             })
             .collect(Collectors.toList());
-    }
-
-    private Ticker getTicker(StreamingExchange exchange, CurrencyPair pair, Ticker ticker) {
-        tickers.computeIfAbsent(exchange, e -> new HashMap<>());
-        return tickers.get(exchange).put(pair, ticker);
     }
 
     private void log(StreamingExchange exchange, Ticker ticker) {
