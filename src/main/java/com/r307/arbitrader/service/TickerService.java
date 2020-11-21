@@ -137,6 +137,17 @@ public class TickerService {
         return streamingResult;
     }
 
+    public List<TradeCombination> getAllTradeCombinations() {
+        final List<TradeCombination> result = new ArrayList<>();
+
+        result.addAll(pollingExchangeTradeCombinations);
+        result.addAll(streamingExchangeTradeCombinations);
+
+        Collections.shuffle(result);
+
+        return result;
+    }
+
     // TODO test public API instead of private
     List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         TickerStrategy tickerStrategy = (TickerStrategy)exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY);

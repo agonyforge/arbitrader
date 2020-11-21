@@ -172,7 +172,7 @@ public class TickerServiceTest {
     }
 
     @Test
-    public void testGetTradeCombinations() {
+    public void testGetPollingTradeCombinations() {
         TradeCombination combination = mock(TradeCombination.class);
 
         tickerService.pollingExchangeTradeCombinations.add(combination);
@@ -181,6 +181,34 @@ public class TickerServiceTest {
 
         assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
         assertTrue(result.contains(combination));
+    }
+
+    @Test
+    public void testGetStreamingTradeCombinations() {
+        TradeCombination combination = mock(TradeCombination.class);
+
+        tickerService.streamingExchangeTradeCombinations.add(combination);
+
+        List<TradeCombination> result = tickerService.getStreamingExchangeTradeCombinations();
+
+        assertNotSame(tickerService.streamingExchangeTradeCombinations, result);
+        assertTrue(result.contains(combination));
+    }
+
+    @Test
+    public void testGetAllTradeCombinations() {
+        TradeCombination pollingCombination = mock(TradeCombination.class);
+        TradeCombination streamingCombination = mock(TradeCombination.class);
+
+        tickerService.pollingExchangeTradeCombinations.add(pollingCombination);
+        tickerService.streamingExchangeTradeCombinations.add(streamingCombination);
+
+        List<TradeCombination> result = tickerService.getAllTradeCombinations();
+
+        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
+        assertNotSame(tickerService.streamingExchangeTradeCombinations, result);
+        assertTrue(result.contains(pollingCombination));
+        assertTrue(result.contains(streamingCombination));
     }
 
     @Test

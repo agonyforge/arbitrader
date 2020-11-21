@@ -160,7 +160,7 @@ public class TradingScheduler {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
 
-        List<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
+        List<TradeCombination> tradeCombinations = tickerService.getAllTradeCombinations();
 
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = spreadService.computeSpread(tradeCombination);
