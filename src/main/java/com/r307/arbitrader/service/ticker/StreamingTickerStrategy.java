@@ -6,8 +6,6 @@ import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
 import com.r307.arbitrader.service.model.TickerEvent;
 import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
-import info.bitrich.xchangestream.gemini.GeminiStreamingExchange;
-import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -24,7 +22,7 @@ import java.util.stream.Collectors;
 public class StreamingTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingTickerStrategy.class);
 
-    // TODO not sure if this list is necessary but we'll keep it around for now
+    // we would use this list if we supported disconnecting from streams
     @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
     private final List<Disposable> subscriptions = new ArrayList<>();
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
@@ -61,6 +59,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
             currencyPairs.forEach(builder::addTicker);
 
             exchange.connect(builder.build()).blockingAwait();
+            subscriptions.clear(); // avoid endlessly filling this list up with dead subscriptions
             subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
@@ -92,7 +91,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
     private void log(StreamingExchange exchange, Ticker ticker) {
         LOGGER.debug("Received ticker: {} {} {}/{}",
             exchange.getExchangeSpecification().getExchangeName(),
-            ticker.getCurrencyPair(),
+            ticker.getInstrument(),
             ticker.getBid(),
             ticker.getAsk());
     }

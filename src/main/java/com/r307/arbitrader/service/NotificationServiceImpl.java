@@ -75,12 +75,11 @@ public class NotificationServiceImpl implements NotificationService {
             Currency.USD.getSymbol(),
             shortVolume.multiply(shortLimitPrice).toPlainString());
 
-        final String emailBody = new StringBuilder("***** ENTRY *****\n")
-            .append(String.format("Entry spread: %s\n", spread.getIn().toPlainString()))
-            .append(String.format("Exit spread target: %s\n", exitTarget.toPlainString()))
-            .append(longEntryString)
-            .append(shortEntryString)
-            .toString();
+        final String emailBody = "***** ENTRY *****\n" +
+            String.format("Entry spread: %s\n", spread.getIn().toPlainString()) +
+            String.format("Exit spread target: %s\n", exitTarget.toPlainString()) +
+            longEntryString +
+            shortEntryString;
 
         sendEmailNotification(EMAIL_SUBJECT_NEW_ENTRY, emailBody);
     }
@@ -110,12 +109,11 @@ public class NotificationServiceImpl implements NotificationService {
 
         final BigDecimal profit = updatedBalance.subtract(entryBalance);
 
-        final String emailBody = new StringBuilder("***** EXIT *****\n")
-            .append(longCloseString)
-            .append(shortCloseString)
-            .append(String.format("Combined account balances on entry: $%s\n", entryBalance.toPlainString()))
-            .append(String.format("Profit calculation: $%s - $%s = $%s\n", updatedBalance.toPlainString(), entryBalance.toPlainString(), profit.toPlainString()))
-            .toString();
+        final String emailBody = "***** EXIT *****\n" +
+            longCloseString +
+            shortCloseString +
+            String.format("Combined account balances on entry: $%s\n", entryBalance.toPlainString()) +
+            String.format("Profit calculation: $%s - $%s = $%s\n", updatedBalance.toPlainString(), entryBalance.toPlainString(), profit.toPlainString());
 
         sendEmailNotification(EMAIL_SUBJECT_NEW_EXIT, emailBody);
     }

@@ -53,7 +53,7 @@ public class SingleCallTickerStrategy implements TickerStrategy {
 
                 tickers.forEach(ticker -> LOGGER.debug("Fetched ticker: {} {} {}/{}",
                     exchange.getExchangeSpecification().getExchangeName(),
-                    ticker.getCurrencyPair(),
+                    ticker.getInstrument(),
                     ticker.getBid(),
                     ticker.getAsk()));
 

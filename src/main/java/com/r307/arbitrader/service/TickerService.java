@@ -54,7 +54,7 @@ public class TickerService {
         allTickers.clear();
         exchanges
             .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
-            .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker)));
+            .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker)));
 
         LOGGER.info("Trading the following exchanges and pairs:");
 
@@ -108,7 +108,7 @@ public class TickerService {
                 LOGGER.debug("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
 
                 getTickers(exchange, activePairs)
-                    .forEach(ticker -> allTickers.put(tickerKey(exchange, ticker.getCurrencyPair()), ticker));
+                    .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker));
             } catch (ExchangeException e) {
                 LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
             }
@@ -149,7 +149,7 @@ public class TickerService {
 
             tickers.forEach(ticker -> LOGGER.debug("Ticker: {} {} {}/{}",
                 exchange.getExchangeSpecification().getExchangeName(),
-                ticker.getCurrencyPair(),
+                ticker.getInstrument(),
                 ticker.getBid(),
                 ticker.getAsk()));
 
