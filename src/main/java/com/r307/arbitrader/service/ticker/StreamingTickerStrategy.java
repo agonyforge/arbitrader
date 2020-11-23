@@ -49,21 +49,19 @@ public class StreamingTickerStrategy implements TickerStrategy {
 
         StreamingExchange exchange = (StreamingExchange)stdExchange;
 
-        if (!tickers.containsKey(exchange)) {
-            ProductSubscription.ProductSubscriptionBuilder builder = ProductSubscription.create();
-
-            currencyPairs.forEach(builder::addTicker);
-
-            exchange.connect(builder.build()).blockingAwait();
-            subscriptions.addAll(subscribeAll(exchange, currencyPairs));
-        }
-
         if (tickers.containsKey(exchange)) {
             return tickers.get(exchange).entrySet()
                 .stream()
                 .filter(entry -> currencyPairs.contains(entry.getKey()))
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
+        } else {
+            ProductSubscription.ProductSubscriptionBuilder builder = ProductSubscription.create();
+
+            currencyPairs.forEach(builder::addTicker);
+
+            exchange.connect(builder.build()).blockingAwait();
+            subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
         return Collections.emptyList();

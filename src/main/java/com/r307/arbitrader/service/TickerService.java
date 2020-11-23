@@ -93,8 +93,11 @@ public class TickerService {
 
         // find the currencies that are actively in use for each exchange
         pollingExchangeTradeCombinations.forEach(tradeCombination -> {
-            queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
-            queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
+            Set<CurrencyPair> longCurrencies = queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
+            Set<CurrencyPair> shortCurrencies = queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
+
+            longCurrencies.add(tradeCombination.getCurrencyPair());
+            shortCurrencies.add(tradeCombination.getCurrencyPair());
         });
 
         // for each exchange, fetch its active currencies
