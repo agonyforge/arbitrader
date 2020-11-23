@@ -10,7 +10,7 @@ import java.util.Map;
 
 @Component
 public class ExchangeFeeCache {
-    private Map<String, BigDecimal> cache = new HashMap<>();
+    private final Map<String, BigDecimal> cache = new HashMap<>();
 
     public BigDecimal getCachedFee(Exchange exchange, CurrencyPair currencyPair) {
         return cache.get(computeCacheKey(exchange, currencyPair));

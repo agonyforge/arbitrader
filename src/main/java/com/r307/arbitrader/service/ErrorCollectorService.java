@@ -17,7 +17,7 @@ public class ErrorCollectorService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorCollectorService.class);
 
-    private Map<String, Integer> errors = new HashMap<>();
+    private final Map<String, Integer> errors = new HashMap<>();
 
     public void collect(Exchange exchange, Throwable t) {
         errors.compute(computeKey(exchange, t), (key, value) -> (value == null ? 0 : value) + 1);

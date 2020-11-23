@@ -2,7 +2,6 @@ package com.r307.arbitrader.service.model;
 
 import org.apache.commons.text.StringEscapeUtils;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -81,51 +80,48 @@ public class ArbitrageLog {
     }
 
     public String csvHeaders() {
-        return new StringBuilder()
-            .append("\"shortExchange\",")
-            .append("\"shortSpread\",")
-            .append("\"shortSlip\",")
-            .append("\"shortAmount\",")
-            .append("\"shortCurrency\",")
-            .append("\"longExchange\",")
-            .append("\"longSpread\",")
-            .append("\"longSlip\",")
-            .append("\"longAmount\",")
-            .append("\"longCurrency\",")
-            .append("\"profit\",")
-            .append("\"timestamp\"")
-            .append("\n")
-            .toString();
+        return "\"shortExchange\"," +
+            "\"shortSpread\"," +
+            "\"shortSlip\"," +
+            "\"shortAmount\"," +
+            "\"shortCurrency\"," +
+            "\"longExchange\"," +
+            "\"longSpread\"," +
+            "\"longSlip\"," +
+            "\"longAmount\"," +
+            "\"longCurrency\"," +
+            "\"profit\"," +
+            "\"timestamp\"" +
+            "\n";
     }
 
     public String toCsv() {
-        return new StringBuilder("\"")
-            .append(StringEscapeUtils.escapeCsv(shortExchange))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(shortSpread.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(shortSlip.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(shortAmount.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(shortCurrency))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(longExchange))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(longSpread.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(longSlip.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(longAmount.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(longCurrency))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(profit.toPlainString()))
-            .append("\",\"")
-            .append(StringEscapeUtils.escapeCsv(timestamp.toString()))
-            .append("\"")
-            .append("\n")
-            .toString();
+        return "\"" +
+            StringEscapeUtils.escapeCsv(shortExchange) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(shortSpread.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(shortSlip.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(shortAmount.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(shortCurrency) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(longExchange) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(longSpread.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(longSlip.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(longAmount.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(longCurrency) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(profit.toPlainString()) +
+            "\",\"" +
+            StringEscapeUtils.escapeCsv(timestamp.toString()) +
+            "\"" +
+            "\n";
     }
 
     public static final class ArbitrageLogBuilder {
@@ -206,8 +202,9 @@ public class ArbitrageLog {
             return this;
         }
 
-        public com.r307.arbitrader.service.model.ArbitrageLog build() {
-            com.r307.arbitrader.service.model.ArbitrageLog arbitrageLog = new com.r307.arbitrader.service.model.ArbitrageLog();
+        public ArbitrageLog build() {
+            ArbitrageLog arbitrageLog = new ArbitrageLog();
+
             arbitrageLog.longSpread = this.longSpread;
             arbitrageLog.shortSpread = this.shortSpread;
             arbitrageLog.shortSlip = this.shortSlip;
@@ -220,6 +217,7 @@ public class ArbitrageLog {
             arbitrageLog.longSlip = this.longSlip;
             arbitrageLog.timestamp = this.timestamp;
             arbitrageLog.shortAmount = this.shortAmount;
+
             return arbitrageLog;
         }
     }

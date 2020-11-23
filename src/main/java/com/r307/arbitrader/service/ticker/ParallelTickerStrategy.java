@@ -3,7 +3,6 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.TickerService;
 import org.apache.commons.collections4.ListUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -18,7 +17,6 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -71,7 +69,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
                                 LOGGER.debug("Fetched ticker: {} {} {}/{}",
                                     exchange.getExchangeSpecification().getExchangeName(),
-                                    ticker.getCurrencyPair(),
+                                    ticker.getInstrument(),
                                     ticker.getBid(),
                                     ticker.getAsk());
 

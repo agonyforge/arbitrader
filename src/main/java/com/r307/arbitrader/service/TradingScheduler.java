@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.Spread;
@@ -9,7 +10,6 @@ import info.bitrich.xchangestream.core.StreamingExchangeFactory;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
-import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,12 +30,6 @@ public class TradingScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingScheduler.class);
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
     protected static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
-
-    private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
-    private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
-
-    private static final CurrencyPairMetaData NULL_CURRENCY_PAIR_METADATA = new CurrencyPairMetaData(
-        null, null, null, null, null);
 
     private final ObjectMapper objectMapper;
     private final TradingConfiguration tradingConfiguration;
@@ -71,7 +65,18 @@ public class TradingScheduler {
     @PostConstruct
     public void connectExchanges() {
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
-            ExchangeSpecification specification = new ExchangeSpecification(exchangeMetadata.getExchangeClass());
+            Class<Exchange> exchangeClass;
+
+            try {
+                exchangeClass = Utils.loadExchangeClass(exchangeMetadata.getExchangeClass());
+            } catch (ClassNotFoundException e) {
+                LOGGER.error("Failed to load exchange {}: {}",
+                    exchangeMetadata.getExchangeClass(),
+                    e.getMessage());
+                return;
+            }
+
+            ExchangeSpecification specification = new ExchangeSpecification(exchangeClass);
 
             specification.setUserName(exchangeMetadata.getUserName());
             specification.setApiKey(exchangeMetadata.getApiKey());
@@ -101,7 +106,7 @@ public class TradingScheduler {
 
             specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
-            if (specification.getExchangeClassName().contains("Streaming")) {
+            if (specification.getExchangeClass().getSimpleName().contains("Streaming")) {
                 exchanges.add(StreamingExchangeFactory.INSTANCE.createExchange(specification));
             } else {
                 exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
@@ -204,6 +209,7 @@ public class TradingScheduler {
         tickerService.refreshTickers();
 
         long exchangePollStartTime = System.currentTimeMillis();
+
         startTradingProcess();
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;

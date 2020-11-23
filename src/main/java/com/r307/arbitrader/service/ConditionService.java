@@ -21,9 +21,9 @@ public class ConditionService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionService.class);
 
-    private File forceCloseFile = new File(FORCE_CLOSE);
-    private File exitWhenIdleFile = new File(EXIT_WHEN_IDLE);
-    private File blackoutFile = new File(BLACKOUT);
+    private final File forceCloseFile = new File(FORCE_CLOSE);
+    private final File exitWhenIdleFile = new File(EXIT_WHEN_IDLE);
+    private final File blackoutFile = new File(BLACKOUT);
 
     public boolean isForceCloseCondition() {
         return forceCloseFile.exists();
