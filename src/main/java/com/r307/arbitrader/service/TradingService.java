@@ -344,22 +344,22 @@ public class TradingService {
         logExitTrade();
 
         try {
-        LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
-            longExchangeName,
-            spread.getCurrencyPair(),
-            longVolume,
-            longLimitPrice,
-            longLimitPrice.subtract(spread.getLongTicker().getBid()),
-            Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getBid()));
-        LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
-            shortExchangeName,
-            spread.getCurrencyPair(),
-            shortVolume,
-            shortLimitPrice,
-            spread.getShortTicker().getAsk().subtract(shortLimitPrice),
-            Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getAsk()));
+            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
+                longExchangeName,
+                spread.getCurrencyPair(),
+                longVolume,
+                longLimitPrice,
+                longLimitPrice.subtract(spread.getLongTicker().getBid()),
+                Currency.USD.getSymbol(),
+                longVolume.multiply(spread.getLongTicker().getBid()));
+            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
+                shortExchangeName,
+                spread.getCurrencyPair(),
+                shortVolume,
+                shortLimitPrice,
+                spread.getShortTicker().getAsk().subtract(shortLimitPrice),
+                Currency.USD.getSymbol(),
+                shortVolume.multiply(spread.getShortTicker().getAsk()));
 
             executeOrderPair(
                 spread.getLongExchange(), spread.getShortExchange(),
