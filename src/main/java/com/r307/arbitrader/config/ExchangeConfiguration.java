@@ -25,6 +25,7 @@ public class ExchangeConfiguration {
     private BigDecimal feeOverride;
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
+    private List<Object> tickerArguments = new ArrayList<>();
 
     public String getExchangeClass() {
         return exchangeClass;
@@ -144,5 +145,13 @@ public class ExchangeConfiguration {
 
     public void setTicker(Map<String, Integer> ticker) {
         this.ticker = ticker;
+    }
+
+    public List<Object> getTickerArguments() {
+        return tickerArguments;
+    }
+
+    public void setTickerArguments(List<Object> tickerArguments) {
+        this.tickerArguments = tickerArguments;
     }
 }
