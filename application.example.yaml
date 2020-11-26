@@ -1,23 +1,34 @@
 # Sample Arbitrader configuration file
+#
 # Copy this file to "application.yaml" and fill out the settings that you want for your bot.
 # When you run the JAR file, make sure the config file is in the current directory so it can be read.
+#
+# The configurations here are meant to demonstrate and document the different features of Arbitrader.
+# For more up to date configurations that have been contributed and tested by our community check out
+# this page:
+# https://github.com/scionaltera/arbitrader/wiki/Recommended-Exchange-Configurations
+
+# If you want to see a LOT of logs, you can turn on DEBUG by uncommenting this:
+#logging:
+#  level:
+#    com:
+#      r307:
+#        arbitrader: DEBUG
 
 # If you wish to be notified by email on every trade then you need to add your mail server configuration here and
-# configure the email notifications in notifications.mail section
+# configure the email notifications in notifications.mail section.
 spring:
   mail:
-    # Your mail server host
-    host: smtp.mail.com
-    username: username@mail.com
-    password: password
-    port: 465
+    host: x     # Your mail server host
+    username: x # Your mail server username (may or may not be your email address)
+    password: x # Your mail server password
+    port: x     # Your mail server port
     properties:
       # If your email supports SSL or TLS, set this property to true
       mail.smtp.ssl.enable: true
 
-# All the logs you see on the console will also be shipped to Slack.
 notifications:
-  slack:
+  slack: # If you fill out this section, all the logs you see on the console will also be shipped to Slack.
     accessToken: x
     botAccessToken: x
     channel: x
@@ -31,10 +42,10 @@ notifications:
   mail:
     # Set to true to enable email notifications for each trade
     active: false
-    # The origin email address to set in the email notification
-    from: from@email.com
-    # The destination email address for email notifications
-    to: to@email.com
+    # The email address to send mail FROM
+    from: x@x.x
+    # The email address to send mail TO
+    to: x@x.x
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.
@@ -238,7 +249,7 @@ trading:
       homeCurrency: USDC
 
     -
-      exchangeClass: org.knowm.xchange.gemini.v1.GeminiExchange
+      exchangeClass: info.bitrich.xchangestream.gemini.GeminiStreamingExchange
       apiKey: x
       secretKey: x
       tradingPairs:
@@ -249,12 +260,17 @@ trading:
         - ZEC/USD
       margin: false
       fee: 0.0100
+      tickerArguments: # this is a workaround for a bug in XChange
+        - 1
 
     -
       exchangeClass: org.knowm.xchange.cexio.CexIOExchange
       userName: x
       apiKey: x
       secretKey: x
+      tradingPairs:
+        - BTC/USD
+        - ETH/USD
       margin: false
       feeOverride: 0.0016 # Cex.IO returns 0.16 as the fee but this will force it to 0.0016 which is the correct value
 
