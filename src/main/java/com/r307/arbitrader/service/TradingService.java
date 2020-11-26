@@ -126,6 +126,14 @@ public class TradingService {
         }
     }
 
+    public ActivePosition getActivePosition() {
+        return activePosition;
+    }
+
+    public void setActivePosition(ActivePosition activePosition) {
+        this.activePosition = activePosition;
+    }
+
     private void entryPosition(Spread spread, String shortExchangeName, String longExchangeName) {
         final BigDecimal longFees = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
         final BigDecimal shortFees = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);

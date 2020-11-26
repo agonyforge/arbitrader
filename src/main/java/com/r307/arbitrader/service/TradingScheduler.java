@@ -40,7 +40,6 @@ public class TradingScheduler {
     private final TickerService tickerService;
     private final List<Exchange> exchanges = new ArrayList<>();
     private final TradingService tradingService;
-    private ActivePosition activePosition = null;
 
     public TradingScheduler(
         ObjectMapper objectMapper,
@@ -133,7 +132,9 @@ public class TradingScheduler {
                 LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
             } else {
                 try {
-                    activePosition = objectMapper.readValue(stateFile, ActivePosition.class);
+                    ActivePosition activePosition = objectMapper.readValue(stateFile, ActivePosition.class);
+
+                    tradingService.setActivePosition(activePosition);
 
                     LOGGER.info("Loaded active trades from file: {}", stateFile.getAbsolutePath());
                     LOGGER.info("Active trades: {}", activePosition);
@@ -163,7 +164,7 @@ public class TradingScheduler {
      */
     @Scheduled(cron = "0 0 0/6 * * *") // every 6 hours
     public void summary() {
-        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (activePosition != null ? "Exit" : "Entry"));
+        LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (tradingService.getActivePosition() != null ? "Exit" : "Entry"));
 
         List<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
 
@@ -174,24 +175,24 @@ public class TradingScheduler {
                 return;
             }
 
-            if (activePosition == null && BigDecimal.ZERO.compareTo(spread.getIn()) < 0) {
+            if (tradingService.getActivePosition() == null && BigDecimal.ZERO.compareTo(spread.getIn()) < 0) {
                 LOGGER.info("{}/{} {} {} -> {}",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
                     spread.getIn(),
                     tradingConfiguration.getEntrySpread());
-            } else if (activePosition != null
-                && activePosition.getCurrencyPair().equals(spread.getCurrencyPair())
-                && activePosition.getLongTrade().getExchange().equals(spread.getLongExchange().getExchangeSpecification().getExchangeName())
-                && activePosition.getShortTrade().getExchange().equals(spread.getShortExchange().getExchangeSpecification().getExchangeName())) {
+            } else if (tradingService.getActivePosition() != null
+                && tradingService.getActivePosition().getCurrencyPair().equals(spread.getCurrencyPair())
+                && tradingService.getActivePosition().getLongTrade().getExchange().equals(spread.getLongExchange().getExchangeSpecification().getExchangeName())
+                && tradingService.getActivePosition().getShortTrade().getExchange().equals(spread.getShortExchange().getExchangeSpecification().getExchangeName())) {
 
                 LOGGER.info("{}/{} {} {} -> {}",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
                     spread.getOut(),
-                    activePosition.getExitTarget());
+                    tradingService.getActivePosition().getExitTarget());
             }
         });
     }
@@ -200,7 +201,7 @@ public class TradingScheduler {
     public void pollForPriceData() {
         LOGGER.debug("Tick");
 
-        if (activePosition == null && conditionService.isExitWhenIdleCondition()) {
+        if (tradingService.getActivePosition() == null && conditionService.isExitWhenIdleCondition()) {
             LOGGER.info("Exiting at user request");
             conditionService.clearExitWhenIdleCondition();
             System.exit(0);
