@@ -221,17 +221,17 @@ public class TradingService {
         BigDecimal totalBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
 
         try {
-        activePosition = new ActivePosition();
-        activePosition.setEntryTime(OffsetDateTime.now());
-        activePosition.setCurrencyPair(spread.getCurrencyPair());
-        activePosition.setExitTarget(exitTarget);
-        activePosition.setEntryBalance(totalBalance);
-        activePosition.getLongTrade().setExchange(spread.getLongExchange());
-        activePosition.getLongTrade().setVolume(longVolume);
-        activePosition.getLongTrade().setEntry(longLimitPrice);
-        activePosition.getShortTrade().setExchange(spread.getShortExchange());
-        activePosition.getShortTrade().setVolume(shortVolume);
-        activePosition.getShortTrade().setEntry(shortLimitPrice);
+            activePosition = new ActivePosition();
+            activePosition.setEntryTime(OffsetDateTime.now());
+            activePosition.setCurrencyPair(spread.getCurrencyPair());
+            activePosition.setExitTarget(exitTarget);
+            activePosition.setEntryBalance(totalBalance);
+            activePosition.getLongTrade().setExchange(spread.getLongExchange());
+            activePosition.getLongTrade().setVolume(longVolume);
+            activePosition.getLongTrade().setEntry(longLimitPrice);
+            activePosition.getShortTrade().setExchange(spread.getShortExchange());
+            activePosition.getShortTrade().setVolume(shortVolume);
+            activePosition.getShortTrade().setEntry(shortLimitPrice);
 
             executeOrderPair(
                     spread.getLongExchange(), spread.getShortExchange(),
@@ -574,8 +574,8 @@ public class TradingService {
     private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) {
         try {
             return Optional.of(exchange.getTradeService().getOpenOrders());
-        } catch (IOException e) {
-            LOGGER.error("{} threw IOException while fetching open orders: ",
+        } catch (Exception e) {
+            LOGGER.error("{} threw an Exception while fetching open orders: ",
                 exchange.getExchangeSpecification().getExchangeName(), e);
         }
 
