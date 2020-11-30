@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Component
@@ -207,6 +208,11 @@ public class TradingScheduler {
             System.exit(0);
         }
 
+        if (conditionService.isStatusCondition()) {
+            logStatus();
+            conditionService.clearStatusCondition();
+        }
+
         tickerService.refreshTickers();
 
         long exchangePollStartTime = System.currentTimeMillis();
@@ -229,5 +235,32 @@ public class TradingScheduler {
                     tradingService.trade(spread);
                 }
         });
+    }
+
+    private void logStatus() {
+        tickerService.getPollingExchangeTradeCombinations()
+            .stream()
+            .sorted(Comparator.comparing(o ->
+                o.getLongExchange().getExchangeSpecification().getExchangeName()
+                    + o.getShortExchange().getExchangeSpecification().getExchangeName()
+                    + o.getCurrencyPair()))
+            .forEach(tradeCombination -> {
+                Spread spread = spreadService.computeSpread(tradeCombination);
+
+                if (spread != null) {
+                    LOGGER.info("{}/{} {}",
+                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                        spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                        spread.getCurrencyPair());
+                    LOGGER.info("\tLong/Short Bid/Asks:{}/{} {}/{}",
+                        spread.getLongTicker().getBid(),
+                        spread.getLongTicker().getAsk(),
+                        spread.getShortTicker().getBid(),
+                        spread.getShortTicker().getAsk());
+                    LOGGER.info("\tSpread In/Out:{}/{}",
+                        spread.getIn(),
+                        spread.getOut());
+                }
+            });
     }
 }

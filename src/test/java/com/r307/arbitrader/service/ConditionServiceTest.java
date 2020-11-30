@@ -113,6 +113,33 @@ public class ConditionServiceTest {
     }
 
     @Test
+    public void testClearStatusCondition() throws IOException {
+        File status = new File(STATUS);
+
+        assertTrue(status.createNewFile());
+        assertTrue(status.exists());
+
+        conditionService.clearStatusCondition();
+
+        assertFalse(status.exists());
+    }
+
+    @Test
+    public void testStatusCondition() throws IOException {
+        File status = new File(STATUS);
+
+        assertFalse(status.exists());
+        assertFalse(conditionService.isStatusCondition());
+
+        assertTrue(status.createNewFile());
+
+        assertTrue(status.exists());
+        assertTrue(conditionService.isStatusCondition());
+
+        FileUtils.deleteQuietly(status);
+    }
+
+    @Test
     public void testNoFileBlackoutCondition() {
         File blackoutFile = new File(BLACKOUT);
 

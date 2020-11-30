@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.model.ActivePosition;
@@ -135,19 +136,16 @@ public class TradingService {
     }
 
     private void entryPosition(Spread spread, String shortExchangeName, String longExchangeName) {
-        final BigDecimal longFees = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal shortFees = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final BigDecimal longFeePct = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
+        final BigDecimal shortFeePct = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
 
-        final BigDecimal fees = (longFees.add(shortFees))
-            .multiply(new BigDecimal("2.0"));
-
         final BigDecimal exitTarget = spread.getIn()
-            .subtract(tradingConfiguration.getExitTarget())
-            .subtract(fees);
+            .subtract(tradingConfiguration.getExitTarget());
 
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
+
         if (!validateMaxExposure(maxExposure, spread, currencyPairLongExchange, currencyPairShortExchange)) {
             return;
         }
@@ -160,6 +158,8 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
+        LOGGER.info("Long fee pct: {}", longFeePct);
+        LOGGER.info("Short fee pct: {}", shortFeePct);
 
         final BigDecimal longVolume = getVolumeForEntryPosition(
             spread.getLongExchange(),
@@ -204,6 +204,11 @@ public class TradingService {
             return;
         }
 
+        if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
+            LOGGER.warn("Cannot open position on one or more exchanges due to user configured blackout");
+            return;
+        }
+
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
 
         if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
@@ -211,9 +216,26 @@ public class TradingService {
             return;
         }
 
-        if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
-            LOGGER.warn("Cannot open position on one or more exchanges due to user configured blackout");
-            return;
+        BigDecimal longProfit = longLimitPrice.multiply(longVolume);
+        BigDecimal shortProfit = shortLimitPrice.multiply(shortVolume);
+        BigDecimal expectedProfit = longProfit.add(shortProfit);
+
+        if (expectedProfit.compareTo(BigDecimal.ZERO) < 0) {
+            LOGGER.warn("Trade is not expected to earn a profit!"); // TODO what do we want to do about it?
+        }
+
+        BigDecimal longFeeAmt = longFeePct.multiply(longVolume);
+        BigDecimal shortFeeAmt = shortFeePct.multiply(shortVolume);
+
+        LOGGER.info("Long fee amt: {}", longFeeAmt);
+        LOGGER.info("Short fee amt: {}", shortFeeAmt);
+
+        BigDecimal expectedProfitAfterFees = expectedProfit
+            .subtract(longFeeAmt)
+            .subtract(shortFeeAmt);
+
+        if (expectedProfitAfterFees.compareTo(BigDecimal.ZERO) < 0) {
+            LOGGER.warn("Trade is not expected to earn a profit after fees!"); // TODO what do we want to do about it?
         }
 
         logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, longVolume, shortVolume, longLimitPrice, shortLimitPrice);
@@ -221,32 +243,31 @@ public class TradingService {
         BigDecimal totalBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
 
         try {
-        activePosition = new ActivePosition();
-        activePosition.setEntryTime(OffsetDateTime.now());
-        activePosition.setCurrencyPair(spread.getCurrencyPair());
-        activePosition.setExitTarget(exitTarget);
-        activePosition.setEntryBalance(totalBalance);
-        activePosition.getLongTrade().setExchange(spread.getLongExchange());
-        activePosition.getLongTrade().setVolume(longVolume);
-        activePosition.getLongTrade().setEntry(longLimitPrice);
-        activePosition.getShortTrade().setExchange(spread.getShortExchange());
-        activePosition.getShortTrade().setVolume(shortVolume);
-        activePosition.getShortTrade().setEntry(shortLimitPrice);
+            activePosition = new ActivePosition();
+            activePosition.setEntryTime(OffsetDateTime.now());
+            activePosition.setCurrencyPair(spread.getCurrencyPair());
+            activePosition.setExitTarget(exitTarget);
+            activePosition.setEntryBalance(totalBalance);
+            activePosition.getLongTrade().setExchange(spread.getLongExchange());
+            activePosition.getLongTrade().setVolume(longVolume);
+            activePosition.getLongTrade().setEntry(longLimitPrice);
+            activePosition.getShortTrade().setExchange(spread.getShortExchange());
+            activePosition.getShortTrade().setVolume(shortVolume);
+            activePosition.getShortTrade().setEntry(shortLimitPrice);
 
             executeOrderPair(
-                    spread.getLongExchange(), spread.getShortExchange(),
-                    spread.getCurrencyPair(),
-                    longLimitPrice, shortLimitPrice,
-                    longVolume, shortVolume,
-                    true);
+                spread.getLongExchange(), spread.getShortExchange(),
+                spread.getCurrencyPair(),
+                longLimitPrice, shortLimitPrice,
+                longVolume, shortVolume,
+                true);
 
-        notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
-            longLimitPrice, shortVolume, shortLimitPrice);
-
-            } catch (IOException e) {
-                LOGGER.error("IOE executing limit orders: ", e);
-                activePosition = null;
-            }
+            notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
+                longLimitPrice, shortVolume, shortLimitPrice);
+        } catch (IOException e) {
+            LOGGER.error("IOE executing limit orders: ", e);
+            activePosition = null;
+        }
 
         try {
             FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
@@ -300,6 +321,26 @@ public class TradingService {
             spread.getCurrencyPair(),
             activePosition.getShortTrade().getOrderId(),
             activePosition.getShortTrade().getVolume());
+
+        if (exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation().equals(FeeComputation.ADDED)) {
+            BigDecimal fee = longVolume
+                .multiply(exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true))
+                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+            longVolume = longVolume.subtract(fee);
+
+            LOGGER.info("{} fees are not included. New long volume is: {}", spread.getLongExchange().getExchangeSpecification().getExchangeName(), fee);
+        }
+
+        if (exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation().equals(FeeComputation.ADDED)) {
+            BigDecimal fee = shortVolume
+                .multiply(exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true))
+                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+            shortVolume = shortVolume.subtract(fee);
+
+            LOGGER.info("{} fees are not included. New short volume is: {}", spread.getShortExchange().getExchangeSpecification().getExchangeName(), fee);
+        }
 
         LOGGER.debug("Volumes: {}/{}", longVolume, shortVolume);
 

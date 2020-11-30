@@ -17,12 +17,14 @@ import java.util.List;
 public class ConditionService {
     static final String FORCE_CLOSE = "force-close";
     static final String EXIT_WHEN_IDLE = "exit-when-idle";
+    static final String STATUS = "status";
     static final String BLACKOUT = "blackout";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionService.class);
 
     private final File forceCloseFile = new File(FORCE_CLOSE);
     private final File exitWhenIdleFile = new File(EXIT_WHEN_IDLE);
+    private final File statusFile = new File(STATUS);
     private final File blackoutFile = new File(BLACKOUT);
 
     public boolean isForceCloseCondition() {
@@ -39,6 +41,14 @@ public class ConditionService {
 
     public void clearExitWhenIdleCondition() {
         FileUtils.deleteQuietly(exitWhenIdleFile);
+    }
+
+    public boolean isStatusCondition() {
+        return statusFile.exists();
+    }
+
+    public void clearStatusCondition() {
+        FileUtils.deleteQuietly(statusFile);
     }
 
     public boolean isBlackoutCondition(Exchange exchange) {
