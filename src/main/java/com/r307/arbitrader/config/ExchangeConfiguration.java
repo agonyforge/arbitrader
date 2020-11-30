@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.r307.arbitrader.config.FeeComputation.INCLUDED;
+import static com.r307.arbitrader.config.FeeComputation.SERVER;
 
 public class ExchangeConfiguration {
     private String exchangeClass;
@@ -28,7 +28,7 @@ public class ExchangeConfiguration {
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
     private List<Object> tickerArguments = new ArrayList<>();
-    private FeeComputation feeComputation = INCLUDED;
+    private FeeComputation feeComputation = SERVER;
 
     public String getExchangeClass() {
         return exchangeClass;

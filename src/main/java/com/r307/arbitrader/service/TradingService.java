@@ -68,7 +68,7 @@ public class TradingService {
         ExchangeService exchangeService,
         SpreadService spreadService,
         TickerService tickerService,
-        NotificationService notificationService) {
+        @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection") NotificationService notificationService) {
 
         this.objectMapper = objectMapper;
         this.tradingConfiguration = tradingConfiguration;
@@ -161,18 +161,21 @@ public class TradingService {
         LOGGER.info("Long fee pct: {}", longFeePct);
         LOGGER.info("Short fee pct: {}", shortFeePct);
 
-        final BigDecimal longVolume = getVolumeForEntryPosition(
+        BigDecimal longVolume = getVolumeForEntryPosition(
             spread.getLongExchange(),
             maxExposure,
             spread.getLongTicker().getAsk(),
             spread.getCurrencyPair(),
             longScale);
-        final BigDecimal shortVolume = getVolumeForEntryPosition(
+        BigDecimal shortVolume = getVolumeForEntryPosition(
             spread.getShortExchange(),
             maxExposure,
             spread.getShortTicker().getBid(),
             spread.getCurrencyPair(),
             shortScale);
+
+        longVolume = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+        shortVolume = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
 
         final BigDecimal longStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(currencyPairLongExchange, NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
@@ -322,25 +325,8 @@ public class TradingService {
             activePosition.getShortTrade().getOrderId(),
             activePosition.getShortTrade().getVolume());
 
-        if (exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation().equals(FeeComputation.ADDED)) {
-            BigDecimal fee = longVolume
-                .multiply(exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true))
-                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
-
-            longVolume = longVolume.subtract(fee);
-
-            LOGGER.info("{} fees are not included. New long volume is: {}", spread.getLongExchange().getExchangeSpecification().getExchangeName(), fee);
-        }
-
-        if (exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation().equals(FeeComputation.ADDED)) {
-            BigDecimal fee = shortVolume
-                .multiply(exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true))
-                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
-
-            shortVolume = shortVolume.subtract(fee);
-
-            LOGGER.info("{} fees are not included. New short volume is: {}", spread.getShortExchange().getExchangeSpecification().getExchangeName(), fee);
-        }
+        longVolume = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+        shortVolume = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
 
         LOGGER.debug("Volumes: {}/{}", longVolume, shortVolume);
 
@@ -460,6 +446,26 @@ public class TradingService {
         if (conditionService.isForceCloseCondition()) {
             conditionService.clearForceCloseCondition();
         }
+    }
+
+    private BigDecimal subtractFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume) {
+        if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
+            BigDecimal fee = volume
+                .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
+                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+            BigDecimal adjustedVolume = volume.subtract(fee);
+
+            LOGGER.info("{} fees are computed in the client: {} - {} = {}}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                volume,
+                fee,
+                adjustedVolume);
+
+            return adjustedVolume;
+        }
+
+        return volume;
     }
 
     private void logExitTrade() {

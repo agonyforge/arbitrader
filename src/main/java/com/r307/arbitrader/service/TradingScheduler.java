@@ -238,6 +238,8 @@ public class TradingScheduler {
     }
 
     private void logStatus() {
+        LOGGER.info("=== Current Status ===");
+
         tickerService.getPollingExchangeTradeCombinations()
             .stream()
             .sorted(Comparator.comparing(o ->
