@@ -39,7 +39,7 @@ import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 
 @Component
 public class TradingService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TradingScheduler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
     private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
     protected static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
 
@@ -124,6 +124,14 @@ public class TradingService {
 
             exitPosition(spread, shortExchangeName, longExchangeName);
         }
+    }
+
+    public ActivePosition getActivePosition() {
+        return activePosition;
+    }
+
+    public void setActivePosition(ActivePosition activePosition) {
+        this.activePosition = activePosition;
     }
 
     private void entryPosition(Spread spread, String shortExchangeName, String longExchangeName) {
