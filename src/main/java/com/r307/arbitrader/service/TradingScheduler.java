@@ -64,6 +64,11 @@ public class TradingScheduler {
     @PostConstruct
     public void connectExchanges() {
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
+            if (exchangeMetadata.getActive() != null && !exchangeMetadata.getActive()) {
+                LOGGER.info("Skipping exchange '{}' because it is not set as active", exchangeMetadata.getExchangeClass());
+                return;
+            }
+
             Class<Exchange> exchangeClass;
 
             try {
