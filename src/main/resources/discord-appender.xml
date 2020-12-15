@@ -1,0 +1,4 @@
+<included>
+    <appender name="DISCORD" class="com.r307.arbitrader.logging.DiscordAppender">
+    </appender>
+</included>
