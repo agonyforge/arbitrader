@@ -26,6 +26,7 @@ public class ExchangeConfiguration {
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
     private List<Object> tickerArguments = new ArrayList<>();
+    private Boolean active;
 
     public String getExchangeClass() {
         return exchangeClass;
@@ -153,5 +154,13 @@ public class ExchangeConfiguration {
 
     public void setTickerArguments(List<Object> tickerArguments) {
         this.tickerArguments = tickerArguments;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 }

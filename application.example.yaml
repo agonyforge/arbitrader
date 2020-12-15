@@ -150,6 +150,9 @@ trading:
       # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
       fee: 0.0026
+      # Enable (value set to true) or disable (value set to false) this exchange. If 'active' configuration is not set
+      # then, by default, the exchange is set as active
+      active: true
 
     -
       exchangeClass: org.knowm.xchange.quoine.QuoineExchange
