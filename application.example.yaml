@@ -28,6 +28,11 @@ spring:
       mail.smtp.ssl.enable: true
 
 notifications:
+  # Send all the logs you see on the console to Discord using webhook. Be aware that Discord applies a rate limit so
+  # if you are logging too much some logs may not show up on Discord
+  discord:
+    webhookId: x
+    webhookToken: x
   slack: # If you fill out this section, all the logs you see on the console will also be shipped to Slack.
     accessToken: x
     botAccessToken: x
