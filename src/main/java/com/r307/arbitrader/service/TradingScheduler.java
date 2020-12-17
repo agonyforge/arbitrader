@@ -176,7 +176,7 @@ public class TradingScheduler {
                 return;
             }
 
-            if (tradingService.getActivePosition() == null && BigDecimal.ZERO.compareTo(spread.getIn()) < 0) {
+            if (tradingService.getActivePosition() == null) {
                 LOGGER.info("{}/{} {} {} -> {}",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
