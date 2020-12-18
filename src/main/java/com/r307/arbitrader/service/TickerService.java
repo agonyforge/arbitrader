@@ -36,6 +36,8 @@ public class TickerService {
     Map<String, Ticker> allTickers = new HashMap<>();
     List<TradeCombination> pollingExchangeTradeCombinations = new ArrayList<>();
     List<TradeCombination> streamingExchangeTradeCombinations = new ArrayList<>();
+    private final Map<String, Set<TradeCombination>> tradeCombinationPollingMap;
+    private final Map<String, Set<TradeCombination>> tradeCombinationStreamingMap;
 
     @Inject
     public TickerService(
@@ -46,6 +48,8 @@ public class TickerService {
         this.tradingConfiguration = tradingConfiguration;
         this.exchangeService = exchangeService;
         this.errorCollectorService = errorCollectorService;
+        this.tradeCombinationPollingMap = new HashMap<>();
+        this.tradeCombinationStreamingMap = new HashMap<>();
     }
 
     public void initializeTickers(List<Exchange> exchanges) {
@@ -59,6 +63,9 @@ public class TickerService {
         LOGGER.info("Trading the following exchanges and pairs:");
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
+            final String shortExchangeName = shortExchange.getExchangeSpecification().getExchangeName();
+            final String longExchangeName = longExchange.getExchangeSpecification().getExchangeName();
+
             // get the pairs common to both exchanges
             Collection<CurrencyPair> currencyPairs = CollectionUtils.intersection(
                 exchangeService.getExchangeMetadata(longExchange).getTradingPairs(),
@@ -66,9 +73,7 @@ public class TickerService {
 
             currencyPairs.forEach(currencyPair -> {
                 if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    LOGGER.debug("Invalid exchange pair: {}/{}",
-                        longExchange.getExchangeSpecification().getExchangeName(),
-                        shortExchange.getExchangeSpecification().getExchangeName());
+                    LOGGER.debug("Invalid exchange pair: {}/{}", longExchangeName, shortExchangeName);
                     return;
                 }
 
@@ -76,6 +81,7 @@ public class TickerService {
 
                 if (Utils.isStreamingExchange(longExchange) && Utils.isStreamingExchange(shortExchange)) {
                     streamingExchangeTradeCombinations.add(combination);
+                    initTradeCombinationStreamingMap(shortExchangeName, longExchangeName, combination);
                 }
 
                 // We still want to use streaming exchanges when we are polling
@@ -84,6 +90,23 @@ public class TickerService {
                 LOGGER.info("{}", combination);
             });
         }));
+    }
+
+    private void initTradeCombinationStreamingMap(String shortExchangeName, String longExchangeName, TradeCombination combination) {
+        Set<TradeCombination> shortExchangeTradeCombinations = tradeCombinationStreamingMap.get(shortExchangeName);
+        Set<TradeCombination> longExchangeTradeCombinations = tradeCombinationStreamingMap.get(longExchangeName);
+        if (shortExchangeTradeCombinations == null) {
+            shortExchangeTradeCombinations = new HashSet<>();
+        }
+        if (longExchangeTradeCombinations == null) {
+            longExchangeTradeCombinations = new HashSet<>();
+        }
+
+        shortExchangeTradeCombinations.add(combination);
+        longExchangeTradeCombinations.add(combination);
+
+        tradeCombinationStreamingMap.put(shortExchangeName, shortExchangeTradeCombinations);
+        tradeCombinationStreamingMap.put(longExchangeName, longExchangeTradeCombinations);
     }
 
     public void refreshTickers() {
@@ -198,5 +221,13 @@ public class TickerService {
             longExchange.getExchangeSpecification().getExchangeName(),
             shortExchange.getExchangeSpecification().getExchangeName(),
             currencyPair);
+    }
+
+    public Map<String, Set<TradeCombination>> getTradeCombinationPollingMap() {
+        return tradeCombinationPollingMap;
+    }
+
+    public Map<String, Set<TradeCombination>> getTradeCombinationStreamingMap() {
+        return tradeCombinationStreamingMap;
     }
 }

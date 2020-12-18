@@ -4,8 +4,9 @@ import com.r307.arbitrader.service.TradingService;
 import com.r307.arbitrader.service.model.TickerEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
 
-
+@Component
 public class StreamingTickerEventListener {
     private final TradingService tradingService;
 
@@ -16,6 +17,6 @@ public class StreamingTickerEventListener {
     @EventListener
     @Async
     public void onTradeEvent(TickerEvent tickerEvent) {
-        tradingService.startTradingProcess(tickerEvent.isStreamingExchange());
+        tradingService.startTradingProcess(tickerEvent.isStreamingExchange(), tickerEvent.getExchangeName());
     }
 }

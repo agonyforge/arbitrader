@@ -31,6 +31,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -78,10 +79,10 @@ public class TradingService {
         this.notificationService = notificationService;
     }
 
-    public void startTradingProcess(boolean isStreaming) {
-        final List<TradeCombination> tradeCombinations;
+    public void startTradingProcess(boolean isStreaming, String exchangeName) {
+        final Collection<TradeCombination> tradeCombinations;
         if (isStreaming) {
-            tradeCombinations = tickerService.getStreamingExchangeTradeCombinations();
+            tradeCombinations = tickerService.getTradeCombinationStreamingMap().get(exchangeName);
         }
         else {
             tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
