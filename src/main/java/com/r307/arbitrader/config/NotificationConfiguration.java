@@ -9,6 +9,7 @@ public class NotificationConfiguration {
     private Slack slack = new Slack();
     private Logs logs = new Logs();
     private Mail mail = new Mail();
+    private Discord discord = new Discord();
 
     public Slack getSlack() {
         return slack;
@@ -32,6 +33,14 @@ public class NotificationConfiguration {
 
     public void setMail(Mail mail) {
         this.mail = mail;
+    }
+
+    public Discord getDiscord() {
+        return discord;
+    }
+
+    public void setDiscord(Discord discord) {
+        this.discord = discord;
     }
 
     public class Slack {
@@ -103,6 +112,27 @@ public class NotificationConfiguration {
 
         public void setTo(String to) {
             this.to = to;
+        }
+    }
+
+    public class Discord {
+        private String webhookId;
+        private String webhookToken;
+
+        public String getWebhookId() {
+            return webhookId;
+        }
+
+        public void setWebhookId(String webhookId) {
+            this.webhookId = webhookId;
+        }
+
+        public String getWebhookToken() {
+            return webhookToken;
+        }
+
+        public void setWebhookToken(String webhookToken) {
+            this.webhookToken = webhookToken;
         }
     }
 }
