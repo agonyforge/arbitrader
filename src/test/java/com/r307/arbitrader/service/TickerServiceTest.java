@@ -21,9 +21,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -83,8 +82,8 @@ public class TickerServiceTest {
 
         tickerService.initializeTickers(exchanges);
 
-        assertEquals(1, tickerService.pollingExchangeTradeCombinations.size());
-        assertTrue(tickerService.pollingExchangeTradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
+        assertEquals(1, tickerService.getPollingExchangeTradeCombinations().size());
+        assertTrue(tickerService.getPollingExchangeTradeCombinations().contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
     }
 
     @Test
@@ -102,11 +101,14 @@ public class TickerServiceTest {
             .withMarginSupported(false)
             .build();
 
-        tickerService.pollingExchangeTradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
+        TradeCombination tradeCombination = new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR);
+
+        tickerService.addPollingExchangeTradeCombination(exchangeA, tradeCombination);
+        tickerService.addPollingExchangeTradeCombination(exchangeB, tradeCombination);
 
         tickerService.refreshTickers();
 
-        assertEquals(3, tickerService.allTickers.size());
+        assertEquals(3, tickerService.getAllTickers().size());
         assertNotNull(tickerService.tickerKey(exchangeA, CURRENCY_PAIR));
         assertNotNull(tickerService.tickerKey(exchangeB, CURRENCY_PAIR));
 
@@ -123,7 +125,7 @@ public class TickerServiceTest {
             .currencyPair(CURRENCY_PAIR)
             .build();
 
-        tickerService.allTickers.put(tickerService.tickerKey(exchange, CURRENCY_PAIR), ticker);
+        tickerService.getAllTickers().put(tickerService.tickerKey(exchange, CURRENCY_PAIR), ticker);
 
         Ticker result = tickerService.getTicker(exchange, CURRENCY_PAIR);
 
@@ -172,14 +174,14 @@ public class TickerServiceTest {
     }
 
     @Test
-    public void testGetTradeCombinations() {
+    public void testGetTradeCombinations() throws IOException {
         TradeCombination combination = mock(TradeCombination.class);
 
-        tickerService.pollingExchangeTradeCombinations.add(combination);
+        tickerService.addPollingExchangeTradeCombination(new ExchangeBuilder("ExA", null).build(), combination);
 
-        List<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
+        Set<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
 
-        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
+        assertNotSame(tickerService.getPollingExchangeTradeCombinations(), result);
         assertTrue(result.contains(combination));
     }
 

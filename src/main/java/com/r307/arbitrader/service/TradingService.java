@@ -31,9 +31,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -79,13 +79,13 @@ public class TradingService {
         this.notificationService = notificationService;
     }
 
-    public void startTradingProcess(boolean isStreaming, String exchangeName) {
-        final Collection<TradeCombination> tradeCombinations;
+    public void startTradingProcess(boolean isStreaming, Exchange exchange) {
+        final Set<TradeCombination> tradeCombinations;
         if (isStreaming) {
-            tradeCombinations = tickerService.getTradeCombinationStreamingMap().get(exchangeName);
+            tradeCombinations = tickerService.getStreamingExchangeTradeCombination().get(exchange);
         }
         else {
-            tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
+            tradeCombinations = tickerService.getPollingExchangeTradeCombination().get(exchange);
         }
 
         tradeCombinations.forEach(tradeCombination -> {

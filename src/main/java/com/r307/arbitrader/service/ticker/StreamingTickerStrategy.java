@@ -79,7 +79,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
                         ticker -> {
                             tickers.computeIfAbsent(exchange, e -> new HashMap<>());
                             tickers.get(exchange).put(pair, ticker);
-                            streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange.getExchangeSpecification().getExchangeName(), true));
+                            streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange, true));
                         },
                         throwable -> {
                             errorCollectorService.collect(exchange, throwable);

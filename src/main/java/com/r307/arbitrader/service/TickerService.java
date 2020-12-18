@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
 
@@ -33,11 +34,9 @@ public class TickerService {
     private final ExchangeService exchangeService;
     private final ErrorCollectorService errorCollectorService;
 
-    Map<String, Ticker> allTickers = new HashMap<>();
-    List<TradeCombination> pollingExchangeTradeCombinations = new ArrayList<>();
-    List<TradeCombination> streamingExchangeTradeCombinations = new ArrayList<>();
-    private final Map<String, Set<TradeCombination>> tradeCombinationPollingMap;
-    private final Map<String, Set<TradeCombination>> tradeCombinationStreamingMap;
+    private final Map<String, Ticker> allTickers = new HashMap<>();
+    private final Map<Exchange, Set<TradeCombination>> pollingExchangeTradeCombination = new HashMap<>();
+    private final Map<Exchange, Set<TradeCombination>> streamingExchangeTradeCombination = new HashMap<>();
 
     @Inject
     public TickerService(
@@ -48,14 +47,11 @@ public class TickerService {
         this.tradingConfiguration = tradingConfiguration;
         this.exchangeService = exchangeService;
         this.errorCollectorService = errorCollectorService;
-        this.tradeCombinationPollingMap = new HashMap<>();
-        this.tradeCombinationStreamingMap = new HashMap<>();
     }
 
     public void initializeTickers(List<Exchange> exchanges) {
         LOGGER.info("Fetching all tickers for all exchanges...");
 
-        allTickers.clear();
         exchanges
             .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
             .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker)));
@@ -80,48 +76,42 @@ public class TickerService {
                 final TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
 
                 if (Utils.isStreamingExchange(longExchange) && Utils.isStreamingExchange(shortExchange)) {
-                    streamingExchangeTradeCombinations.add(combination);
-                    initTradeCombinationStreamingMap(shortExchangeName, longExchangeName, combination);
+                    initTradeCombinationMap(shortExchange, longExchange, combination, streamingExchangeTradeCombination);
                 }
 
                 // We still want to use streaming exchanges when we are polling
-                pollingExchangeTradeCombinations.add(combination);
+                initTradeCombinationMap(shortExchange, longExchange, combination, pollingExchangeTradeCombination);
 
                 LOGGER.info("{}", combination);
             });
         }));
     }
 
-    private void initTradeCombinationStreamingMap(String shortExchangeName, String longExchangeName, TradeCombination combination) {
-        Set<TradeCombination> shortExchangeTradeCombinations = tradeCombinationStreamingMap.get(shortExchangeName);
-        Set<TradeCombination> longExchangeTradeCombinations = tradeCombinationStreamingMap.get(longExchangeName);
-        if (shortExchangeTradeCombinations == null) {
-            shortExchangeTradeCombinations = new HashSet<>();
-        }
-        if (longExchangeTradeCombinations == null) {
-            longExchangeTradeCombinations = new HashSet<>();
-        }
+    private void initTradeCombinationMap(Exchange shortExchange, Exchange longExchange, TradeCombination combination,
+                                          Map<Exchange, Set<TradeCombination>> tradeCombinationMap) {
+
+        final Set<TradeCombination> shortExchangeTradeCombinations = tradeCombinationMap.computeIfAbsent(shortExchange, v -> new HashSet<>());
+        final Set<TradeCombination> longExchangeTradeCombinations = tradeCombinationMap.computeIfAbsent(longExchange, v -> new HashSet<>());
 
         shortExchangeTradeCombinations.add(combination);
         longExchangeTradeCombinations.add(combination);
-
-        tradeCombinationStreamingMap.put(shortExchangeName, shortExchangeTradeCombinations);
-        tradeCombinationStreamingMap.put(longExchangeName, longExchangeTradeCombinations);
     }
 
     public void refreshTickers() {
         allTickers.clear();
 
-        Map<Exchange, Set<CurrencyPair>> queue = new HashMap<>();
+        final Map<Exchange, Set<CurrencyPair>> queue = new HashMap<>();
 
         // find the currencies that are actively in use for each exchange
-        pollingExchangeTradeCombinations.forEach(tradeCombination -> {
-            Set<CurrencyPair> longCurrencies = queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
-            Set<CurrencyPair> shortCurrencies = queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
-
-            longCurrencies.add(tradeCombination.getCurrencyPair());
-            shortCurrencies.add(tradeCombination.getCurrencyPair());
-        });
+        pollingExchangeTradeCombination.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .forEach(tradeCombination -> {
+                queue.computeIfAbsent(tradeCombination.getLongExchange(), v -> new HashSet<>())
+                    .add(tradeCombination.getCurrencyPair());
+                queue.computeIfAbsent(tradeCombination.getShortExchange(), v -> new HashSet<>())
+                    .add(tradeCombination.getCurrencyPair());
+            });
 
         // for each exchange, fetch its active currencies
         queue.keySet().forEach(exchange -> {
@@ -146,21 +136,11 @@ public class TickerService {
         return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
-    public List<TradeCombination> getPollingExchangeTradeCombinations() {
-        final List<TradeCombination> allResult = new ArrayList<>(pollingExchangeTradeCombinations);
-
-        // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
-        // executing trades than ones at the end of the list.
-        Collections.shuffle(allResult);
-
-        return allResult;
-    }
-
-    public List<TradeCombination> getStreamingExchangeTradeCombinations() {
-        final List<TradeCombination> streamingResult = new ArrayList<>(streamingExchangeTradeCombinations);
-        Collections.shuffle(streamingResult);
-
-        return streamingResult;
+    public Set<TradeCombination> getPollingExchangeTradeCombinations() {
+        return pollingExchangeTradeCombination.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
     }
 
     // TODO test public API instead of private
@@ -223,11 +203,25 @@ public class TickerService {
             currencyPair);
     }
 
-    public Map<String, Set<TradeCombination>> getTradeCombinationPollingMap() {
-        return tradeCombinationPollingMap;
+    public Map<Exchange, Set<TradeCombination>> getPollingExchangeTradeCombination() {
+        return pollingExchangeTradeCombination;
     }
 
-    public Map<String, Set<TradeCombination>> getTradeCombinationStreamingMap() {
-        return tradeCombinationStreamingMap;
+    public Map<Exchange, Set<TradeCombination>> getStreamingExchangeTradeCombination() {
+        return streamingExchangeTradeCombination;
+    }
+
+    public void addPollingExchangeTradeCombination(Exchange exchange, TradeCombination tradeCombination) {
+        pollingExchangeTradeCombination.computeIfAbsent(exchange, v -> new HashSet<>())
+            .add(tradeCombination);
+    }
+
+    public void addStreamingExchangeTradeCombination(Exchange exchange, TradeCombination tradeCombination) {
+        streamingExchangeTradeCombination.computeIfAbsent(exchange, v -> new HashSet<>())
+            .add(tradeCombination);
+    }
+
+    public Map<String, Ticker> getAllTickers() {
+        return allTickers;
     }
 }

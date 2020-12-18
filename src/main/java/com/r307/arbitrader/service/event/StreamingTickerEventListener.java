@@ -17,6 +17,6 @@ public class StreamingTickerEventListener {
     @EventListener
     @Async
     public void onTradeEvent(TickerEvent tickerEvent) {
-        tradingService.startTradingProcess(tickerEvent.isStreamingExchange(), tickerEvent.getExchangeName());
+        tradingService.startTradingProcess(tickerEvent.isStreamingExchange(), tickerEvent.getExchange());
     }
 }

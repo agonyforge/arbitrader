@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class TradingScheduler {
@@ -171,7 +172,7 @@ public class TradingScheduler {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (tradingService.getActivePosition() != null ? "Exit" : "Entry"));
 
-        List<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
+        Set<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
 
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = spreadService.computeSpread(tradeCombination);
