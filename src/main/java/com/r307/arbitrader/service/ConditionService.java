@@ -15,6 +15,7 @@ import java.util.List;
 
 @Component
 public class ConditionService {
+    static final String FORCE_OPEN = "force-open";
     static final String FORCE_CLOSE = "force-close";
     static final String EXIT_WHEN_IDLE = "exit-when-idle";
     static final String STATUS = "status";
@@ -22,10 +23,31 @@ public class ConditionService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionService.class);
 
+    private final File forceOpenFile = new File(FORCE_OPEN);
     private final File forceCloseFile = new File(FORCE_CLOSE);
     private final File exitWhenIdleFile = new File(EXIT_WHEN_IDLE);
     private final File statusFile = new File(STATUS);
     private final File blackoutFile = new File(BLACKOUT);
+
+    public boolean isForceOpenCondition() {
+        return forceOpenFile.exists();
+    }
+
+    public String readForceOpenContent() {
+        if (isForceOpenCondition()) {
+            try {
+                return FileUtils.readFileToString(forceOpenFile, Charset.defaultCharset());
+            } catch (IOException e) {
+                LOGGER.warn("IOException reading file '{}': {}", FORCE_OPEN, e.getMessage());
+            }
+        }
+
+        return "";
+    }
+
+    public void clearForceOpenCondition() {
+        FileUtils.deleteQuietly(forceOpenFile);
+    }
 
     public boolean isForceCloseCondition() {
         return forceCloseFile.exists();

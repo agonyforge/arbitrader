@@ -13,12 +13,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.Charset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 import static com.r307.arbitrader.service.ConditionService.*;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.when;
 
 public class ConditionServiceTest {
@@ -45,6 +45,55 @@ public class ConditionServiceTest {
     @AfterClass
     public static void tearDown() {
         FileUtils.deleteQuietly(new File(BLACKOUT));
+    }
+
+    @Test
+    public void testClearForceOpenConditionIdempotence() {
+        // it should not break if the condition is already clear
+        conditionService.clearForceOpenCondition();
+    }
+
+    @Test
+    public void testClearForceOpenCondition() throws IOException {
+        File forceOpen = new File(FORCE_OPEN);
+
+        assertTrue(forceOpen.createNewFile());
+        assertTrue(forceOpen.exists());
+
+        conditionService.clearForceOpenCondition();
+
+        assertFalse(forceOpen.exists());
+    }
+
+    @Test
+    public void testCheckForceOpenCondition() throws IOException {
+        File forceOpen = new File(FORCE_OPEN);
+
+        assertFalse(forceOpen.exists());
+        assertFalse(conditionService.isForceOpenCondition());
+
+        assertTrue(forceOpen.createNewFile());
+
+        assertTrue(forceOpen.exists());
+        assertTrue(conditionService.isForceOpenCondition());
+
+        FileUtils.deleteQuietly(forceOpen);
+    }
+
+    @Test
+    public void testReadForceOpenContent() throws IOException {
+        String data = "BitFlyer/Kraken";
+        File forceOpen = new File(FORCE_OPEN);
+
+        assertFalse(forceOpen.exists());
+        assertFalse(conditionService.isForceOpenCondition());
+
+        FileUtils.writeStringToFile(forceOpen, data, Charset.defaultCharset());
+        assertTrue(conditionService.isForceOpenCondition());
+
+        assertEquals(data, conditionService.readForceOpenContent());
+
+        FileUtils.deleteQuietly(forceOpen);
     }
 
     @Test
