@@ -134,8 +134,6 @@ public class TradingService {
                 if (!(current).equals(exchanges)) {
                     return;
                 }
-
-                conditionService.clearForceOpenCondition();
             }
 
             entryPosition(spread, shortExchangeName, longExchangeName);
@@ -226,7 +224,9 @@ public class TradingService {
             return;
         }
 
-        if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
+        if (!conditionService.isForceOpenCondition() &&
+            (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange()))) {
+
             LOGGER.warn("Cannot open position on one or more exchanges due to user configured blackout");
             return;
         }
@@ -279,6 +279,8 @@ public class TradingService {
         } catch (IOException e) {
             LOGGER.error("Unable to write state file!", e);
         }
+
+        conditionService.clearForceOpenCondition();
     }
 
     /**
