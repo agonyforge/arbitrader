@@ -110,9 +110,31 @@ public class TradingService {
             spread.getCurrencyPair(),
             spread.getIn());
 
-        if (!conditionService.isForceCloseCondition() && spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+        if (!conditionService.isForceCloseCondition() && (conditionService.isForceOpenCondition() || spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0)) {
             if (activePosition != null) {
                 return;
+            }
+
+            if (conditionService.isForceOpenCondition()) {
+                String exchanges = conditionService.readForceOpenContent().trim();
+
+                /*
+                The force-open file should contain the names of the exchanges you want to force a trade on.
+                It's meant to be a tool to aid testing entry and exit on specific pairs of exchanges.
+
+                In this format: currencyPair longExchange/shortExchange
+                For example: BTC/USD BitFlyer/Kraken
+                */
+                String current = String.format("%s %s/%s",
+                    spread.getCurrencyPair().toString(),
+                    longExchangeName,
+                    shortExchangeName);
+
+                if (!(current).equals(exchanges)) {
+                    return;
+                }
+
+                conditionService.clearForceOpenCondition();
             }
 
             entryPosition(spread, shortExchangeName, longExchangeName);
@@ -206,7 +228,7 @@ public class TradingService {
 
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
 
-        if (spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+        if (!conditionService.isForceOpenCondition() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
             LOGGER.debug("Not enough liquidity to execute both trades profitably");
             return;
         }
@@ -240,13 +262,12 @@ public class TradingService {
                     longVolume, shortVolume,
                     true);
 
-        notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
-            longLimitPrice, shortVolume, shortLimitPrice);
-
-            } catch (IOException e) {
-                LOGGER.error("IOE executing limit orders: ", e);
-                activePosition = null;
-            }
+            notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
+                longLimitPrice, shortVolume, shortLimitPrice);
+        } catch (IOException e) {
+            LOGGER.error("IOE executing limit orders: ", e);
+            activePosition = null;
+        }
 
         try {
             FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
@@ -271,18 +292,20 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
 
         if (maxExposure.compareTo(longMinAmount) <= 0) {
-            LOGGER.error("{} must have more than ${} to trade {}",
+            LOGGER.error("{} must have at least ${} to trade {} but only has ${}",
                 longExchangeName,
                 longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
-                longCurrencyPair);
+                longCurrencyPair,
+                maxExposure);
             return false;
         }
 
         if (maxExposure.compareTo(shortMinAmount) <= 0) {
-            LOGGER.error("{} must have more than ${} to trade {}",
+            LOGGER.error("{} must have at least ${} to trade {} but only has ${}",
                 shortExchangeName,
                 shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
-                shortCurrencyPair);
+                shortCurrencyPair,
+                maxExposure);
             return false;
         }
 
@@ -434,7 +457,13 @@ public class TradingService {
 
     private void logEntryTrade(Spread spread, String shortExchangeName, String longExchangeName, BigDecimal exitTarget,
                                BigDecimal longVolume, BigDecimal shortVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice) {
-        LOGGER.info("***** ENTRY *****");
+
+        if (conditionService.isForceOpenCondition()) {
+            LOGGER.warn("***** FORCED ENTRY *****");
+        } else {
+            LOGGER.info("***** ENTRY *****");
+        }
+
         LOGGER.info("Entry spread: {}", spread.getIn());
         LOGGER.info("Exit spread target: {}", exitTarget);
         LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
