@@ -90,11 +90,10 @@ public class TickerService {
     private void initTradeCombinationMap(Exchange shortExchange, Exchange longExchange, TradeCombination combination,
                                           Map<Exchange, Set<TradeCombination>> tradeCombinationMap) {
 
-        final Set<TradeCombination> shortExchangeTradeCombinations = tradeCombinationMap.computeIfAbsent(shortExchange, v -> new HashSet<>());
-        final Set<TradeCombination> longExchangeTradeCombinations = tradeCombinationMap.computeIfAbsent(longExchange, v -> new HashSet<>());
-
-        shortExchangeTradeCombinations.add(combination);
-        longExchangeTradeCombinations.add(combination);
+        tradeCombinationMap.computeIfAbsent(shortExchange, v -> new HashSet<>())
+            .add(combination);
+        tradeCombinationMap.computeIfAbsent(longExchange, v -> new HashSet<>())
+            .add(combination);
     }
 
     public void refreshTickers() {
