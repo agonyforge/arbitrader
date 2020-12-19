@@ -14,6 +14,11 @@ import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
 
+/**
+ * Sends slf4j log messages to Discord.
+ *
+ * @param <T> the log message.
+ */
 public class DiscordAppender<T> extends AppenderBase<T> {
     public static final MediaType MEDIA_TYPE_JSON = MediaType.get("application/json; charset=utf-8");
 
@@ -22,6 +27,7 @@ public class DiscordAppender<T> extends AppenderBase<T> {
     @Override
     protected void append(T eventObject) {
         final ApplicationContext appContext = SpringContextSingleton.getInstance().getApplicationContext();
+
         if (appContext == null) {
             return;
         }

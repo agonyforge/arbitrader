@@ -3,6 +3,9 @@ package com.r307.arbitrader.service.model;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.springframework.context.ApplicationEvent;
 
+/**
+ * An event generated when we receive a ticker from a streaming exchange.
+ */
 public class TickerEvent extends ApplicationEvent {
 
     private final Ticker ticker;

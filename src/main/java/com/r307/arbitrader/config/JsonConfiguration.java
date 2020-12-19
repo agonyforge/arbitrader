@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Sets some default configuration on the Jackson JSON parser.
+ */
 @Configuration
 public class JsonConfiguration {
     @Bean

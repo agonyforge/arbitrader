@@ -6,8 +6,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
+/**
+ * Configuration for the task executor.
+ */
 @Configuration
-public class AppConfig {
+public class ExecutorConfig {
 
     @Bean
     public Executor taskExecutor() {

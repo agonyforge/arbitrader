@@ -6,6 +6,16 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 
 import java.util.List;
 
+/**
+ * A TickerStrategy defines a way of getting a Ticker from an exchange.
+ */
 public interface TickerStrategy {
+    /**
+     * Get a set of Tickers from an Exchange.
+     *
+     * @param exchange The Exchange to get Tickers from.
+     * @param currencyPairs The CurrencyPairs to get Tickers for.
+     * @return a List of Tickers.
+     */
     List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs);
 }

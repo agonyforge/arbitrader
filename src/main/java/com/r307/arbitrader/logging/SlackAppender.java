@@ -10,6 +10,11 @@ import org.springframework.context.ApplicationContext;
 import java.io.IOException;
 import java.util.Collections;
 
+/**
+ * Sends slf4j log messages to a Slack channel.
+ *
+ * @param <T> the log message to send.
+ */
 public class SlackAppender<T> extends AppenderBase<T> {
     @Override
     protected void append(T eventObject) {

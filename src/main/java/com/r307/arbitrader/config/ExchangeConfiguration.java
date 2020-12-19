@@ -11,6 +11,11 @@ import java.util.Map;
 
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 
+/**
+ * This class contains any configuration from application.yaml that users can set to change the behavior of a
+ * single exchange. An instance of this class is stored on the Exchange so the configuration can be accessed
+ * at any time.
+ */
 public class ExchangeConfiguration {
     private String exchangeClass;
     private String userName;
