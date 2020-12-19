@@ -25,6 +25,9 @@ import java.util.Map;
 
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
+/**
+ * Services related to exchanges.
+ */
 @Component
 public class ExchangeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExchangeService.class);
@@ -41,14 +44,38 @@ public class ExchangeService {
         this.tickerStrategyProvider = tickerStrategyProvider;
     }
 
+    /**
+     * Convenience method for accessing our ExchangeConfiguration object inside the Exchange.
+     *
+     * @param exchange The Exchange to pull information from.
+     * @return The ExchangeConfiguration object for the Exchange.
+     */
     public ExchangeConfiguration getExchangeMetadata(Exchange exchange) {
         return (ExchangeConfiguration) exchange.getExchangeSpecification().getExchangeSpecificParametersItem(METADATA_KEY);
     }
 
+    /**
+     * Convenience method for getting the configured home currency for an Exchange.
+     *
+     * @param exchange The Exchange to pull information from.
+     * @return The home currency for the Exchange.
+     */
     public Currency getExchangeHomeCurrency(Exchange exchange) {
         return getExchangeMetadata(exchange).getHomeCurrency();
     }
 
+    /**
+     * This is a kind of hacky workaround for the fact that Arbitrader was written assuming everyone would have USD
+     * as their "main" currency. If you have configured a different "home currency" for an exchange, such as USDC or
+     * EUR, this method translates USD into that currency instead and smooths over the USD assumptions we have made.
+     *
+     * This is OK for the time being but the places where USD is hard coded should eventually be replaced by a
+     * configuration that lets you set a global default fiat currency.
+     *
+     * @param exchange An Exchange.
+     * @param currencyPair A CurrencyPair.
+     * @return A new CurrencyPair where USD has been replaced with the home currency for that Exchange.
+     */
     public CurrencyPair convertExchangePair(Exchange exchange, CurrencyPair currencyPair) {
         if (Currency.USD == currencyPair.base) {
             return new CurrencyPair(getExchangeHomeCurrency(exchange), currencyPair.counter);
@@ -59,6 +86,11 @@ public class ExchangeService {
         return currencyPair;
     }
 
+    /**
+     * Perform the initial setup for an Exchange.
+     *
+     * @param exchange The Exchange to setup.
+     */
     public void setUpExchange(Exchange exchange) {
         try {
             LOGGER.debug("{} SSL URI: {}",
@@ -81,13 +113,16 @@ public class ExchangeService {
             LOGGER.error("Unable to fetch account balance: ", e);
         }
 
-
+        // choose a TickerStrategy for the exchange
         if (Utils.isStreamingExchange(exchange)) {
+            // streaming exchanges all use the StreamingTickerStrategy
             final TickerStrategy streamingTickerStrategy = tickerStrategyProvider.getStreamingTickerStrategy(this);
 
             exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, streamingTickerStrategy);
         } else {
             try {
+                // attempt to fetch multiple tickers in one call from the exchange
+                // if this works, we can use the single call strategy to fetch all tickers in one API call
                 CurrencyPairsParam param = () -> getExchangeMetadata(exchange).getTradingPairs().subList(0, 1);
                 exchange.getMarketDataService().getTickers(param);
 
@@ -95,6 +130,9 @@ public class ExchangeService {
 
                 exchange.getExchangeSpecification().setExchangeSpecificParametersItem(TICKER_STRATEGY_KEY, singleCallTickerStrategy);
             } catch (NotYetImplementedForExchangeException e) {
+                // If we can't fetch all the tickers in one call, we need to fetch each ticker in its own API call.
+                // So we fall back to the parallel ticker strategy which can unfortunately result in rate limiting
+                // on some exchanges.
                 LOGGER.warn("{} does not support fetching multiple tickers at a time and will fetch tickers " +
                         "individually instead. This may result in API rate limiting.",
                     exchange.getExchangeSpecification().getExchangeName());
@@ -119,25 +157,77 @@ public class ExchangeService {
             tradingFee);
     }
 
-
-    public BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
-        return getAccountBalance(exchange, currency, USD_SCALE);
-    }
-
+    /**
+     * Get the account balance in the default currency from an exchange.
+     *
+     * @param exchange The Exchange to query.
+     * @return The balance for the default currency in the given exchange.
+     * @throws IOException when we can't talk to the exchange.
+     */
     public BigDecimal getAccountBalance(Exchange exchange) throws IOException {
         Currency currency = getExchangeHomeCurrency(exchange);
 
         return getAccountBalance(exchange, currency);
     }
 
+    /**
+     * Get the account balance in a specific currency from an exchange.
+     *
+     * @param exchange The Exchange to query.
+     * @param currency The Currency to query.
+     * @return The balance for the given currency on the given exchange.
+     * @throws IOException when we can't talk to the exchange.
+     */
+    public BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
+        return getAccountBalance(exchange, currency, USD_SCALE);
+    }
+
+    /**
+     * Get the account balance in a specific currency from an exchange with a specific scale.
+     *
+     * @param exchange The Exchange to query.
+     * @param currency The Currency to query.
+     * @param scale The scale of the result.
+     * @return The balance for the given currency on the given exchange with the given scale.
+     * @throws IOException when we can't talk to the exchange.
+     */
+    public BigDecimal getAccountBalance(Exchange exchange, Currency currency, int scale) throws IOException {
+        AccountService accountService = exchange.getAccountService();
+
+        // walk through all wallets on the exchange
+        for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
+            // find the one with the correct currency
+            if (wallet.getBalances().containsKey(currency)) {
+                // return the amount available in the wallet scaled to the requested scale
+                return wallet.getBalance(currency).getAvailable()
+                    .setScale(scale, RoundingMode.HALF_EVEN);
+            }
+        }
+
+        LOGGER.error("{}: Unable to fetch {} balance",
+            exchange.getExchangeSpecification().getExchangeName(),
+            currency.getCurrencyCode());
+
+        return BigDecimal.ZERO;
+    }
+
+    /**
+     * Get the fee for using an exchange.
+     *
+     * @param exchange The Exchange to query.
+     * @param currencyPair The CurrencyPair, in case fees vary by pair.
+     * @param isQuiet true if we should suppress error messages that could get annoying if they are too frequent.
+     * @return The fee expressed as a percentage, ie. 0.0016 for 0.16%
+     */
     public BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
         BigDecimal cachedFee = feeCache.getCachedFee(exchange, currencyPair);
 
+        // we cache fees because they don't change frequently, but we use them frequently and making API calls is expensive
         if (cachedFee != null) {
             return cachedFee;
         }
 
-        // if an explicit override is configured, default to that
+        // if feeOverride is configured, just use that
         if (getExchangeMetadata(exchange).getFeeOverride() != null) {
             BigDecimal fee = getExchangeMetadata(exchange).getFeeOverride();
             feeCache.setCachedFee(exchange, currencyPair, fee);
@@ -150,6 +240,7 @@ public class ExchangeService {
         }
 
         try {
+            // try to get dynamic trading fees from the exchange, if it's implemented
             Map<CurrencyPair, Fee> fees = exchange.getAccountService().getDynamicTradingFees();
 
             if (fees.containsKey(currencyPair)) {
@@ -176,9 +267,11 @@ public class ExchangeService {
                 exchange.getExchangeSpecification().getExchangeName());
         }
 
+        // try to get fees from the exchange metadata
         CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
+            // if no metadata, see if the user configured a fee
             BigDecimal configuredFee = getExchangeMetadata(exchange).getFee();
 
             if (configuredFee == null) {
@@ -187,6 +280,7 @@ public class ExchangeService {
                         exchange.getExchangeSpecification().getExchangeName());
                 }
 
+                // give up and return a default fee - this is intentionally higher than most exchanges
                 return new BigDecimal("0.0030");
             }
 
@@ -199,22 +293,5 @@ public class ExchangeService {
         }
 
         return currencyPairMetaData.getTradingFee();
-    }
-
-    public BigDecimal getAccountBalance(Exchange exchange, Currency currency, int scale) throws IOException {
-        AccountService accountService = exchange.getAccountService();
-
-        for (Wallet wallet : accountService.getAccountInfo().getWallets().values()) {
-            if (wallet.getBalances().containsKey(currency)) {
-                return wallet.getBalance(currency).getAvailable()
-                    .setScale(scale, RoundingMode.HALF_EVEN);
-            }
-        }
-
-        LOGGER.error("{}: Unable to fetch {} balance",
-            exchange.getExchangeSpecification().getExchangeName(),
-            currency.getCurrencyCode());
-
-        return BigDecimal.ZERO;
     }
 }

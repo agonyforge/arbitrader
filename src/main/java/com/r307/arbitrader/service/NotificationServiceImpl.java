@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 import javax.inject.Inject;
 import java.math.BigDecimal;
 
+/**
+ * Send email notifications.
+ */
 @Service
 @Async
 public class NotificationServiceImpl implements NotificationService {
@@ -29,6 +32,12 @@ public class NotificationServiceImpl implements NotificationService {
         this.notificationConfiguration = notificationConfiguration;
     }
 
+    /**
+     * Send an email notification, if email is configured.
+     *
+     * @param subject The subject line of the email.
+     * @param body The body of the email.
+     */
     @Override
     public void sendEmailNotification(String subject, String body) {
         if (notificationConfiguration.getMail() == null || notificationConfiguration.getMail().getActive() == null ||
@@ -52,6 +61,16 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
+    /**
+     * Formats and sends an email when a trade is entered.
+     *
+     * @param spread The Spread.
+     * @param exitTarget The exit target.
+     * @param longVolume The long exchange volume.
+     * @param longLimitPrice The long exchange limit price.
+     * @param shortVolume The short exchange volume.
+     * @param shortLimitPrice The short exchange limit price.
+     */
     @Override
     public void sendEmailNotificationBodyForEntryTrade(Spread spread, BigDecimal exitTarget, BigDecimal longVolume,
                                                            BigDecimal longLimitPrice, BigDecimal shortVolume,
@@ -84,6 +103,17 @@ public class NotificationServiceImpl implements NotificationService {
         sendEmailNotification(EMAIL_SUBJECT_NEW_ENTRY, emailBody);
     }
 
+    /**
+     * Format and send an email when a trade exits.
+     *
+     * @param spread The Spread.
+     * @param longVolume The long exchange volume.
+     * @param longLimitPrice The long exchange limit price.
+     * @param shortVolume The short exchange volume.
+     * @param shortLimitPrice The short exchange limit price.
+     * @param entryBalance The combined account balances when the trades were first entered.
+     * @param updatedBalance The new account balances after exiting the trades.
+     */
     @Override
     public void sendEmailNotificationBodyForExitTrade(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice,
                                                           BigDecimal shortVolume, BigDecimal shortLimitPrice,

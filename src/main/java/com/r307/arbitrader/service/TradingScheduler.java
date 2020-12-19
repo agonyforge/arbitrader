@@ -18,10 +18,13 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Initiates trading action on a timer.
+ */
 @Component
 public class TradingScheduler {
     public static final String METADATA_KEY = "arbitrader-metadata";
@@ -61,9 +64,13 @@ public class TradingScheduler {
         this.tradingService = tradingService;
     }
 
+    /**
+     * Configure exchanges and connect to them after the rest of the Spring framework is done starting up.
+     */
     @PostConstruct
     public void connectExchanges() {
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
+            // skip exchanges that are explicitly disabled
             if (exchangeMetadata.getActive() != null && !exchangeMetadata.getActive()) {
                 LOGGER.info("Skipping exchange '{}' because it is not set as active", exchangeMetadata.getExchangeClass());
                 return;
@@ -72,6 +79,7 @@ public class TradingScheduler {
             Class<Exchange> exchangeClass;
 
             try {
+                // try to load the exchange class
                 exchangeClass = Utils.loadExchangeClass(exchangeMetadata.getExchangeClass());
             } catch (ClassNotFoundException e) {
                 LOGGER.error("Failed to load exchange {}: {}",
@@ -80,6 +88,10 @@ public class TradingScheduler {
                 return;
             }
 
+            // exchangeMetadata is an ExchangeConfiguration (our class) and has the user's configuration in it
+            // we're going to use it to populate an ExchangeSpecification (an XChange class) and configure the Exchange
+            // we have our own configuration class so we can have our own parameters and not be locked into only
+            // the ones XChange offers.
             ExchangeSpecification specification = new ExchangeSpecification(exchangeClass);
 
             specification.setUserName(exchangeMetadata.getUserName());
@@ -98,6 +110,10 @@ public class TradingScheduler {
                 specification.setPort(exchangeMetadata.getPort());
             }
 
+            // Some exchanges (see Quoine in the example configuration) have custom parameters that they need to be
+            // configured properly so we offer a "custom" block in our configuration to hold them. This is a little
+            // blind so you need to know what you're doing when setting custom parameters, but it's flexible for a
+            // lot of different use cases.
             if (!exchangeMetadata.getCustom().isEmpty()) {
                 exchangeMetadata.getCustom().forEach((key, value) -> {
                     if ("true".equals(value) || "false".equals(value)) {
@@ -108,8 +124,10 @@ public class TradingScheduler {
                 });
             }
 
+            // Here we store our configuration object into the XChange configuration object so we can reference it later.
             specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
+            // Decide whether to create a streaming exchange or a normal one based on the class name.
             if (specification.getExchangeClass().getSimpleName().contains("Streaming")) {
                 exchanges.add(StreamingExchangeFactory.INSTANCE.createExchange(specification));
             } else {
@@ -117,14 +135,18 @@ public class TradingScheduler {
             }
         });
 
+        // call setUpExchange on every exchange
         exchanges.forEach(exchangeService::setUpExchange);
 
+        // set up all the valid TradeCombinations between all our exchanges so we know what currency pairs we can trade
         tickerService.initializeTickers(exchanges);
 
+        // tell the user whether fixed exposure is configured
         if (tradingConfiguration.getFixedExposure() != null) {
             LOGGER.info("Using fixed exposure of ${} as configured", tradingConfiguration.getFixedExposure());
         }
 
+        // tell the user whether trade timeout is configured
         if (tradingConfiguration.getTradeTimeout() != null) {
             LOGGER.info("Using trade timeout of {} hours", tradingConfiguration.getTradeTimeout());
         }
@@ -132,6 +154,7 @@ public class TradingScheduler {
         // load active trades from file, if there is one
         File stateFile = new File(STATE_FILE);
 
+        // if there is a state file, we need to try to load the in-progress trade from the file
         if (stateFile.exists()) {
             if (!stateFile.canRead()) {
                 LOGGER.error("Cannot read state file: {}", stateFile.getAbsolutePath());
@@ -149,8 +172,6 @@ public class TradingScheduler {
             }
         }
     }
-
-
 
     /**
      * As often as once per minute, display a summary of any non-critical error messages. Summarizing them greatly
@@ -180,7 +201,7 @@ public class TradingScheduler {
                 return;
             }
 
-            if (tradingService.getActivePosition() == null && BigDecimal.ZERO.compareTo(spread.getIn()) < 0) {
+            if (tradingService.getActivePosition() == null) {
                 LOGGER.info("{}/{} {} {} -> {}",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
@@ -202,29 +223,46 @@ public class TradingScheduler {
         });
     }
 
+    /**
+     * Periodically check whether the bot should perform a few routine tasks.
+     */
     @Scheduled(initialDelay = 5000, fixedRate = 3000)
     public void pollForPriceData() {
+        // log just to let the user know we're still working
         LOGGER.debug("Tick");
 
+        // if the user wants the bot to exit, go ahead and exit
         if (tradingService.getActivePosition() == null && conditionService.isExitWhenIdleCondition()) {
             LOGGER.info("Exiting at user request");
             conditionService.clearExitWhenIdleCondition();
             System.exit(0);
         }
 
+        // if the user requested a status, print the status into the logs and clear the condition
+        if (conditionService.isStatusCondition()) {
+            logStatus();
+            conditionService.clearStatusCondition();
+        }
+
+        // fetch tickers for all exchanges and currencies
         tickerService.refreshTickers();
 
         long exchangePollStartTime = System.currentTimeMillis();
 
+        // analyze prices for possible trades
         startTradingProcess();
 
         long exchangePollDuration = System.currentTimeMillis() - exchangePollStartTime;
 
+        // measure the time we took to analyze prices
         if (exchangePollDuration > 3000) {
             LOGGER.warn("Polling exchanges took {} ms", exchangePollDuration);
         }
     }
 
+    /**
+     * Analyze prices to see if we need to trade.
+     */
     public void startTradingProcess() {
         tickerService.getPollingExchangeTradeCombinations()
             .forEach(tradeCombination -> {
@@ -234,5 +272,35 @@ public class TradingScheduler {
                     tradingService.trade(spread);
                 }
         });
+    }
+
+    // print a summary of all trade combinations, prices, and spreads
+    private void logStatus() {
+        LOGGER.info("=== Current Status ===");
+
+        tickerService.getPollingExchangeTradeCombinations()
+            .stream()
+            .sorted(Comparator.comparing(o ->
+                o.getLongExchange().getExchangeSpecification().getExchangeName()
+                    + o.getShortExchange().getExchangeSpecification().getExchangeName()
+                    + o.getCurrencyPair()))
+            .forEach(tradeCombination -> {
+                Spread spread = spreadService.computeSpread(tradeCombination);
+
+                if (spread != null) {
+                    LOGGER.info("{}/{} {}",
+                        spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                        spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                        spread.getCurrencyPair());
+                    LOGGER.info("\tLong/Short Bid/Asks:{}/{} {}/{}",
+                        spread.getLongTicker().getBid(),
+                        spread.getLongTicker().getAsk(),
+                        spread.getShortTicker().getBid(),
+                        spread.getShortTicker().getAsk());
+                    LOGGER.info("\tSpread In/Out:{}/{}",
+                        spread.getIn(),
+                        spread.getOut());
+                }
+            });
     }
 }

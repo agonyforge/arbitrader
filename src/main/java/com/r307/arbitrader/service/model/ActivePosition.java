@@ -8,6 +8,11 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
+/**
+ * All the information we need to store an active pair of trades to disk, and load it back up later.
+ * This is used in the state file to enable us to shut Arbitrader down and start it back up again without
+ * losing any information.
+ */
 @JsonIgnoreProperties(ignoreUnknown=true)
 public class ActivePosition {
     private final Trade longTrade = new Trade();

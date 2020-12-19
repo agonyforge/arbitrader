@@ -13,6 +13,9 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import java.math.BigDecimal;
 
+/**
+ * Configuration for sending emails.
+ */
 @Configuration
 public class MailConfiguration {
 

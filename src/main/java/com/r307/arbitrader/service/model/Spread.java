@@ -6,6 +6,10 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 
 import java.math.BigDecimal;
 
+/**
+ * Similar to a TradeCombination, but with additional information required to determine whether we should trade
+ * or not.
+ */
 public class Spread {
     private final CurrencyPair currencyPair;
     private final Exchange longExchange;

@@ -18,6 +18,9 @@ import javax.inject.Inject;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * A TickerStrategy implementation for streaming exchanges.
+ */
 @Component
 public class StreamingTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingTickerStrategy.class);
@@ -48,6 +51,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
         StreamingExchange exchange = (StreamingExchange)stdExchange;
 
         if (tickers.containsKey(exchange)) {
+            // filter down to just a list of Tickers from the exchange and currency pairs that were requested
             return tickers.get(exchange).entrySet()
                 .stream()
                 .filter(entry -> currencyPairs.contains(entry.getKey()))
@@ -58,14 +62,17 @@ public class StreamingTickerStrategy implements TickerStrategy {
 
             currencyPairs.forEach(builder::addTicker);
 
+            // try to subscribe to the websocket
             exchange.connect(builder.build()).blockingAwait();
             subscriptions.clear(); // avoid endlessly filling this list up with dead subscriptions
             subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
+        // we go ahead and return an empty list here but it will fill up asynchronously as price events come in
         return Collections.emptyList();
     }
 
+    // listen to websocket messages, populate the ticker map and publish ticker events
     private List<Disposable> subscribeAll(StreamingExchange exchange, List<CurrencyPair> currencyPairs) {
         return currencyPairs
             .stream()
@@ -89,6 +96,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
             .collect(Collectors.toList());
     }
 
+    // debug logging whenever we get a ticker event
     private void log(StreamingExchange exchange, Ticker ticker) {
         LOGGER.debug("Received ticker: {} {} {}/{}",
             exchange.getExchangeSpecification().getExchangeName(),
