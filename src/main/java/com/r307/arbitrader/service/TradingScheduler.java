@@ -173,8 +173,6 @@ public class TradingScheduler {
         }
     }
 
-
-
     /**
      * As often as once per minute, display a summary of any non-critical error messages. Summarizing them greatly
      * reduces how noisy the logs are while still providing the same information.
