@@ -88,6 +88,13 @@ public class TradingService {
             tradeCombinations = tickerService.getPollingExchangeTradeCombination().get(exchange);
         }
 
+        // tradeCombinations may be null if there is only one active streaming exchange
+        if (tradeCombinations == null) {
+            LOGGER.debug("isStreaming:{}|exchange:{}|tradeCombinations is null because there is only one active streaming exchange",
+                isStreaming, exchange.getExchangeSpecification().getExchangeName());
+            return;
+        }
+
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = spreadService.computeSpread(tradeCombination);
             if (spread != null) {
