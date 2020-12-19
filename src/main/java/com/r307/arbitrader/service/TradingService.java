@@ -698,8 +698,8 @@ public class TradingService {
     private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) {
         try {
             return Optional.of(exchange.getTradeService().getOpenOrders());
-        } catch (IOException e) {
-            LOGGER.error("{} threw IOException while fetching open orders: ",
+        } catch (IOException | ExchangeException e) {
+            LOGGER.error("{} threw an Exception while fetching open orders: ",
                 exchange.getExchangeSpecification().getExchangeName(), e);
         }
 
