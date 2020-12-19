@@ -44,6 +44,10 @@ public class ConditionServiceTest {
 
     @AfterClass
     public static void tearDown() {
+        FileUtils.deleteQuietly(new File(FORCE_OPEN));
+        FileUtils.deleteQuietly(new File(FORCE_CLOSE));
+        FileUtils.deleteQuietly(new File(EXIT_WHEN_IDLE));
+        FileUtils.deleteQuietly(new File(STATUS));
         FileUtils.deleteQuietly(new File(BLACKOUT));
     }
 
