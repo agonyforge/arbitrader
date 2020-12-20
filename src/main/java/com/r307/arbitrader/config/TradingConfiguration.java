@@ -23,6 +23,7 @@ public class TradingConfiguration {
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
     private List<String> tradeBlacklist = new ArrayList<>();
     private Long tradeTimeout;
+    private Boolean paper;
 
     public BigDecimal getEntrySpread() {
         return entrySpread;
@@ -70,5 +71,13 @@ public class TradingConfiguration {
 
     public void setTradeTimeout(Long tradeTimeout) {
         this.tradeTimeout = tradeTimeout;
+    }
+
+    public Boolean isPaper() {
+        return paper;
+    }
+
+    public void setPaper(Boolean paper) {
+        this.paper = paper;
     }
 }

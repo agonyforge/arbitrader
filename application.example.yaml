@@ -81,6 +81,11 @@ trading:
   # of whether it will turn a profit or not. The value of this property is expressed in hours. 24 equals 1 day.
   tradeTimeout: 48
 
+  # (Optional)
+  # Enable paper trading. Orders will not be forwarded to the exchanges. Instead, a paper exchange will execute the order
+  # at the limit price. The paper exchange always have a cash balance of 100
+  #paper: true
+
   # Connection information for each exchange goes in this list.
   #
   # To add a new exchange or remove one that you don't use, either add or remove the configuration from this list.
