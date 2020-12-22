@@ -1,14 +1,13 @@
-package com.r307.arbitrader.service.model;
+package com.r307.arbitrader.service.paper;
 
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.service.ExchangeFeeCache;
+import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.TickerService;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeSpecification;
-import org.knowm.xchange.coinbasepro.dto.account.CoinbaseProAccount;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
-import org.knowm.xchange.dto.account.AccountInfo;
-import org.knowm.xchange.dto.account.Balance;
-import org.knowm.xchange.dto.account.Wallet;
 import org.knowm.xchange.dto.meta.ExchangeMetaData;
 import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.service.account.AccountService;
@@ -18,56 +17,54 @@ import si.mazi.rescu.SynchronizedValueFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class PaperExchange implements Exchange {
 
-    Exchange exchange;
+    Exchange realExchange;
 
     PaperTradeService tradeService;
     PaperAccountService accountService;
 
-    public PaperExchange(Exchange exchange, Currency homeCurrency) {
-        this.exchange=exchange;
-        this.tradeService=new PaperTradeService(this, exchange.getTradeService());
-        this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency);
+    public PaperExchange(Exchange exchange, Currency homeCurrency, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paper) {
+        this.realExchange =exchange;
+        this.tradeService=new PaperTradeService(this, exchange.getTradeService(), tickerService, exchangeService, paper);
+        this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency, new BigDecimal(100));
     }
 
     @Override
     public ExchangeSpecification getExchangeSpecification() {
-        return exchange.getExchangeSpecification();
+        return realExchange.getExchangeSpecification();
     }
 
     @Override
     public ExchangeMetaData getExchangeMetaData() {
-        return exchange.getExchangeMetaData();
+        return realExchange.getExchangeMetaData();
     }
 
     @Override
     public List<CurrencyPair> getExchangeSymbols() {
-        return exchange.getExchangeSymbols();
+        return realExchange.getExchangeSymbols();
     }
 
     @Override
     public SynchronizedValueFactory<Long> getNonceFactory() {
-        return exchange.getNonceFactory();
+        return realExchange.getNonceFactory();
     }
 
     @Override
     public ExchangeSpecification getDefaultExchangeSpecification() {
-        return exchange.getDefaultExchangeSpecification();
+        return realExchange.getDefaultExchangeSpecification();
     }
 
     @Override
     public void applySpecification(ExchangeSpecification exchangeSpecification) {
-        exchange.applySpecification(exchangeSpecification);
+        realExchange.applySpecification(exchangeSpecification);
     }
 
     @Override
     public MarketDataService getMarketDataService() {
-        return exchange.getMarketDataService();
+        return realExchange.getMarketDataService();
     }
 
     @Override
@@ -82,6 +79,6 @@ public class PaperExchange implements Exchange {
 
     @Override
     public void remoteInit() throws IOException, ExchangeException {
-        exchange.remoteInit();
+        realExchange.remoteInit();
     }
 }

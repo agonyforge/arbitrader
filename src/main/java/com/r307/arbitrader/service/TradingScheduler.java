@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
-import com.r307.arbitrader.service.model.PaperExchange;
+import com.r307.arbitrader.service.paper.PaperExchange;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import info.bitrich.xchangestream.core.StreamingExchangeFactory;
@@ -135,8 +135,8 @@ public class TradingScheduler {
             } else {
                 exchange = ExchangeFactory.INSTANCE.createExchange(specification);
             }
-            if(tradingConfiguration.isPaper()) {
-                exchange=new PaperExchange(exchange, exchangeMetadata.getHomeCurrency());
+            if(tradingConfiguration.getPaper() != null) {
+                exchange=new PaperExchange(exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService, tradingConfiguration.getPaper());
             }
             exchanges.add(exchange);
         });

@@ -1,4 +1,4 @@
-package com.r307.arbitrader.service.model;
+package com.r307.arbitrader.service.paper;
 
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -25,9 +25,12 @@ public class PaperAccountService implements AccountService {
 
     Currency homeCurrency;
 
-    public PaperAccountService (AccountService accountService, Currency homeCurrency) {
+    BigDecimal balance;
+
+    public PaperAccountService (AccountService accountService, Currency homeCurrency, BigDecimal initialBalance) {
         this.accountService=accountService;
         this.homeCurrency=homeCurrency;
+        this.balance=initialBalance;
     }
 
     public AccountInfo getAccountInfo() {
@@ -36,8 +39,8 @@ public class PaperAccountService implements AccountService {
         balances.add(
             new Balance(
                 this.homeCurrency,
-                new BigDecimal(100),
-                new BigDecimal(100),
+                this.balance,
+                this.balance,
                 new BigDecimal(0)));
         wallets.add(Wallet.Builder.from(balances).id(UUID.randomUUID().toString()).build());
         return new AccountInfo (wallets);
