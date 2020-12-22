@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * A TickerStrategy that fetches each ticker with its own call to the API, but all in parallel.
+ */
 @Component
 public class ParallelTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelTickerStrategy.class);
@@ -52,10 +55,11 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
         long start = System.currentTimeMillis();
 
+        // partition the list of tickers into batches
         final List<Ticker> tickers = ListUtils.partition(currencyPairs, tickerPartitionSize)
             .stream()
             .peek(partition -> {
-                if (tickerBatchDelay != null) {
+                if (tickerBatchDelay != null) { // delay if we need to, to try and avoid rate limiting
                     try {
                         LOGGER.debug("Sleeping for {} ms...", tickerBatchDelay);
                         Thread.sleep(tickerBatchDelay);
@@ -66,10 +70,12 @@ public class ParallelTickerStrategy implements TickerStrategy {
             })
             .map(partition ->
                 partition
+                    // executes the following all in parallel rather than sequentially
                     .parallelStream()
                     .map(currencyPair -> {
                         try {
                             try {
+                                // get the ticker
                                 Ticker ticker = marketDataService.getTicker(exchangeService.convertExchangePair(exchange, currencyPair));
 
                                 LOGGER.debug("Fetched ticker: {} {} {}/{}",
@@ -78,6 +84,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
                                     ticker.getBid(),
                                     ticker.getAsk());
 
+                                // and return it
                                 return ticker;
                             } catch (UndeclaredThrowableException ute) {
                                 // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.
@@ -90,14 +97,15 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
                         return null;
                     })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList())
+                    .filter(Objects::nonNull) // get rid of any nulls we managed to collect
+                    .collect(Collectors.toList()) // gather all the tickers we fetched into a list
             )
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
+            .flatMap(List::stream)// turn the lists from all the partitions into a stream
+            .collect(Collectors.toList()); // collect them all into a single list
 
         long completion = System.currentTimeMillis() - start;
 
+        // if all of that took too long, print a warning in the logs
         if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
             LOGGER.warn("Slow Tickers! Fetched {} tickers via parallelStream for {} in {} ms",
                 tickers.size(),
@@ -108,10 +116,13 @@ public class ParallelTickerStrategy implements TickerStrategy {
         tickers.forEach(ticker -> tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange)));
     }
 
+    // return the batchDelay configuration parameter
+    // you can increase this to slow down if you're getting rate limited
     private Integer getTickerExchangeDelay(Exchange exchange) {
         return exchangeService.getExchangeMetadata(exchange).getTicker().get("batchDelay");
     }
 
+    // the size of the partition is based on how many tickers we have for this exchange
     private Map<String, Integer> getTickerPartitionSize(Exchange exchange) {
         return exchangeService.getExchangeMetadata(exchange).getTicker();
     }

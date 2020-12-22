@@ -19,6 +19,9 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * A TickerStrategy implementation that makes one call to get multiple Tickers.
+ */
 @Component
 public class SingleCallTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(SingleCallTickerStrategy.class);
@@ -53,6 +56,7 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                     .map(currencyPair -> exchangeService.convertExchangePair(exchange, currencyPair))
                     .collect(Collectors.toList());
 
+                // call the service with all our CurrencyPairs as the parameter
                 List<Ticker> tickers = marketDataService.getTickers(param);
 
                 tickers.forEach(ticker -> {
@@ -67,6 +71,7 @@ public class SingleCallTickerStrategy implements TickerStrategy {
 
                 long completion = System.currentTimeMillis() - start;
 
+                // if it's too slow, put a warning in the logs
                 if (completion > notificationConfiguration.getLogs().getSlowTickerWarning()) {
                     LOGGER.warn("Slow Tickers! Fetched {} tickers via getTickers() for {} in {} ms",
                         tickers.size(),
@@ -78,6 +83,7 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                 throw ute.getCause();
             }
         } catch (Throwable t) {
+            // collect any errors and show them in a summarized way
             errorCollectorService.collect(exchange, t);
             LOGGER.debug("Unexpected checked exception: " + t.getMessage(), t);
         }

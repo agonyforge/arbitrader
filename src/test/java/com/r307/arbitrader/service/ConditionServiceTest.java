@@ -44,6 +44,10 @@ public class ConditionServiceTest {
 
     @AfterClass
     public static void tearDown() {
+        FileUtils.deleteQuietly(new File(FORCE_OPEN));
+        FileUtils.deleteQuietly(new File(FORCE_CLOSE));
+        FileUtils.deleteQuietly(new File(EXIT_WHEN_IDLE));
+        FileUtils.deleteQuietly(new File(STATUS));
         FileUtils.deleteQuietly(new File(BLACKOUT));
     }
 
@@ -159,6 +163,33 @@ public class ConditionServiceTest {
         assertTrue(conditionService.isExitWhenIdleCondition());
 
         FileUtils.deleteQuietly(exitWhenIdle);
+    }
+
+    @Test
+    public void testClearStatusCondition() throws IOException {
+        File status = new File(STATUS);
+
+        assertTrue(status.createNewFile());
+        assertTrue(status.exists());
+
+        conditionService.clearStatusCondition();
+
+        assertFalse(status.exists());
+    }
+
+    @Test
+    public void testStatusCondition() throws IOException {
+        File status = new File(STATUS);
+
+        assertFalse(status.exists());
+        assertFalse(conditionService.isStatusCondition());
+
+        assertTrue(status.createNewFile());
+
+        assertTrue(status.exists());
+        assertTrue(conditionService.isStatusCondition());
+
+        FileUtils.deleteQuietly(status);
     }
 
     @Test

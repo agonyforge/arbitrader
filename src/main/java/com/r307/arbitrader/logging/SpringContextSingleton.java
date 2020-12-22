@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 
+/**
+ * Holds the Spring ApplicationContext so that non-Spring beans can access it.
+ */
 @Component
 public class SpringContextSingleton implements ApplicationContextAware {
     private static SpringContextSingleton instance = null;

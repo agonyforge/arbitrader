@@ -3,6 +3,9 @@ package com.r307.arbitrader.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Configuration for notifications to other services like email, Slack and Discord.
+ */
 @ConfigurationProperties("notifications")
 @Configuration
 public class NotificationConfiguration {

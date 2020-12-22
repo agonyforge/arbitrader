@@ -4,6 +4,9 @@ import com.r307.arbitrader.service.model.Spread;
 
 import java.math.BigDecimal;
 
+/**
+ * An email notification service.
+ */
 public interface NotificationService {
     void sendEmailNotification(String subject, String body);
     void sendEmailNotificationBodyForEntryTrade(Spread spread, BigDecimal exitTarget, BigDecimal longVolume,

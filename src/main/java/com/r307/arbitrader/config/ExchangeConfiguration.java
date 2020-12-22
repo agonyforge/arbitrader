@@ -9,6 +9,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.r307.arbitrader.config.FeeComputation.SERVER;
+
+/**
+ * This class contains any configuration from application.yaml that users can set to change the behavior of a
+ * single exchange. An instance of this class is stored on the Exchange so the configuration can be accessed
+ * at any time.
+ */
 public class ExchangeConfiguration {
     private String exchangeClass;
     private String userName;
@@ -26,6 +33,7 @@ public class ExchangeConfiguration {
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
     private List<Object> tickerArguments = new ArrayList<>();
+    private FeeComputation feeComputation = SERVER;
     private Boolean active;
 
     public String getExchangeClass() {
@@ -154,6 +162,14 @@ public class ExchangeConfiguration {
 
     public void setTickerArguments(List<Object> tickerArguments) {
         this.tickerArguments = tickerArguments;
+    }
+
+    public FeeComputation getFeeComputation() {
+        return feeComputation;
+    }
+
+    public void setFeeComputation(FeeComputation feeComputation) {
+        this.feeComputation = feeComputation;
     }
 
     public Boolean getActive() {

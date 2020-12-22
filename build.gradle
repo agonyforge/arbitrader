@@ -6,7 +6,7 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '2.4.0'
+    id 'org.springframework.boot' version '2.4.1'
     id 'io.spring.dependency-management' version '1.0.10.RELEASE'
     id 'info.solidsoft.pitest' version '1.5.2'
     id 'org.owasp.dependencycheck' version '6.0.3'
@@ -48,10 +48,10 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.4'
     compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.4'
     compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.4'
+    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.4'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
-    compile group: 'org.glassfish.tyrus.bundles', name: 'tyrus-standalone-client', version: '1.17'
 
     compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
     compile group: 'org.apache.commons', name: 'commons-text', version: '1.9'

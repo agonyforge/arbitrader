@@ -5,6 +5,10 @@ import org.knowm.xchange.currency.CurrencyPair;
 
 import java.util.Objects;
 
+/**
+ * Represents the combination of two exchanges and a currency pair that we could trade on. The fundamental action
+ * that Arbitrader does is make two opposing trades in one currency.
+ */
 public class TradeCombination {
     private final Exchange longExchange;
     private final Exchange shortExchange;
