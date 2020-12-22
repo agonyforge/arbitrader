@@ -172,7 +172,7 @@ public class TradingScheduler {
     public void summary() {
         LOGGER.info("Summary: [Long/Short Exchanges] [Pair] [Current Spread] -> [{} Spread Target]", (tradingService.getActivePosition() != null ? "Exit" : "Entry"));
 
-        Set<TradeCombination> tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
+        Set<TradeCombination> tradeCombinations = tickerService.getExchangeTradeCombinations();
 
         tradeCombinations.forEach(tradeCombination -> {
             Spread spread = spreadService.computeSpread(tradeCombination);
@@ -227,7 +227,7 @@ public class TradingScheduler {
     }
 
     public void startTradingProcess() {
-        tickerService.getPollingExchangeTradeCombinations()
+        tickerService.getExchangeTradeCombinations()
             .forEach(tradeCombination -> {
                 Spread spread = spreadService.computeSpread(tradeCombination);
 

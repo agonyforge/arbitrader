@@ -10,13 +10,26 @@ import java.util.concurrent.Executor;
 public class AppConfig {
 
     @Bean
-    public Executor taskExecutor() {
+    public Executor tickerEventTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         // Open to discussion
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("ticker-pool-");
+        executor.initialize();
+
+        return executor;
+    }
+
+    @Bean
+    public Executor tradeAnalysisEventTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        // Open to discussion
+        executor.setCorePoolSize(15);
+        executor.setMaxPoolSize(15);
         executor.setQueueCapacity(5);
-        executor.setThreadNamePrefix("async-trade-pool-");
+        executor.setThreadNamePrefix("analysis-pool-");
         executor.initialize();
 
         return executor;

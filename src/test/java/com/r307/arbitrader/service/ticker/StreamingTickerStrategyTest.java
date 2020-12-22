@@ -3,20 +3,20 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.event.TickerEvent;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
-import org.knowm.xchange.dto.marketdata.Ticker;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.util.Collections;
-import java.util.List;
 
-import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class StreamingTickerStrategyTest {
     @Mock
@@ -24,7 +24,7 @@ public class StreamingTickerStrategyTest {
     @Mock
     private ExchangeService exchangeService;
     @Mock
-    private StreamingTickerEventPublisher streamingTickerEventPublisher;
+    private TickerEventPublisher tickerEventPublisher;
 
     private StreamingTickerStrategy streamingTickerStrategy;
 
@@ -32,16 +32,14 @@ public class StreamingTickerStrategyTest {
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
-        streamingTickerStrategy = new StreamingTickerStrategy(errorCollectorService, exchangeService, streamingTickerEventPublisher);
+        streamingTickerStrategy = new StreamingTickerStrategy(errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     @Test
     public void testInvalidExchange() throws Exception {
         Exchange nonStreamingExchange = new ExchangeBuilder("CrazyCoinz",CurrencyPair.BTC_USD).build();
 
-        List<Ticker> result = streamingTickerStrategy.getTickers(
-            nonStreamingExchange, Collections.singletonList(CurrencyPair.BTC_USD));
-
-        assertTrue(result.isEmpty());
+        streamingTickerStrategy.fetchTickers(nonStreamingExchange, Collections.singletonList(CurrencyPair.BTC_USD));
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 }

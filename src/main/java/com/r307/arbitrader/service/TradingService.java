@@ -79,19 +79,13 @@ public class TradingService {
         this.notificationService = notificationService;
     }
 
-    public void startTradingProcess(boolean isStreaming, Exchange exchange) {
-        final Set<TradeCombination> tradeCombinations;
-        if (isStreaming) {
-            tradeCombinations = tickerService.getStreamingExchangeTradeCombination().get(exchange);
-        }
-        else {
-            tradeCombinations = tickerService.getPollingExchangeTradeCombination().get(exchange);
-        }
+    public void startTradingProcess(Exchange exchange) {
+        final Set<TradeCombination> tradeCombinations = tickerService.getExchangeTradeCombinations();
 
         // tradeCombinations may be null if there is only one active streaming exchange
         if (tradeCombinations == null) {
-            LOGGER.debug("isStreaming:{}|exchange:{}|tradeCombinations is null because there is only one active streaming exchange",
-                isStreaming, exchange.getExchangeSpecification().getExchangeName());
+            LOGGER.debug("exchange:{}|tradeCombinations is null because there is only one active streaming exchange",
+                exchange.getExchangeSpecification().getExchangeName());
             return;
         }
 

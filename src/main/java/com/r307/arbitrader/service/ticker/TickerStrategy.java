@@ -7,5 +7,5 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 import java.util.List;
 
 public interface TickerStrategy {
-    List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs);
+    void fetchTickers(Exchange exchange, List<CurrencyPair> currencyPairs);
 }

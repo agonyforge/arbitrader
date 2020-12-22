@@ -1,4 +1,4 @@
-package com.r307.arbitrader.service.model;
+package com.r307.arbitrader.service.model.event;
 
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -8,7 +8,6 @@ public class TickerEvent extends ApplicationEvent {
 
     private final Ticker ticker;
     private final Exchange exchange;
-    private final boolean isStreamingExchange;
 
     /**
      * Create a new {@code ApplicationEvent}.
@@ -16,13 +15,11 @@ public class TickerEvent extends ApplicationEvent {
      * @param ticker the object on which the event initially occurred or with
      *               which the event is associated (never {@code null}).
      * @param exchange the exchange from where this ticker originated.
-     * @param isStreamingExchange true if the exchange is a streaming exchange. False otherwise.
      */
-    public TickerEvent(Ticker ticker, Exchange exchange, boolean isStreamingExchange) {
+    public TickerEvent(Ticker ticker, Exchange exchange) {
         super(ticker);
         this.ticker = ticker;
         this.exchange = exchange;
-        this.isStreamingExchange = isStreamingExchange;
     }
 
     public Ticker getTicker() {
@@ -31,9 +28,5 @@ public class TickerEvent extends ApplicationEvent {
 
     public Exchange getExchange() {
         return exchange;
-    }
-
-    public boolean isStreamingExchange() {
-        return isStreamingExchange;
     }
 }

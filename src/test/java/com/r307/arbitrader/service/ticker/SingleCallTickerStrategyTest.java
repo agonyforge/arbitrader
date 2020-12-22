@@ -4,11 +4,12 @@ import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.event.TickerEvent;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
-import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -18,14 +19,22 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class SingleCallTickerStrategyTest {
-    private List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
+    private final List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
 
     private ErrorCollectorService errorCollectorService;
 
     private TickerStrategy tickerStrategy;
+
+    private final TickerEventPublisher tickerEventPublisher = mock(TickerEventPublisher.class);
 
     @Mock
     private ExchangeService exchangeService;
@@ -38,7 +47,7 @@ public class SingleCallTickerStrategyTest {
 
         errorCollectorService = new ErrorCollectorService();
 
-        tickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        tickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     @Test
@@ -50,14 +59,10 @@ public class SingleCallTickerStrategyTest {
                 Collections.singletonList(CurrencyPair.BTC_USD))
             .build();
 
-        List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+        tickerStrategy.fetchTickers(exchange, currencyPairs);
+        verify(tickerEventPublisher, times(1)).publishTicker(any(TickerEvent.class));
 
-        assertEquals(1, tickers.size());
         assertTrue(errorCollectorService.isEmpty());
-
-        Ticker ticker = tickers.get(0);
-
-        assertEquals(CurrencyPair.BTC_USD, ticker.getCurrencyPair());
     }
 
     @Test
@@ -67,9 +72,9 @@ public class SingleCallTickerStrategyTest {
             .withTickers(new ExchangeException("Boom!"))
             .build();
 
-        List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+        verify(tickerEventPublisher, times(0)).publishTicker(any(TickerEvent.class));
+        tickerStrategy.fetchTickers(exchange, currencyPairs);
 
-        assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
     }
 
@@ -80,9 +85,9 @@ public class SingleCallTickerStrategyTest {
             .withTickers(new IOException("Boom!"))
             .build();
 
-        List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+        tickerStrategy.fetchTickers(exchange, currencyPairs);
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
 
-        assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
     }
 
@@ -93,9 +98,9 @@ public class SingleCallTickerStrategyTest {
             .withTickers(new UndeclaredThrowableException(new IOException("Boom!")))
             .build();
 
-        List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
+        tickerStrategy.fetchTickers(exchange, currencyPairs);
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
 
-        assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
     }
 }

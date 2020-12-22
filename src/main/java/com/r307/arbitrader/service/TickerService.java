@@ -1,8 +1,10 @@
 package com.r307.arbitrader.service;
 
-import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.event.TradeAnalysisPublisher;
 import com.r307.arbitrader.service.model.TradeCombination;
+import com.r307.arbitrader.service.model.event.TradeAnalysisEvent;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
 import org.apache.commons.collections4.CollectionUtils;
 import org.knowm.xchange.Exchange;
@@ -16,12 +18,12 @@ import org.springframework.stereotype.Component;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
@@ -33,28 +35,31 @@ public class TickerService {
     private final TradingConfiguration tradingConfiguration;
     private final ExchangeService exchangeService;
     private final ErrorCollectorService errorCollectorService;
+    private final TradeAnalysisPublisher tradeAnalysisPublisher;
 
-    private final Map<String, Ticker> allTickers = new HashMap<>();
-    private final Map<Exchange, Set<TradeCombination>> pollingExchangeTradeCombination = new HashMap<>();
-    private final Map<Exchange, Set<TradeCombination>> streamingExchangeTradeCombination = new HashMap<>();
+    private final Map<String, Ticker> allTickers = new ConcurrentHashMap<>();
+    private final Map<Exchange, Set<TradeCombination>> tradeCombinations = new HashMap<>();
 
     @Inject
     public TickerService(
         TradingConfiguration tradingConfiguration,
         ExchangeService exchangeService,
-        ErrorCollectorService errorCollectorService) {
+        ErrorCollectorService errorCollectorService,
+        TradeAnalysisPublisher tradeAnalysisPublisher) {
 
         this.tradingConfiguration = tradingConfiguration;
         this.exchangeService = exchangeService;
         this.errorCollectorService = errorCollectorService;
+        this.tradeAnalysisPublisher = tradeAnalysisPublisher;
     }
 
     public void initializeTickers(List<Exchange> exchanges) {
         LOGGER.info("Fetching all tickers for all exchanges...");
 
         exchanges
-            .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
-            .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker)));
+            .forEach(exchange ->
+                fetchTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
+            );
 
         LOGGER.info("Trading the following exchanges and pairs:");
 
@@ -74,35 +79,27 @@ public class TickerService {
                 }
 
                 final TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
-
-                if (Utils.isStreamingExchange(longExchange) && Utils.isStreamingExchange(shortExchange)) {
-                    initTradeCombinationMap(shortExchange, longExchange, combination, streamingExchangeTradeCombination);
-                }
-
                 // We still want to use streaming exchanges when we are polling
-                initTradeCombinationMap(shortExchange, longExchange, combination, pollingExchangeTradeCombination);
+                initTradeCombinationMap(shortExchange, longExchange, combination);
 
                 LOGGER.info("{}", combination);
             });
         }));
     }
 
-    private void initTradeCombinationMap(Exchange shortExchange, Exchange longExchange, TradeCombination combination,
-                                          Map<Exchange, Set<TradeCombination>> tradeCombinationMap) {
+    private void initTradeCombinationMap(Exchange shortExchange, Exchange longExchange, TradeCombination combination) {
 
-        tradeCombinationMap.computeIfAbsent(shortExchange, v -> new HashSet<>())
+        tradeCombinations.computeIfAbsent(shortExchange, v -> new HashSet<>())
             .add(combination);
-        tradeCombinationMap.computeIfAbsent(longExchange, v -> new HashSet<>())
+        tradeCombinations.computeIfAbsent(longExchange, v -> new HashSet<>())
             .add(combination);
     }
 
     public void refreshTickers() {
-        allTickers.clear();
-
         final Map<Exchange, Set<CurrencyPair>> queue = new HashMap<>();
 
         // find the currencies that are actively in use for each exchange
-        pollingExchangeTradeCombination.values()
+        tradeCombinations.values()
             .stream()
             .flatMap(Collection::stream)
             .forEach(tradeCombination -> {
@@ -119,8 +116,7 @@ public class TickerService {
             try {
                 LOGGER.debug("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
 
-                getTickers(exchange, activePairs)
-                    .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker));
+                fetchTickers(exchange, activePairs);
             } catch (ExchangeException e) {
                 LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
             }
@@ -135,33 +131,23 @@ public class TickerService {
         return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
     }
 
-    public Set<TradeCombination> getPollingExchangeTradeCombinations() {
-        return pollingExchangeTradeCombination.values()
+    public Set<TradeCombination> getExchangeTradeCombinations() {
+        return tradeCombinations.values()
             .stream()
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
     }
 
     // TODO test public API instead of private
-    List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
+    protected void fetchTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         TickerStrategy tickerStrategy = (TickerStrategy)exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY);
 
         try {
-            List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
-
-            tickers.forEach(ticker -> LOGGER.debug("Ticker: {} {} {}/{}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                ticker.getInstrument(),
-                ticker.getBid(),
-                ticker.getAsk()));
-
-            return tickers;
+            tickerStrategy.fetchTickers(exchange, currencyPairs);
         } catch (RuntimeException re) {
             LOGGER.debug("Unexpected runtime exception: " + re.getMessage(), re);
             errorCollectorService.collect(exchange, re);
         }
-
-        return Collections.emptyList();
     }
 
     String tickerKey(Exchange exchange, CurrencyPair currencyPair) {
@@ -202,22 +188,17 @@ public class TickerService {
             currencyPair);
     }
 
-    public Map<Exchange, Set<TradeCombination>> getPollingExchangeTradeCombination() {
-        return pollingExchangeTradeCombination;
-    }
-
-    public Map<Exchange, Set<TradeCombination>> getStreamingExchangeTradeCombination() {
-        return streamingExchangeTradeCombination;
-    }
-
-    public void addPollingExchangeTradeCombination(Exchange exchange, TradeCombination tradeCombination) {
-        pollingExchangeTradeCombination.computeIfAbsent(exchange, v -> new HashSet<>())
+    public void addExchangeTradeCombination(Exchange exchange, TradeCombination tradeCombination) {
+        tradeCombinations.computeIfAbsent(exchange, v -> new HashSet<>())
             .add(tradeCombination);
     }
 
-    public void addStreamingExchangeTradeCombination(Exchange exchange, TradeCombination tradeCombination) {
-        streamingExchangeTradeCombination.computeIfAbsent(exchange, v -> new HashSet<>())
-            .add(tradeCombination);
+    public void updateTicker(Exchange exchange, Ticker ticker) {
+        final String key = tickerKey(exchange, (CurrencyPair) ticker.getInstrument());
+        allTickers.put(key, ticker);
+
+        // As we update the ticker we also want to run a trade analysis to find out if we have trade opportunity
+        tradeAnalysisPublisher.publishTradeAnalysis(new TradeAnalysisEvent());
     }
 
     public Map<String, Ticker> getAllTickers() {

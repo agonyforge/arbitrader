@@ -3,6 +3,8 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.event.TickerEvent;
 import org.apache.commons.collections4.ListUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -26,20 +28,23 @@ public class ParallelTickerStrategy implements TickerStrategy {
     private final NotificationConfiguration notificationConfiguration;
     private final ExchangeService exchangeService;
     private final ErrorCollectorService errorCollectorService;
+    private final TickerEventPublisher tickerEventPublisher;
 
     @Inject
     public ParallelTickerStrategy(
         NotificationConfiguration notificationConfiguration,
         ErrorCollectorService errorCollectorService,
-        ExchangeService exchangeService) {
+        ExchangeService exchangeService,
+        TickerEventPublisher tickerEventPublisher) {
 
         this.notificationConfiguration = notificationConfiguration;
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
+        this.tickerEventPublisher = tickerEventPublisher;
     }
 
     @Override
-    public List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
+    public void fetchTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         MarketDataService marketDataService = exchange.getMarketDataService();
         Integer tickerBatchDelay = getTickerExchangeDelay(exchange);
         int tickerPartitionSize = getTickerPartitionSize(exchange)
@@ -47,7 +52,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
 
         long start = System.currentTimeMillis();
 
-        List<Ticker> tickers = ListUtils.partition(currencyPairs, tickerPartitionSize)
+        final List<Ticker> tickers = ListUtils.partition(currencyPairs, tickerPartitionSize)
             .stream()
             .peek(partition -> {
                 if (tickerBatchDelay != null) {
@@ -100,7 +105,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
                 System.currentTimeMillis() - start);
         }
 
-        return tickers;
+        tickers.forEach(ticker -> tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange)));
     }
 
     private Integer getTickerExchangeDelay(Exchange exchange) {
