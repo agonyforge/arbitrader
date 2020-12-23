@@ -152,7 +152,7 @@ public class TradingService {
                 }
             }
 
-            entryPosition(spread, shortExchangeName, longExchangeName);
+            entryPosition(spread);
 
         // consider whether to exit an open position
         //   does the ActivePosition match the current exchanges and currency pair?
@@ -178,7 +178,9 @@ public class TradingService {
     }
 
     // enter a position
-    private void entryPosition(Spread spread, String shortExchangeName, String longExchangeName) {
+    private void entryPosition(Spread spread) {
+        final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
+        final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
         final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
@@ -199,8 +201,8 @@ public class TradingService {
             return;
         }
 
-        final int longScale = BTC_SCALE;
-        final int shortScale = BTC_SCALE;
+        final int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencies().get(currencyPairLongExchange.base).getScale();
+        final int shortScale = spread.getShortExchange().getExchangeMetaData().getCurrencies().get(currencyPairShortExchange.base).getScale();
 
         LOGGER.debug("Max exposure: {}", maxExposure);
         LOGGER.debug("Long scale: {}", longScale);
@@ -370,7 +372,8 @@ public class TradingService {
         // this spread is based on the prices we calculated using the order book, so it's more accurate than the original estimate
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
 
-        LOGGER.debug("Spread verification: {}", spreadVerification);
+        LOGGER.info("Exit spread: {}", spreadVerification);
+        LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
 
         if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
             LOGGER.error("Computed trade volume for exiting position was zero or less than zero!");
@@ -566,7 +569,7 @@ public class TradingService {
     }
 
     // get volume for an entry position considering exposure and exchange step size if there is one
-    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, @SuppressWarnings("SameParameterValue") int scale) {
+    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
         final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
         final BigDecimal stepSize = exchange.getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
