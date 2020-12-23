@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
+import com.r307.arbitrader.service.paper.PaperExchange;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import info.bitrich.xchangestream.core.StreamingExchangeFactory;
@@ -128,11 +129,16 @@ public class TradingScheduler {
             specification.setExchangeSpecificParametersItem(METADATA_KEY, exchangeMetadata);
 
             // Decide whether to create a streaming exchange or a normal one based on the class name.
-            if (specification.getExchangeClass().getSimpleName().contains("Streaming")) {
-                exchanges.add(StreamingExchangeFactory.INSTANCE.createExchange(specification));
+            Exchange exchange;
+            if(specification.getExchangeClass().getSimpleName().contains("Streaming")) {
+                exchange = StreamingExchangeFactory.INSTANCE.createExchange(specification);
             } else {
-                exchanges.add(ExchangeFactory.INSTANCE.createExchange(specification));
+                exchange = ExchangeFactory.INSTANCE.createExchange(specification);
             }
+            if(tradingConfiguration.getPaper() != null) {
+                exchange=new PaperExchange(exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService, tradingConfiguration.getPaper());
+            }
+            exchanges.add(exchange);
         });
 
         // call setUpExchange on every exchange

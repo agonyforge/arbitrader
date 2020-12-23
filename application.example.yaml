@@ -81,6 +81,14 @@ trading:
   # of whether it will turn a profit or not. The value of this property is expressed in hours. 24 equals 1 day.
   tradeTimeout: 48
 
+  # (Optional)
+  # Enable paper trading. Orders will not be forwarded to the exchanges. Instead, a paper exchange will execute the
+  # order at the limit price. The paper exchange start with a cash balance of 100.
+  # Enable the autoFill option to fill the trigger the order completion after 1s: useful to avoid waiting for the good
+  # market condition. If false, the paper exchange will wait for the limit price to be met by the real exchange.
+  #paper:
+  #  autoFill: true
+
   # Connection information for each exchange goes in this list.
   #
   # To add a new exchange or remove one that you don't use, either add or remove the configuration from this list.
