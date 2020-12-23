@@ -202,7 +202,7 @@ public class TradingService {
             return;
         }
 
-        // Figure out the scale (number of decimal places) for each exchange base on its CurrencyMetaData.
+        // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
         // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
         final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
         final int longScale = spread
