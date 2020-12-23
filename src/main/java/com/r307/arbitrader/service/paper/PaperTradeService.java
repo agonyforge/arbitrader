@@ -17,12 +17,18 @@ import org.knowm.xchange.service.trade.params.orders.OrderQueryParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class PaperTradeService extends BaseExchangeService<PaperExchange> implements TradeService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PaperTradeService.class);
+    public static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
     private final Boolean  autoFill;
 
     TickerService tickerService;
@@ -41,12 +47,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         this.autoFill = paper.isAutoFill();
         this.tickerService=tickerService;
         this.exchangeService=exchangeService;
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
-                updateOrders();
-            }
-        }, 0, 1000);
+        PaperTradeService.scheduler.schedule(this::updateOrders,10, TimeUnit.SECONDS);
     }
 
 
@@ -135,12 +136,22 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     private void updateOrders() {
         for(LimitOrder order: orders) {
             if(order.getStatus().isOpen()) {
-                Order.OrderType type = order.getType();
-                Ticker ticker= tickerService.getTicker(exchange, order.getCurrencyPair());
-                //Check if limit price was reached
-                boolean matchedOrder = type == Order.OrderType.BID && ticker.getAsk().compareTo(order.getLimitPrice()) <=0 || type== Order.OrderType.ASK && ticker.getBid().compareTo(order.getLimitPrice())>=0;
-                if(autoFill || matchedOrder) {
+                if(autoFill) {
                     fillOrder(order);
+                } else {
+                    Order.OrderType type = order.getType();
+                    Ticker ticker;
+                    try {
+                        ticker = exchange.getMarketDataService().getTicker(order.getCurrencyPair());
+                    } catch (IOException e) {
+                        LOGGER.warn("Failed to fetch ticker for paper exchange {}", exchange.getExchangeSpecification().getExchangeName());
+                        ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
+                    }
+                    //Check if limit price was reached
+                    boolean matchedOrder = type == Order.OrderType.BID && ticker.getAsk().compareTo(order.getLimitPrice()) <= 0 || type == Order.OrderType.ASK && ticker.getBid().compareTo(order.getLimitPrice()) >= 0;
+                    if (matchedOrder) {
+                        fillOrder(order);
+                    }
                 }
             }
         }
