@@ -15,6 +15,7 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.OrderBook;
+import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
@@ -201,8 +202,19 @@ public class TradingService {
             return;
         }
 
-        final int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencies().get(currencyPairLongExchange.base).getScale();
-        final int shortScale = spread.getShortExchange().getExchangeMetaData().getCurrencies().get(currencyPairShortExchange.base).getScale();
+        final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
+        final int longScale = spread
+            .getLongExchange()
+            .getExchangeMetaData()
+            .getCurrencies()
+            .getOrDefault(currencyPairLongExchange.base, defaultMetaData)
+            .getScale();
+        final int shortScale = spread
+            .getShortExchange()
+            .getExchangeMetaData()
+            .getCurrencies()
+            .getOrDefault(currencyPairShortExchange.base, defaultMetaData)
+            .getScale();
 
         LOGGER.debug("Max exposure: {}", maxExposure);
         LOGGER.debug("Long scale: {}", longScale);
