@@ -386,8 +386,8 @@ public class TradingService {
         // this spread is based on the prices we calculated using the order book, so it's more accurate than the original estimate
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
 
-        LOGGER.info("Exit spread: {}", spreadVerification);
-        LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
+        LOGGER.debug("Exit spread: {}", spreadVerification);
+        LOGGER.debug("Exit spread target: {}", activePosition.getExitTarget());
 
         if (longVolume.compareTo(BigDecimal.ZERO) <= 0 || shortVolume.compareTo(BigDecimal.ZERO) <= 0) {
             LOGGER.error("Computed trade volume for exiting position was zero or less than zero!");
@@ -805,9 +805,11 @@ public class TradingService {
             BigDecimal price;
             BigDecimal volume = BigDecimal.ZERO;
 
-            // walk through orders, ordered by price, until we satisfy all the volume we need
-            // return the price of the last order we see
-            // TODO is this correct? should we be averaging the order prices together to get the overall price?
+            // Walk through orders, ordered by price, until we satisfy all the volume we need.
+            // Return the price of the last order we see.
+            //
+            // If we set our limit order at this price (without waiting too long) it is very likely to fill
+            // because we know the exchange has enough currency available to fill it at this or a better price.
             for (LimitOrder order : orders) {
                 price = order.getLimitPrice();
                 volume = volume.add(order.getRemainingAmount());
