@@ -4,6 +4,8 @@ import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -19,16 +21,21 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class SingleCallTickerStrategyTest {
     private List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
 
     private ErrorCollectorService errorCollectorService;
-
     private TickerStrategy tickerStrategy;
 
     @Mock
     private ExchangeService exchangeService;
+
+    @Mock
+    private TickerEventPublisher tickerEventPublisher;
 
     @Before
     public void setUp() {
@@ -38,7 +45,7 @@ public class SingleCallTickerStrategyTest {
 
         errorCollectorService = new ErrorCollectorService();
 
-        tickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        tickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     @Test
@@ -57,6 +64,8 @@ public class SingleCallTickerStrategyTest {
 
         Ticker ticker = tickers.get(0);
 
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
+
         assertEquals(CurrencyPair.BTC_USD, ticker.getCurrencyPair());
     }
 
@@ -71,6 +80,8 @@ public class SingleCallTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 
     @Test
@@ -84,6 +95,8 @@ public class SingleCallTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 
     @Test
@@ -97,5 +110,7 @@ public class SingleCallTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 }

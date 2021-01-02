@@ -8,7 +8,6 @@ import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
-import com.r307.arbitrader.service.model.TradeCombination;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
@@ -57,7 +56,6 @@ public class TradingService {
     private final ConditionService conditionService;
     private final ExchangeService exchangeService;
     private final SpreadService spreadService;
-    private final TickerService tickerService;
     private final NotificationService notificationService;
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
@@ -69,7 +67,6 @@ public class TradingService {
         ConditionService conditionService,
         ExchangeService exchangeService,
         SpreadService spreadService,
-        TickerService tickerService,
         @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection") NotificationService notificationService) {
 
         this.objectMapper = objectMapper;
@@ -77,31 +74,7 @@ public class TradingService {
         this.conditionService = conditionService;
         this.exchangeService = exchangeService;
         this.spreadService = spreadService;
-        this.tickerService = tickerService;
         this.notificationService = notificationService;
-    }
-
-    /**
-     * Start to analyze prices and look for trades.
-     *
-     * @param isStreaming true if we should look at streaming exchanges
-     */
-    public void startTradingProcess(boolean isStreaming) {
-        final List<TradeCombination> tradeCombinations;
-
-        if (isStreaming) {
-            tradeCombinations = tickerService.getStreamingExchangeTradeCombinations();
-        } else {
-            tradeCombinations = tickerService.getPollingExchangeTradeCombinations();
-        }
-
-        tradeCombinations.forEach(tradeCombination -> {
-            Spread spread = spreadService.computeSpread(tradeCombination);
-
-            if (spread != null) {
-                trade(spread);
-            }
-        });
     }
 
     /**
@@ -109,7 +82,7 @@ public class TradingService {
      *
      * @param spread The Spread contains the exchanges and prices for the trade.
      */
-    public void trade(Spread spread) {
+    public synchronized void trade(Spread spread) {
         if (bailOut) {
             LOGGER.error("Exiting immediately to avoid erroneous trades.");
             System.exit(1);
@@ -136,13 +109,11 @@ public class TradingService {
             if (conditionService.isForceOpenCondition()) {
                 String exchanges = conditionService.readForceOpenContent().trim();
 
-                /*
-                The force-open file should contain the names of the exchanges you want to force a trade on.
-                It's meant to be a tool to aid testing entry and exit on specific pairs of exchanges.
-
-                In this format: currencyPair longExchange/shortExchange
-                For example: BTC/USD BitFlyer/Kraken
-                */
+                // The force-open file should contain the names of the exchanges you want to force a trade on.
+                // It's meant to be a tool to aid testing entry and exit on specific pairs of exchanges.
+                //
+                // In this format: currencyPair longExchange/shortExchange
+                // For example: BTC/USD BitFlyer/Kraken
                 String current = String.format("%s %s/%s",
                     spread.getCurrencyPair().toString(),
                     longExchangeName,

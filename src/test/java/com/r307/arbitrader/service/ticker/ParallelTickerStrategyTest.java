@@ -5,6 +5,8 @@ import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeFeeCache;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -21,15 +23,21 @@ import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class ParallelTickerStrategyTest {
     private List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
 
     private ErrorCollectorService errorCollectorService;
-
     private TickerStrategy tickerStrategy;
+
     @Mock
     private TickerStrategyProvider tickerStrategyProvider;
+
+    @Mock
+    private TickerEventPublisher tickerEventPublisher;
 
     @Before
     public void setUp() {
@@ -40,7 +48,7 @@ public class ParallelTickerStrategyTest {
 
         errorCollectorService = new ErrorCollectorService();
 
-        tickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        tickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     @Test
@@ -60,6 +68,8 @@ public class ParallelTickerStrategyTest {
         Ticker ticker = tickers.get(0);
 
         assertEquals(CurrencyPair.BTC_USD, ticker.getCurrencyPair());
+
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
     }
 
     @Test
@@ -73,6 +83,8 @@ public class ParallelTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 
     @Test
@@ -86,6 +98,8 @@ public class ParallelTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 
     @Test
@@ -99,5 +113,7 @@ public class ParallelTickerStrategyTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 }

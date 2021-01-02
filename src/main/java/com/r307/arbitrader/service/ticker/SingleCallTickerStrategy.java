@@ -3,6 +3,8 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -28,16 +30,19 @@ public class SingleCallTickerStrategy implements TickerStrategy {
     private final NotificationConfiguration notificationConfiguration;
     private final ExchangeService exchangeService;
     private final ErrorCollectorService errorCollectorService;
+    private final TickerEventPublisher tickerEventPublisher;
 
     @Inject
     public SingleCallTickerStrategy(
         NotificationConfiguration notificationConfiguration,
         ErrorCollectorService errorCollectorService,
-        ExchangeService exchangeService) {
+        ExchangeService exchangeService,
+        TickerEventPublisher tickerEventPublisher) {
 
         this.notificationConfiguration = notificationConfiguration;
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
+        this.tickerEventPublisher = tickerEventPublisher;
     }
 
     @Override
@@ -71,6 +76,10 @@ public class SingleCallTickerStrategy implements TickerStrategy {
                         System.currentTimeMillis() - start);
                 }
 
+                // publish events
+                tickers.forEach(ticker -> tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange)));
+
+                // return whatever we got
                 return tickers;
             } catch (UndeclaredThrowableException ute) {
                 // Method proxying in rescu can enclose a real exception in this UTE, so we need to unwrap and re-throw it.

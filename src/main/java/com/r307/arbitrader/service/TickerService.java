@@ -1,6 +1,5 @@
 package com.r307.arbitrader.service;
 
-import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
@@ -37,8 +36,7 @@ public class TickerService {
     private final ErrorCollectorService errorCollectorService;
 
     Map<String, Ticker> allTickers = new HashMap<>();
-    List<TradeCombination> pollingExchangeTradeCombinations = new ArrayList<>();
-    List<TradeCombination> streamingExchangeTradeCombinations = new ArrayList<>();
+    List<TradeCombination> tradeCombinations = new ArrayList<>();
 
     @Inject
     public TickerService(
@@ -57,13 +55,6 @@ public class TickerService {
      * @param exchanges A list of all the exchanges.
      */
     public void initializeTickers(List<Exchange> exchanges) {
-        LOGGER.info("Fetching all tickers for all exchanges...");
-
-        allTickers.clear();
-        exchanges
-            .forEach(exchange -> getTickers(exchange, exchangeService.getExchangeMetadata(exchange).getTradingPairs())
-            .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker)));
-
         LOGGER.info("Trading the following exchanges and pairs:");
 
         exchanges.forEach(longExchange -> exchanges.forEach(shortExchange -> {
@@ -75,7 +66,7 @@ public class TickerService {
             // check each pair to see if it is a valid combination
             currencyPairs.forEach(currencyPair -> {
                 if (isInvalidExchangePair(longExchange, shortExchange, currencyPair)) {
-                    LOGGER.debug("Invalid exchange pair: {}/{}",
+                    LOGGER.trace("Invalid exchange pair: {}/{}",
                         longExchange.getExchangeSpecification().getExchangeName(),
                         shortExchange.getExchangeSpecification().getExchangeName());
                     return;
@@ -84,17 +75,7 @@ public class TickerService {
                 // valid combinations become a TradeCombination
                 final TradeCombination combination = new TradeCombination(longExchange, shortExchange, currencyPair);
 
-                // TODO streamingExchangeTradeCombinations, pollingExchangeTradeCombinations and allExchangeTradeCombinations?
-                // TODO can we hide streaming vs. non-streaming so it isn't important to know the difference?
-                // TODO does the streaming list have to be a pair where *both* are streaming? what about one streaming and one polling?
-
-                // add streaming combinations into a separate list
-                if (Utils.isStreamingExchange(longExchange) && Utils.isStreamingExchange(shortExchange)) {
-                    streamingExchangeTradeCombinations.add(combination);
-                }
-
-                // add all combinations into the main list
-                pollingExchangeTradeCombinations.add(combination);
+                tradeCombinations.add(combination);
 
                 LOGGER.info("{}", combination);
             });
@@ -105,12 +86,10 @@ public class TickerService {
      * Fetch tickers for active currency pairs on all exchanges.
      */
     public void refreshTickers() {
-        allTickers.clear();
-
         Map<Exchange, Set<CurrencyPair>> queue = new HashMap<>();
 
         // find the currencies that are actively in use for each exchange
-        pollingExchangeTradeCombinations.forEach(tradeCombination -> {
+        tradeCombinations.forEach(tradeCombination -> {
             Set<CurrencyPair> longCurrencies = queue.computeIfAbsent(tradeCombination.getLongExchange(), (key) -> new HashSet<>());
             Set<CurrencyPair> shortCurrencies = queue.computeIfAbsent(tradeCombination.getShortExchange(), (key) -> new HashSet<>());
 
@@ -125,6 +104,7 @@ public class TickerService {
             try {
                 LOGGER.debug("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
 
+                // Get updated tickers for this exchange.
                 getTickers(exchange, activePairs)
                     .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker));
             } catch (ExchangeException e) {
@@ -161,8 +141,8 @@ public class TickerService {
      *
      * @return A shuffled list of all the TradeCombinations.
      */
-    public List<TradeCombination> getPollingExchangeTradeCombinations() {
-        final List<TradeCombination> allResult = new ArrayList<>(pollingExchangeTradeCombinations);
+    public List<TradeCombination> getExchangeTradeCombinations() {
+        final List<TradeCombination> allResult = new ArrayList<>(tradeCombinations);
 
         // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
         // executing trades than ones at the end of the list.
@@ -172,24 +152,11 @@ public class TickerService {
     }
 
     /**
-     * Return a shuffled list of streaming trade combinations. This method returns a new list each time, so it is safe
-     * to modify.
+     * Fetch tickers from the given exchange using whatever TickerStrategy is configured for the exchange.
      *
-     * @return A shuffled list of all the streaming TradeCombinations.
-     */
-    public List<TradeCombination> getStreamingExchangeTradeCombinations() {
-        final List<TradeCombination> streamingResult = new ArrayList<>(streamingExchangeTradeCombinations);
-
-        // If everything is always evaluated in the same order, earlier exchange/pair combos have a higher chance of
-        // executing trades than ones at the end of the list.
-        Collections.shuffle(streamingResult);
-
-        return streamingResult;
-    }
-
-    /**
-     * Fetch tickers from the given exchange. This method makes a network call to the exchange to get the latest
-     * prices, so it is a relatively expensive call.
+     * For "active" strategies (eg. single call, parallel) this will make a REST call to the exchange API, fetch
+     * a price and return it. For "passive" strategies (eg. streaming) we receive prices asynchronously and this
+     * call will simply fetch the latest price from the TickerStrategy.
      *
      * @param exchange The exchange to fetch prices from.
      * @param currencyPairs The currency pair to fetch prices for.
@@ -197,12 +164,14 @@ public class TickerService {
      */
     // TODO test public API instead of private
     List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
+        // get the appropriate TickerStrategy to use for this exchange
         TickerStrategy tickerStrategy = (TickerStrategy)exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY);
 
         try {
+            // try to get the tickers using the strategy
             List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
 
-            tickers.forEach(ticker -> LOGGER.debug("Ticker: {} {} {}/{}",
+            tickers.forEach(ticker -> LOGGER.debug("Updated ticker: {} {} {}/{}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 ticker.getInstrument(),
                 ticker.getBid(),

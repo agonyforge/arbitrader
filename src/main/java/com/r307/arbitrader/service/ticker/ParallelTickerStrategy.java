@@ -3,6 +3,8 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import org.apache.commons.collections4.ListUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -17,6 +19,7 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -29,16 +32,19 @@ public class ParallelTickerStrategy implements TickerStrategy {
     private final NotificationConfiguration notificationConfiguration;
     private final ExchangeService exchangeService;
     private final ErrorCollectorService errorCollectorService;
+    private final TickerEventPublisher tickerEventPublisher;
 
     @Inject
     public ParallelTickerStrategy(
         NotificationConfiguration notificationConfiguration,
         ErrorCollectorService errorCollectorService,
-        ExchangeService exchangeService) {
+        ExchangeService exchangeService,
+        TickerEventPublisher tickerEventPublisher) {
 
         this.notificationConfiguration = notificationConfiguration;
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
+        this.tickerEventPublisher = tickerEventPublisher;
     }
 
     @Override
@@ -47,16 +53,16 @@ public class ParallelTickerStrategy implements TickerStrategy {
         Integer tickerBatchDelay = getTickerExchangeDelay(exchange);
         int tickerPartitionSize = getTickerPartitionSize(exchange)
             .getOrDefault("batchSize", Integer.MAX_VALUE);
-
+        AtomicInteger i = new AtomicInteger(0); // used to avoid delaying the first batch
         long start = System.currentTimeMillis();
 
         // partition the list of tickers into batches
         List<Ticker> tickers = ListUtils.partition(currencyPairs, tickerPartitionSize)
             .stream()
             .peek(partition -> {
-                if (tickerBatchDelay != null) { // delay if we need to, to try and avoid rate limiting
+                if (tickerBatchDelay != null && i.getAndIncrement() != 0) { // delay if we need to, to try and avoid rate limiting
                     try {
-                        LOGGER.debug("Sleeping for {} ms...", tickerBatchDelay);
+                        LOGGER.debug("Waiting {} ms until next batch...", tickerBatchDelay);
                         Thread.sleep(tickerBatchDelay);
                     } catch (InterruptedException e) {
                         LOGGER.trace("Sleep interrupted");
@@ -107,6 +113,9 @@ public class ParallelTickerStrategy implements TickerStrategy {
                 exchange.getExchangeSpecification().getExchangeName(),
                 System.currentTimeMillis() - start);
         }
+
+        // publish events
+        tickers.forEach(ticker -> tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange)));
 
         // return whatever we got
         return tickers;

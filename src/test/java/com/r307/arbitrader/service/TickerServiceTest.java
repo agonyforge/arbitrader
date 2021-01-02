@@ -3,6 +3,8 @@ package com.r307.arbitrader.service;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
 import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
@@ -35,14 +37,15 @@ public class TickerServiceTest {
     private List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
     private TickerStrategy singleCallTickerStrategy;
     private TickerStrategy parallelTickerStrategy;
-
-    private ErrorCollectorService errorCollectorService;
-
     private TickerService tickerService;
     private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
 
     @Mock
     private TickerStrategyProvider tickerStrategyProvider;
+
+    @Mock
+    private TickerEventPublisher tickerEventPublisher;
 
     @Before
     public void setUp() {
@@ -59,8 +62,8 @@ public class TickerServiceTest {
 
         errorCollectorService = new ErrorCollectorService();
 
-        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
+        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
 
 
     }
@@ -83,8 +86,8 @@ public class TickerServiceTest {
 
         tickerService.initializeTickers(exchanges);
 
-        assertEquals(1, tickerService.pollingExchangeTradeCombinations.size());
-        assertTrue(tickerService.pollingExchangeTradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
+        assertEquals(1, tickerService.tradeCombinations.size());
+        assertTrue(tickerService.tradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
     }
 
     @Test
@@ -102,7 +105,7 @@ public class TickerServiceTest {
             .withMarginSupported(false)
             .build();
 
-        tickerService.pollingExchangeTradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
+        tickerService.tradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
 
         tickerService.refreshTickers();
 
@@ -175,11 +178,11 @@ public class TickerServiceTest {
     public void testGetTradeCombinations() {
         TradeCombination combination = mock(TradeCombination.class);
 
-        tickerService.pollingExchangeTradeCombinations.add(combination);
+        tickerService.tradeCombinations.add(combination);
 
-        List<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
+        List<TradeCombination> result = tickerService.getExchangeTradeCombinations();
 
-        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
+        assertNotSame(tickerService.tradeCombinations, result);
         assertTrue(result.contains(combination));
     }
 
@@ -196,6 +199,8 @@ public class TickerServiceTest {
 
         assertFalse(tickers.isEmpty());
         assertTrue(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());
@@ -215,6 +220,8 @@ public class TickerServiceTest {
         assertFalse(tickers.isEmpty());
         assertTrue(errorCollectorService.isEmpty());
 
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
+
         verify(exchange.getMarketDataService(), never()).getTickers(any());
         verify(exchange.getMarketDataService(), atLeastOnce()).getTicker(any());
     }
@@ -230,6 +237,8 @@ public class TickerServiceTest {
 
         assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());

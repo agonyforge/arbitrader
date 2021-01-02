@@ -2,7 +2,7 @@ package com.r307.arbitrader.service.ticker;
 
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
 import com.r307.arbitrader.service.model.TickerEvent;
 import info.bitrich.xchangestream.core.ProductSubscription;
 import info.bitrich.xchangestream.core.StreamingExchange;
@@ -31,14 +31,14 @@ public class StreamingTickerStrategy implements TickerStrategy {
     private final Map<StreamingExchange, Map<CurrencyPair, Ticker>> tickers = new HashMap<>();
     private final ErrorCollectorService errorCollectorService;
     private final ExchangeService exchangeService;
-    private final StreamingTickerEventPublisher streamingTickerEventPublisher;
+    private final TickerEventPublisher tickerEventPublisher;
 
     @Inject
     public StreamingTickerStrategy(ErrorCollectorService errorCollectorService, ExchangeService exchangeService,
-                                   StreamingTickerEventPublisher streamingTickerEventPublisher) {
+                                   TickerEventPublisher tickerEventPublisher) {
         this.errorCollectorService = errorCollectorService;
         this.exchangeService = exchangeService;
-        this.streamingTickerEventPublisher = streamingTickerEventPublisher;
+        this.tickerEventPublisher = tickerEventPublisher;
     }
 
     @Override
@@ -50,14 +50,15 @@ public class StreamingTickerStrategy implements TickerStrategy {
 
         StreamingExchange exchange = (StreamingExchange)stdExchange;
 
-        if (tickers.containsKey(exchange)) {
+        if (tickers.containsKey(exchange)) { // we are collecting tickers asynchronously so we can just return what we have
+
             // filter down to just a list of Tickers from the exchange and currency pairs that were requested
             return tickers.get(exchange).entrySet()
                 .stream()
                 .filter(entry -> currencyPairs.contains(entry.getKey()))
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
-        } else {
+        } else { // we're not receiving prices so we need to (re)connect
             ProductSubscription.ProductSubscriptionBuilder builder = ProductSubscription.create();
 
             currencyPairs.forEach(builder::addTicker);
@@ -68,7 +69,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
             subscriptions.addAll(subscribeAll(exchange, currencyPairs));
         }
 
-        // we go ahead and return an empty list here but it will fill up asynchronously as price events come in
+        // go ahead and return an empty list here but it will fill up asynchronously as price events come in
         return Collections.emptyList();
     }
 
@@ -85,10 +86,13 @@ public class StreamingTickerStrategy implements TickerStrategy {
                     .subscribe(
                         ticker -> {
                             tickers.computeIfAbsent(exchange, e -> new HashMap<>());
+
+                            // store the ticker in our cache and publish an event to notify anyone interested in it
                             tickers.get(exchange).put(pair, ticker);
-                            streamingTickerEventPublisher.publishTicker(new TickerEvent(ticker, true));
+                            tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange));
                         },
                         throwable -> {
+                            // collect errors quietly, but expose them in the debug log
                             errorCollectorService.collect(exchange, throwable);
                             LOGGER.debug("Unexpected checked exception: {}", throwable.getMessage(), throwable);
                     });
