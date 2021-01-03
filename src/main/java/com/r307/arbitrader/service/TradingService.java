@@ -91,11 +91,12 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
 
-        LOGGER.debug("Long/Short: {}/{} {} {}",
+        LOGGER.debug("Long/Short: {}/{} {} {}/{}",
             longExchangeName,
             shortExchangeName,
             spread.getCurrencyPair(),
-            spread.getIn());
+            spread.getIn(),
+            spread.getOut());
 
         // consider whether to enter a new position:
         //   are we being forced to open a position?

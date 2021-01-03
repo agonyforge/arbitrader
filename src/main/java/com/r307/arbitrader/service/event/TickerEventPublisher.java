@@ -25,7 +25,7 @@ public class TickerEventPublisher {
      * @param tickerEvent the TickerEvent to publish.
      */
     public void publishTicker(TickerEvent tickerEvent) {
-        LOGGER.debug("Publishing ticker event: {} {} {}/{}",
+        LOGGER.trace("Publishing ticker event: {} {} {}/{}",
             tickerEvent.getExchange().getExchangeSpecification().getExchangeName(),
             tickerEvent.getTicker().getInstrument(),
             tickerEvent.getTicker().getBid(),

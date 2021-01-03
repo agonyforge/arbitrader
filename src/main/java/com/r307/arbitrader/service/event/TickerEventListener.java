@@ -45,7 +45,7 @@ public class TickerEventListener {
     @EventListener
     @Async
     public void onTradeEvent(TickerEvent tickerEvent) {
-        LOGGER.debug("Received ticker event: {} {} {}/{}",
+        LOGGER.trace("Received ticker event: {} {} {}/{}",
             tickerEvent.getExchange().getExchangeSpecification().getExchangeName(),
             tickerEvent.getTicker().getInstrument(),
             tickerEvent.getTicker().getBid(),
@@ -66,12 +66,10 @@ public class TickerEventListener {
                 Spread spread = spreadService.computeSpread(tradeCombination);
 
                 if (spread != null) { // spread will be null if any tickers were missing for this combination
-                    LOGGER.debug("Analyzing trade for spread: {}", spread);
-
                     final long start = System.currentTimeMillis();
                     tradingService.trade(spread);
 
-                    LOGGER.debug("Analysis took {} ms", System.currentTimeMillis() - start);
+                    LOGGER.debug("Analysis for {} ({} ms)", spread, System.currentTimeMillis() - start);
                 }
             });
     }

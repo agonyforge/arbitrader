@@ -3,6 +3,7 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.event.TickerEventPublisher;
 import com.r307.arbitrader.service.model.TickerEvent;
 import org.apache.commons.collections4.ListUtils;
@@ -12,9 +13,7 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.service.marketdata.MarketDataService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
-import javax.inject.Inject;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +24,6 @@ import java.util.stream.Collectors;
 /**
  * A TickerStrategy that fetches each ticker with its own call to the API, but all in parallel.
  */
-@Component
 public class ParallelTickerStrategy implements TickerStrategy {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelTickerStrategy.class);
 
@@ -34,7 +32,6 @@ public class ParallelTickerStrategy implements TickerStrategy {
     private final ErrorCollectorService errorCollectorService;
     private final TickerEventPublisher tickerEventPublisher;
 
-    @Inject
     public ParallelTickerStrategy(
         NotificationConfiguration notificationConfiguration,
         ErrorCollectorService errorCollectorService,
@@ -48,7 +45,7 @@ public class ParallelTickerStrategy implements TickerStrategy {
     }
 
     @Override
-    public List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
+    public void getTickers(Exchange exchange, List<CurrencyPair> currencyPairs, TickerService tickerService) {
         MarketDataService marketDataService = exchange.getMarketDataService();
         Integer tickerBatchDelay = getTickerExchangeDelay(exchange);
         int tickerPartitionSize = getTickerPartitionSize(exchange)
@@ -114,11 +111,11 @@ public class ParallelTickerStrategy implements TickerStrategy {
                 System.currentTimeMillis() - start);
         }
 
+        // push ticker into TickerService
+        tickers.forEach(ticker -> tickerService.putTicker(exchange, ticker));
+
         // publish events
         tickers.forEach(ticker -> tickerEventPublisher.publishTicker(new TickerEvent(ticker, exchange)));
-
-        // return whatever we got
-        return tickers;
     }
 
     // return the batchDelay configuration parameter

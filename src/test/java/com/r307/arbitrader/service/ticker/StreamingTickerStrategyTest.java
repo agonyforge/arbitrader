@@ -3,7 +3,9 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
+import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -13,15 +15,23 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class StreamingTickerStrategyTest {
     @Mock
     private ErrorCollectorService errorCollectorService;
+
     @Mock
     private ExchangeService exchangeService;
+
+    @Mock
+    private TickerService tickerService;
+
     @Mock
     private TickerEventPublisher tickerEventPublisher;
 
@@ -38,9 +48,12 @@ public class StreamingTickerStrategyTest {
     public void testInvalidExchange() throws Exception {
         Exchange nonStreamingExchange = new ExchangeBuilder("CrazyCoinz",CurrencyPair.BTC_USD).build();
 
-        List<Ticker> result = streamingTickerStrategy.getTickers(
-            nonStreamingExchange, Collections.singletonList(CurrencyPair.BTC_USD));
+        streamingTickerStrategy.getTickers(
+            nonStreamingExchange,
+            Collections.singletonList(CurrencyPair.BTC_USD),
+            tickerService);
 
-        assertTrue(result.isEmpty());
+        verify(tickerService, never()).putTicker(eq(nonStreamingExchange), any(Ticker.class));
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
     }
 }

@@ -67,7 +67,7 @@ public class Spread {
 
     @Override
     public String toString() {
-        return String.format("%s/%s %s spread in/out: %f/%f",
+        return String.format("%s/%s %s %f/%f",
             longExchange.getExchangeSpecification().getExchangeName(),
             shortExchange.getExchangeSpecification().getExchangeName(),
             currencyPair,

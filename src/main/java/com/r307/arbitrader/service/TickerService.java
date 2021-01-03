@@ -98,19 +98,54 @@ public class TickerService {
         });
 
         // for each exchange, fetch its active currencies
-        queue.keySet().forEach(exchange -> {
+        queue.keySet().parallelStream().forEach(exchange -> {
             List<CurrencyPair> activePairs = new ArrayList<>(queue.get(exchange));
 
             try {
                 LOGGER.debug("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
 
-                // Get updated tickers for this exchange.
-                getTickers(exchange, activePairs)
-                    .forEach(ticker -> allTickers.put(tickerKey(exchange, (CurrencyPair)ticker.getInstrument()), ticker));
+                // get updated tickers for this exchange
+                fetchTickers(exchange, activePairs);
             } catch (ExchangeException e) {
                 LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());
             }
         });
+    }
+
+    /**
+     * Put a new Ticker into the TickerService. This is a convenience method for
+     * TickerStrategy implementations to use. This method will silently reject Tickers
+     * where both Tickers have a non-null timestamp and the old Ticker's timestamp is
+     * newer than the new Ticker's timestamp.
+     *
+     * If this seems like it breaks encapsulation a little bit, it does. I originally
+     * considered making TickerService a TickerEvent listener, but then there would be no
+     * guarantee that the TickerService update happened before the trade analysis had
+     * already consumed the event. This way we know we have synchronously updated the
+     * ticker map before publishing the event that will trigger listeners to consume
+     * that data.
+     *
+     * One alternative we could explore here would be to have two event types. One to
+     * represent that we received a new ticker and TickerService should consume it,
+     * and another to represent that TickerService has updated and trade analysis should
+     * re-analyze it. I think the two solutions would be functionally equivalent - the
+     * two events would be a little cleaner but more complicated. This way is simpler
+     * to understand and to write, and it provides the same guarantees.
+     *
+     * @param exchange The Exchange the Ticker was received from.
+     * @param ticker The Ticker to update.
+     */
+    public void putTicker(Exchange exchange, Ticker ticker) {
+        allTickers.compute(tickerKey(exchange, (CurrencyPair) ticker.getInstrument()),
+            (key, oldTicker) -> {
+                if (oldTicker == null
+                    || oldTicker.getTimestamp() == null
+                    || ticker.getTimestamp() == null
+                    || oldTicker.getTimestamp().before(ticker.getTimestamp()) ) {
+                    return ticker;
+                }
+                return oldTicker;
+            });
     }
 
     /**
@@ -160,30 +195,19 @@ public class TickerService {
      *
      * @param exchange The exchange to fetch prices from.
      * @param currencyPairs The currency pair to fetch prices for.
-     * @return A list of Tickers from the requested exchange.
      */
     // TODO test public API instead of private
-    List<Ticker> getTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
+    void fetchTickers(Exchange exchange, List<CurrencyPair> currencyPairs) {
         // get the appropriate TickerStrategy to use for this exchange
         TickerStrategy tickerStrategy = (TickerStrategy)exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY);
 
         try {
             // try to get the tickers using the strategy
-            List<Ticker> tickers = tickerStrategy.getTickers(exchange, currencyPairs);
-
-            tickers.forEach(ticker -> LOGGER.debug("Updated ticker: {} {} {}/{}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                ticker.getInstrument(),
-                ticker.getBid(),
-                ticker.getAsk()));
-
-            return tickers;
+            tickerStrategy.getTickers(exchange, currencyPairs, this);
         } catch (RuntimeException re) {
             LOGGER.debug("Unexpected runtime exception: " + re.getMessage(), re);
             errorCollectorService.collect(exchange, re);
         }
-
-        return Collections.emptyList();
     }
 
     /**
