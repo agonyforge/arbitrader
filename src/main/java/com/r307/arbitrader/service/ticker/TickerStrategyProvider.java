@@ -3,7 +3,7 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
 import com.r307.arbitrader.service.ExchangeService;
-import com.r307.arbitrader.service.event.StreamingTickerEventPublisher;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
@@ -16,16 +16,16 @@ import javax.inject.Inject;
 public class TickerStrategyProvider {
 
     private final ErrorCollectorService errorCollectorService;
-    private final StreamingTickerEventPublisher streamingTickerEventPublisher;
+    private final TickerEventPublisher tickerEventPublisher;
     private final NotificationConfiguration notificationConfiguration;
 
     @Inject
     public TickerStrategyProvider(ErrorCollectorService errorCollectorService,
-                                  StreamingTickerEventPublisher streamingTickerEventPublisher,
+                                  TickerEventPublisher tickerEventPublisher,
                                   NotificationConfiguration notificationConfiguration) {
 
         this.errorCollectorService = errorCollectorService;
-        this.streamingTickerEventPublisher = streamingTickerEventPublisher;
+        this.tickerEventPublisher = tickerEventPublisher;
         this.notificationConfiguration = notificationConfiguration;
     }
 
@@ -36,7 +36,7 @@ public class TickerStrategyProvider {
      * @return A StreamingTickerStrategy.
      */
     public TickerStrategy getStreamingTickerStrategy(ExchangeService exchangeService) {
-        return new StreamingTickerStrategy(errorCollectorService, exchangeService, streamingTickerEventPublisher);
+        return new StreamingTickerStrategy(errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     /**
@@ -46,7 +46,7 @@ public class TickerStrategyProvider {
      * @return A ParallelTickerStrategy.
      */
     public TickerStrategy getParallelTickerStrategy(ExchangeService exchangeService) {
-        return new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        return new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
     }
 
     /**
@@ -56,6 +56,6 @@ public class TickerStrategyProvider {
      * @return A SingleCallTickerStrategy.
      */
     public TickerStrategy getSingleCallTickerStrategy(ExchangeService exchangeService) {
-        return new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        return new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
     }
 }

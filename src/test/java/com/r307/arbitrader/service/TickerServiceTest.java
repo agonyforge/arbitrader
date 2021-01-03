@@ -3,6 +3,8 @@ package com.r307.arbitrader.service;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.event.TickerEventPublisher;
+import com.r307.arbitrader.service.model.TickerEvent;
 import com.r307.arbitrader.service.model.TradeCombination;
 import com.r307.arbitrader.service.ticker.ParallelTickerStrategy;
 import com.r307.arbitrader.service.ticker.SingleCallTickerStrategy;
@@ -11,6 +13,7 @@ import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
+import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.exceptions.ExchangeException;
@@ -21,9 +24,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,14 +37,15 @@ public class TickerServiceTest {
     private List<CurrencyPair> currencyPairs = Collections.singletonList(CurrencyPair.BTC_USD);
     private TickerStrategy singleCallTickerStrategy;
     private TickerStrategy parallelTickerStrategy;
-
-    private ErrorCollectorService errorCollectorService;
-
     private TickerService tickerService;
     private ExchangeService exchangeService;
+    private ErrorCollectorService errorCollectorService;
 
     @Mock
     private TickerStrategyProvider tickerStrategyProvider;
+
+    @Mock
+    private TickerEventPublisher tickerEventPublisher;
 
     @Before
     public void setUp() {
@@ -59,8 +62,8 @@ public class TickerServiceTest {
 
         errorCollectorService = new ErrorCollectorService();
 
-        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
-        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService);
+        singleCallTickerStrategy = new SingleCallTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
+        parallelTickerStrategy = new ParallelTickerStrategy(notificationConfiguration, errorCollectorService, exchangeService, tickerEventPublisher);
 
 
     }
@@ -83,8 +86,8 @@ public class TickerServiceTest {
 
         tickerService.initializeTickers(exchanges);
 
-        assertEquals(1, tickerService.pollingExchangeTradeCombinations.size());
-        assertTrue(tickerService.pollingExchangeTradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
+        assertEquals(1, tickerService.tradeCombinations.size());
+        assertTrue(tickerService.tradeCombinations.contains(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR)));
     }
 
     @Test
@@ -102,7 +105,7 @@ public class TickerServiceTest {
             .withMarginSupported(false)
             .build();
 
-        tickerService.pollingExchangeTradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
+        tickerService.tradeCombinations.add(new TradeCombination(exchangeB, exchangeA, CURRENCY_PAIR));
 
         tickerService.refreshTickers();
 
@@ -175,16 +178,16 @@ public class TickerServiceTest {
     public void testGetTradeCombinations() {
         TradeCombination combination = mock(TradeCombination.class);
 
-        tickerService.pollingExchangeTradeCombinations.add(combination);
+        tickerService.tradeCombinations.add(combination);
 
-        List<TradeCombination> result = tickerService.getPollingExchangeTradeCombinations();
+        List<TradeCombination> result = tickerService.getExchangeTradeCombinations();
 
-        assertNotSame(tickerService.pollingExchangeTradeCombinations, result);
+        assertNotSame(tickerService.tradeCombinations, result);
         assertTrue(result.contains(combination));
     }
 
     @Test
-    public void testGetTickers() throws IOException {
+    public void testFetchTickers() throws IOException {
         Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
             .withTickerStrategy(singleCallTickerStrategy)
             .withTickers(
@@ -192,17 +195,19 @@ public class TickerServiceTest {
                 Collections.singletonList(CurrencyPair.BTC_USD))
             .build();
 
-        List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
+        tickerService.fetchTickers(exchange, currencyPairs);
 
-        assertFalse(tickers.isEmpty());
         assertTrue(errorCollectorService.isEmpty());
+        assertNotNull(tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());
     }
 
     @Test
-    public void testGetParallelTickers() throws IOException {
+    public void testFetchParallelTickers() throws IOException {
         Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
             .withTickerStrategy(parallelTickerStrategy)
             .withTickers(
@@ -210,28 +215,187 @@ public class TickerServiceTest {
                 Collections.singletonList(CurrencyPair.BTC_USD))
             .build();
 
-        List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
+        tickerService.fetchTickers(exchange, currencyPairs);
 
-        assertFalse(tickers.isEmpty());
         assertTrue(errorCollectorService.isEmpty());
+        assertNotNull(tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+
+        verify(tickerEventPublisher).publishTicker(any(TickerEvent.class));
 
         verify(exchange.getMarketDataService(), never()).getTickers(any());
         verify(exchange.getMarketDataService(), atLeastOnce()).getTicker(any());
     }
 
     @Test
-    public void testGetTickersException() throws IOException {
+    public void testFetchTickersException() throws IOException {
         Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
             .withTickerStrategy(singleCallTickerStrategy)
             .withTickers(new ExchangeException("Boom!"))
             .build();
 
-        List<Ticker> tickers = tickerService.getTickers(exchange, currencyPairs);
+        tickerService.fetchTickers(exchange, currencyPairs);
 
-        assertTrue(tickers.isEmpty());
         assertFalse(errorCollectorService.isEmpty());
+        assertNull(tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+
+        verify(tickerEventPublisher, never()).publishTicker(any(TickerEvent.class));
 
         verify(exchange.getMarketDataService()).getTickers(any());
         verify(exchange.getMarketDataService(), never()).getTicker(any());
+    }
+
+    @Test
+    public void testPutTicker() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker oldTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609633979L))
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609634008L))
+            .build();
+
+        tickerService.allTickers.put(
+            tickerService.tickerKey(exchange, CurrencyPair.BTC_USD),
+            oldTicker);
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(newTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+    }
+
+    @Test
+    public void testPutTickerOlderTicker() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker oldTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609634008L))
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609633979L))
+            .build();
+
+        tickerService.allTickers.put(
+            tickerService.tickerKey(exchange, CurrencyPair.BTC_USD),
+            oldTicker);
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(oldTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+    }
+
+    @Test
+    public void testPutTickerOldNull() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609633979L))
+            .build();
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(newTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+    }
+
+    @Test
+    public void testPutTickerNoOldTimestamp() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker oldTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609633979L))
+            .build();
+
+        tickerService.allTickers.put(
+            tickerService.tickerKey(exchange, CurrencyPair.BTC_USD),
+            oldTicker);
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(newTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+    }
+
+    @Test
+    public void testPutTickerNoNewTimestamp() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker oldTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609634008L))
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .build();
+
+        tickerService.allTickers.put(
+            tickerService.tickerKey(exchange, CurrencyPair.BTC_USD),
+            oldTicker);
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(newTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
+    }
+
+    @Test
+    public void testPutTickerNoTimestamps() throws IOException {
+        Exchange exchange = new ExchangeBuilder("CrazyCoinz", CurrencyPair.BTC_USD)
+            .withTickerStrategy(singleCallTickerStrategy)
+            .withHomeCurrency(Currency.USD)
+            .build();
+        Ticker oldTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .timestamp(new Date(1609634008L))
+            .build();
+        Ticker newTicker = new Ticker.Builder()
+            .bid(new BigDecimal("120.00"))
+            .ask(new BigDecimal("123.00"))
+            .instrument(CurrencyPair.BTC_USD)
+            .build();
+
+        tickerService.allTickers.put(
+            tickerService.tickerKey(exchange, CurrencyPair.BTC_USD),
+            oldTicker);
+
+        tickerService.putTicker(exchange, newTicker);
+
+        assertEquals(newTicker, tickerService.getTicker(exchange, CurrencyPair.BTC_USD));
     }
 }

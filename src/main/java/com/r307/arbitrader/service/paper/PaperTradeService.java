@@ -1,7 +1,6 @@
 package com.r307.arbitrader.service.paper;
 
 import com.r307.arbitrader.config.PaperConfiguration;
-import com.r307.arbitrader.service.ExchangeFeeCache;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import org.knowm.xchange.currency.Currency;
@@ -25,20 +24,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class PaperTradeService extends BaseExchangeService<PaperExchange> implements TradeService {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(PaperTradeService.class);
-    public static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     private final Boolean  autoFill;
 
     TickerService tickerService;
-
     ExchangeService exchangeService;
-
     TradeService tradeService;
-
     List<LimitOrder> orders=new ArrayList<>();
-
     UserTrades userTrades = new UserTrades (new ArrayList<>(), Trades.TradeSortType.SortByTimestamp);
 
     public PaperTradeService(PaperExchange exchange, TradeService tradeService, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paper) {
@@ -140,13 +134,10 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     fillOrder(order);
                 } else {
                     Order.OrderType type = order.getType();
-                    Ticker ticker;
-                    try {
-                        ticker = exchange.getMarketDataService().getTicker(order.getCurrencyPair());
-                    } catch (IOException e) {
-                        LOGGER.warn("Failed to fetch ticker for paper exchange {}", exchange.getExchangeSpecification().getExchangeName());
-                        ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
-                    }
+                    Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
+
+                    LOGGER.debug("Ticker fetch for paper trading: {}/{}", ticker.getBid(), ticker.getAsk());
+
                     //Check if limit price was reached
                     boolean matchedOrder = type == Order.OrderType.BID && ticker.getAsk().compareTo(order.getLimitPrice()) <= 0 || type == Order.OrderType.ASK && ticker.getBid().compareTo(order.getLimitPrice()) >= 0;
                     if (matchedOrder) {

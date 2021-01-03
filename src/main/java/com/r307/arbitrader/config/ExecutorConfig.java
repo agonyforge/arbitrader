@@ -15,10 +15,10 @@ public class ExecutorConfig {
     @Bean
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // Open to discussion
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(5);
+
+        executor.setCorePoolSize(0);
+        executor.setMaxPoolSize(Runtime.getRuntime().availableProcessors() + 1);
+//        executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("async-trade-pool-");
         executor.initialize();
 

@@ -64,4 +64,14 @@ public class Spread {
     public BigDecimal getOut() {
         return out;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s/%s %s %f/%f",
+            longExchange.getExchangeSpecification().getExchangeName(),
+            shortExchange.getExchangeSpecification().getExchangeName(),
+            currencyPair,
+            in,
+            out);
+    }
 }
