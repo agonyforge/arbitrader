@@ -21,16 +21,23 @@ import java.util.UUID;
 
 public class PaperAccountService implements AccountService {
 
-    AccountService accountService;
+    private final AccountService accountService;
+    private final Currency homeCurrency;
 
-    Currency homeCurrency;
-
-    BigDecimal balance;
+    private BigDecimal balance;
 
     public PaperAccountService (AccountService accountService, Currency homeCurrency, BigDecimal initialBalance) {
         this.accountService=accountService;
         this.homeCurrency=homeCurrency;
         this.balance=initialBalance;
+    }
+
+    BigDecimal getBalance() {
+        return balance;
+    }
+
+    void setBalance(BigDecimal value) {
+        balance = value;
     }
 
     public AccountInfo getAccountInfo() {

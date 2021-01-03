@@ -1,7 +1,6 @@
 package com.r307.arbitrader.service.paper;
 
 import com.r307.arbitrader.config.PaperConfiguration;
-import com.r307.arbitrader.service.ExchangeFeeCache;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import org.knowm.xchange.Exchange;
@@ -21,15 +20,18 @@ import java.util.List;
 
 public class PaperExchange implements Exchange {
 
-    Exchange realExchange;
-
-    PaperTradeService tradeService;
-    PaperAccountService accountService;
+    private final Exchange realExchange;
+    private final PaperTradeService tradeService;
+    private final PaperAccountService accountService;
 
     public PaperExchange(Exchange exchange, Currency homeCurrency, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paper) {
         this.realExchange =exchange;
         this.tradeService=new PaperTradeService(this, exchange.getTradeService(), tickerService, exchangeService, paper);
         this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency, new BigDecimal(100));
+    }
+
+    PaperAccountService getPaperAccountService() {
+        return accountService;
     }
 
     @Override
