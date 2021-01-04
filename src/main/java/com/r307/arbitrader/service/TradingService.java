@@ -661,6 +661,9 @@ public class TradingService {
         } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
             || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
 
+        // invalidate the balance cache because we *know* it's incorrect now
+        exchangeBalanceCache.invalidate(longExchange, shortExchange);
+
         // yay!
         LOGGER.info("Trades executed successfully!");
     }

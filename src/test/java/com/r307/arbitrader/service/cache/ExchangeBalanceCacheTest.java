@@ -60,4 +60,21 @@ public class ExchangeBalanceCacheTest extends BaseTestCase {
 
         assertNull(cache.getCachedBalance(exchangeA));
     }
+
+    @Test
+    public void testCacheInvalidation() {
+        BigDecimal valueA = new BigDecimal("123.45");
+        BigDecimal valueB = new BigDecimal("987.65");
+
+        cache.setCachedBalance(exchangeA, valueA);
+        cache.setCachedBalance(exchangeB, valueB);
+
+        assertEquals(valueA, cache.getCachedBalance(exchangeA));
+        assertEquals(valueB, cache.getCachedBalance(exchangeB));
+
+        cache.invalidate(exchangeA);
+
+        assertNull(cache.getCachedBalance(exchangeA));
+        assertEquals(valueB, cache.getCachedBalance(exchangeB));
+    }
 }
