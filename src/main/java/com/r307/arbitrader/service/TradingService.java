@@ -5,6 +5,7 @@ import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
+import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
@@ -57,6 +58,7 @@ public class TradingService {
     private final ExchangeService exchangeService;
     private final SpreadService spreadService;
     private final NotificationService notificationService;
+    private final ExchangeBalanceCache exchangeBalanceCache = new ExchangeBalanceCache();
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
@@ -142,6 +144,9 @@ public class TradingService {
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
+
+        // TODO this seems to be causing a rate limit problem on Kraken
+        // might need to cache account balances?
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
@@ -800,7 +805,14 @@ public class TradingService {
                 .parallel()
                 .map(exchange -> {
                     try {
-                        return exchangeService.getAccountBalance(exchange);
+                        BigDecimal balance = exchangeBalanceCache.getCachedBalance(exchange);
+
+                        if (balance == null) {
+                            balance = exchangeService.getAccountBalance(exchange);
+                            exchangeBalanceCache.setCachedBalance(exchange, balance);
+                        }
+
+                        return balance;
                     } catch (IOException e) {
                         LOGGER.trace("IOException fetching {} account balance",
                             exchange.getExchangeSpecification().getExchangeName());

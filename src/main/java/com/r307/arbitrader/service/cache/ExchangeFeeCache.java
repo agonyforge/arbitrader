@@ -1,4 +1,4 @@
-package com.r307.arbitrader.service;
+package com.r307.arbitrader.service.cache;
 
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;

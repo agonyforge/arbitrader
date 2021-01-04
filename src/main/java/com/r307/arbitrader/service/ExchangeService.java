@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
 import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.knowm.xchange.Exchange;

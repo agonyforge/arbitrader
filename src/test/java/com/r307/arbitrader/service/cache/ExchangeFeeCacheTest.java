@@ -1,5 +1,6 @@
-package com.r307.arbitrader.service;
+package com.r307.arbitrader.service.cache;
 
+import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
