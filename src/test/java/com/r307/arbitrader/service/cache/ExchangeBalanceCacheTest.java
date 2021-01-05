@@ -2,7 +2,6 @@ package com.r307.arbitrader.service.cache;
 
 import com.r307.arbitrader.BaseTestCase;
 import com.r307.arbitrader.ExchangeBuilder;
-import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;

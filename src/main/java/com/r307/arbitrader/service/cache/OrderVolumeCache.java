@@ -30,11 +30,21 @@ public class OrderVolumeCache {
      * @return The volume of the order, if it is in the cache.
      */
     public BigDecimal getCachedVolume(Exchange exchange, String orderId) {
+        BigDecimal value = cache.get(computeCacheKey(exchange, orderId));
+
+        if (value == null) {
+            LOGGER.debug("Cache returned null for order {}:{}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                orderId);
+
+            return null;
+        }
+
         LOGGER.debug("Cache returned a cached volume for order {}:{}",
             exchange.getExchangeSpecification().getExchangeName(),
             orderId);
 
-        return cache.get(computeCacheKey(exchange, orderId));
+        return value;
     }
 
     /**
@@ -62,8 +72,8 @@ public class OrderVolumeCache {
         // if the cache is too large, start removing items (FIFO) until it has CACHE_SIZE items
         if (keys.size() > CACHE_SIZE) {
             while (keys.size() > CACHE_SIZE) {
-                cache.remove(keys.get(keys.size() - 1));
-                keys.remove(keys.size() - 1);
+                cache.remove(keys.get(0));
+                keys.remove(0);
             }
         }
     }
