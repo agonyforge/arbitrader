@@ -6,6 +6,7 @@ import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
+import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
@@ -59,6 +60,7 @@ public class TradingService {
     private final SpreadService spreadService;
     private final NotificationService notificationService;
     private final ExchangeBalanceCache exchangeBalanceCache = new ExchangeBalanceCache();
+    private final OrderVolumeCache orderVolumeCache = new OrderVolumeCache();
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
@@ -703,6 +705,13 @@ public class TradingService {
         // first, try to fetch the order from the exchange by its ID and just return its volume
         // not supported by all exchanges
         try {
+            LOGGER.debug("{}: Attempting to fetch volume from cache: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+            BigDecimal cached = orderVolumeCache.getCachedVolume(exchange, orderId);
+
+            if (cached != null) {
+                return cached;
+            }
+
             LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
             BigDecimal volume = Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
                 .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
@@ -710,6 +719,9 @@ public class TradingService {
                 .findFirst()
                 .orElseThrow(() -> new OrderNotFoundException(exchange, orderId))
                 .getOriginalAmount();
+
+            // cache the volume we got from the API so we don't make more API calls for it
+            orderVolumeCache.setCachedVolume(exchange, orderId, volume);
 
             LOGGER.debug("{}: Order {} volume is: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -734,16 +746,35 @@ public class TradingService {
         }
 
         // next, try to get the account balance for the BASE pair (eg. the BTC in BTC/USD)
+        BigDecimal cached = exchangeBalanceCache.getCachedBalance(exchange);
+
+        if (cached != null) {
+            LOGGER.debug("{}: Using cached {} balance: {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                currencyPair.base.toString(),
+                cached);
+
+            return cached;
+        }
+
         try {
             BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base);
 
+            exchangeBalanceCache.setCachedBalance(exchange, balance);
+
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
-                LOGGER.debug("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
+                LOGGER.debug("{}: Using {} balance: {}",
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair.base.toString(),
+                    balance);
 
                 return balance;
             }
         } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), e);
+            LOGGER.warn("{}: Unable to fetch {} account balance",
+                exchange.getExchangeSpecification().getExchangeName(),
+                currencyPair.base.toString(),
+                e);
         }
 
         // finally, just return the default value
