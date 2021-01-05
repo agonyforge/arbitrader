@@ -9,10 +9,10 @@ import org.knowm.xchange.currency.CurrencyPair;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static com.r307.arbitrader.service.cache.OrderVolumeCache.CACHE_SIZE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 
 public class OrderVolumeCacheTest extends BaseTestCase {
     private Exchange exchangeA;
@@ -22,11 +22,8 @@ public class OrderVolumeCacheTest extends BaseTestCase {
 
     @Before
     public void setUp() throws IOException {
-        exchangeA = new ExchangeBuilder("CoinDynasty", CurrencyPair.BTC_USD)
-            .build();
-
-        exchangeB = new ExchangeBuilder("CoinSnake", CurrencyPair.BTC_USD)
-            .build();
+        exchangeA = new ExchangeBuilder("CoinDynasty", CurrencyPair.BTC_USD).build();
+        exchangeB = new ExchangeBuilder("CoinSnake", CurrencyPair.BTC_USD).build();
 
         cache = new OrderVolumeCache();
     }
@@ -39,10 +36,10 @@ public class OrderVolumeCacheTest extends BaseTestCase {
         cache.setCachedVolume(exchangeA, "1", valueA);
         cache.setCachedVolume(exchangeB, "2", valueB);
 
-        assertEquals(valueA, cache.getCachedVolume(exchangeA, "1"));
-        assertNull(cache.getCachedVolume(exchangeA, "2"));
-        assertEquals(valueB, cache.getCachedVolume(exchangeB, "2"));
-        assertNull(cache.getCachedVolume(exchangeB, "1"));
+        assertEquals(Optional.of(valueA), cache.getCachedVolume(exchangeA, "1"));
+        assertEquals(Optional.empty(), cache.getCachedVolume(exchangeA, "2"));
+        assertEquals(Optional.of(valueB), cache.getCachedVolume(exchangeB, "2"));
+        assertEquals(Optional.empty(), cache.getCachedVolume(exchangeB, "1"));
     }
 
     @Test
@@ -53,10 +50,10 @@ public class OrderVolumeCacheTest extends BaseTestCase {
         cache.setCachedVolume(exchangeA, "1", valueA);
         cache.setCachedVolume(exchangeB, "1", valueB);
 
-        assertEquals(valueA, cache.getCachedVolume(exchangeA, "1"));
-        assertNull(cache.getCachedVolume(exchangeA, "2"));
-        assertEquals(valueB, cache.getCachedVolume(exchangeB, "1"));
-        assertNull(cache.getCachedVolume(exchangeB, "2"));
+        assertEquals(Optional.of(valueA), cache.getCachedVolume(exchangeA, "1"));
+        assertEquals(Optional.empty(), cache.getCachedVolume(exchangeA, "2"));
+        assertEquals(Optional.of(valueB), cache.getCachedVolume(exchangeB, "1"));
+        assertEquals(Optional.empty(), cache.getCachedVolume(exchangeB, "2"));
     }
 
     @Test
@@ -70,7 +67,7 @@ public class OrderVolumeCacheTest extends BaseTestCase {
 
         for (int i = 0; i < CACHE_SIZE; i++) {
             assertEquals(
-                new BigDecimal(i + ".00"),
+                Optional.of(new BigDecimal(i + ".00")),
                 cache.getCachedVolume(exchangeA, "Order" + i));
         }
 
@@ -79,7 +76,7 @@ public class OrderVolumeCacheTest extends BaseTestCase {
 
         cache.setCachedVolume(exchangeA, lastOrderId, lastValue);
 
-        assertEquals(lastValue, cache.getCachedVolume(exchangeA, lastOrderId));
-        assertNull(cache.getCachedVolume(exchangeA, "Order0"));
+        assertEquals(Optional.of(lastValue), cache.getCachedVolume(exchangeA, lastOrderId));
+        assertEquals(Optional.empty(), cache.getCachedVolume(exchangeA, "Order0"));
     }
 }

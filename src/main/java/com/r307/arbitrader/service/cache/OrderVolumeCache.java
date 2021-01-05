@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Cache order volumes to avoid rate limiting. Order volumes don't change
@@ -29,7 +30,7 @@ public class OrderVolumeCache {
      * @param orderId The order ID of the order.
      * @return The volume of the order, if it is in the cache.
      */
-    public BigDecimal getCachedVolume(Exchange exchange, String orderId) {
+    public Optional<BigDecimal> getCachedVolume(Exchange exchange, String orderId) {
         BigDecimal value = cache.get(computeCacheKey(exchange, orderId));
 
         if (value == null) {
@@ -37,14 +38,14 @@ public class OrderVolumeCache {
                 exchange.getExchangeSpecification().getExchangeName(),
                 orderId);
 
-            return null;
+            return Optional.empty();
         }
 
         LOGGER.debug("Cache returned a cached volume for order {}:{}",
             exchange.getExchangeSpecification().getExchangeName(),
             orderId);
 
-        return value;
+        return Optional.of(value);
     }
 
     /**

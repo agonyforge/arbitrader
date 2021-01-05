@@ -9,9 +9,9 @@ import org.knowm.xchange.currency.CurrencyPair;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 
 public class ExchangeBalanceCacheTest extends BaseTestCase {
     private Exchange exchangeA;
@@ -36,7 +36,7 @@ public class ExchangeBalanceCacheTest extends BaseTestCase {
 
         cache.setCachedBalance(exchangeA, value);
 
-        assertEquals(value, cache.getCachedBalance(exchangeA));
+        assertEquals(Optional.of(value), cache.getCachedBalance(exchangeA));
     }
 
     @Test
@@ -47,8 +47,8 @@ public class ExchangeBalanceCacheTest extends BaseTestCase {
         cache.setCachedBalance(exchangeA, valueA);
         cache.setCachedBalance(exchangeB, valueB);
 
-        assertEquals(valueA, cache.getCachedBalance(exchangeA));
-        assertEquals(valueB, cache.getCachedBalance(exchangeB));
+        assertEquals(Optional.of(valueA), cache.getCachedBalance(exchangeA));
+        assertEquals(Optional.of(valueB), cache.getCachedBalance(exchangeB));
     }
 
     @Test
@@ -57,7 +57,7 @@ public class ExchangeBalanceCacheTest extends BaseTestCase {
 
         cache.setCachedBalance(exchangeA, value, System.currentTimeMillis() - (ExchangeBalanceCache.CACHE_TIMEOUT + 1));
 
-        assertNull(cache.getCachedBalance(exchangeA));
+        assertEquals(Optional.empty(), cache.getCachedBalance(exchangeA));
     }
 
     @Test
@@ -68,12 +68,12 @@ public class ExchangeBalanceCacheTest extends BaseTestCase {
         cache.setCachedBalance(exchangeA, valueA);
         cache.setCachedBalance(exchangeB, valueB);
 
-        assertEquals(valueA, cache.getCachedBalance(exchangeA));
-        assertEquals(valueB, cache.getCachedBalance(exchangeB));
+        assertEquals(Optional.of(valueA), cache.getCachedBalance(exchangeA));
+        assertEquals(Optional.of(valueB), cache.getCachedBalance(exchangeB));
 
         cache.invalidate(exchangeA);
 
-        assertNull(cache.getCachedBalance(exchangeA));
-        assertEquals(valueB, cache.getCachedBalance(exchangeB));
+        assertEquals(Optional.empty(), cache.getCachedBalance(exchangeA));
+        assertEquals(Optional.of(valueB), cache.getCachedBalance(exchangeB));
     }
 }

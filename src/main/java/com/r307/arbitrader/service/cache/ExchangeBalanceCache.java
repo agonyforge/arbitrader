@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -28,21 +29,21 @@ public class ExchangeBalanceCache {
      * @param exchange The exchange to retrieve a balance for.
      * @return The account balance for the requested exchange.
      */
-    public BigDecimal getCachedBalance(Exchange exchange) {
+    public Optional<BigDecimal> getCachedBalance(Exchange exchange) {
         AccountBalance balance = cache.get(exchange);
 
         if (balance == null) {
             LOGGER.debug("Cache did not contain a value for exchange {}", exchange.getExchangeSpecification().getExchangeName());
-            return null;
+            return Optional.empty();
         }
 
         if (System.currentTimeMillis() - balance.getTimestamp() > CACHE_TIMEOUT) {
             LOGGER.debug("Cache had an expired value for exchange {}", exchange.getExchangeSpecification().getExchangeName());
-            return null;
+            return Optional.empty();
         }
 
         LOGGER.debug("Cache returned a cached value for exchange {}", exchange.getExchangeSpecification().getExchangeName());
-        return balance.getAmount();
+        return Optional.of(balance.getAmount());
     }
 
     /**

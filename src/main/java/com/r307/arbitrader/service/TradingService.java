@@ -699,65 +699,40 @@ public class TradingService {
      * @return An order volume.
      */
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
-        // first, try to fetch the order from the exchange by its ID and just return its volume
-        // not supported by all exchanges
-        try {
-            LOGGER.debug("{}: Attempting to fetch volume from cache: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
-            BigDecimal cached = orderVolumeCache.getCachedVolume(exchange, orderId);
+        // first, try to fetch the order from the cache
+        // next, fetch from the exchange by its ID and just return its volume
+        // not supported by all exchanges, so then we have to fall back to alternative methods
+        LOGGER.debug("{}: Attempting to fetch volume from cache: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+        BigDecimal volume = orderVolumeCache.getCachedVolume(exchange, orderId)
+            .orElseGet(() -> {
+                LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+                try {
+                    return Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
+                        .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new OrderNotFoundException(exchange, orderId))
+                        .getOriginalAmount();
+                } catch (NotAvailableFromExchangeException e) {
+                    LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
+                } catch (IllegalStateException | IOException e) {
+                    LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
+                }
 
-            if (cached != null) {
-                return cached;
-            }
+                return BigDecimal.ZERO;
+            });
 
-            LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
-            BigDecimal volume = Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
-                .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new OrderNotFoundException(exchange, orderId))
-                .getOriginalAmount();
-
-            // cache the volume we got from the API so we don't make more API calls for it
+        // if we got a greater-than-zero volume, we're done
+        // cache it and return it
+        if (BigDecimal.ZERO.compareTo(volume) < 0) {
             orderVolumeCache.setCachedVolume(exchange, orderId, volume);
-
-            LOGGER.debug("{}: Order {} volume is: {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                orderId,
-                volume);
-
-            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalStateException("Volume must be more than zero.");
-            }
-
-            LOGGER.debug("{}: Using volume: {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                orderId);
-
             return volume;
-        } catch (NotAvailableFromExchangeException e) {
-            LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
-        } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
-        } catch (IllegalStateException e) {
-            LOGGER.debug(e.getMessage());
         }
 
-        // next, try to get the account balance for the BASE pair (eg. the BTC in BTC/USD)
-        BigDecimal cached = exchangeBalanceCache.getCachedBalance(exchange);
-
-        if (cached != null) {
-            LOGGER.debug("{}: Using cached {} balance: {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                currencyPair.base.toString(),
-                cached);
-
-            return cached;
-        }
-
+        // we couldn't get an order volume by ID, so next we try to get the account balance
+        // for the BASE pair (eg. the BTC in BTC/USD)
         try {
             BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base);
-
-            exchangeBalanceCache.setCachedBalance(exchange, balance);
 
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
                 LOGGER.debug("{}: Using {} balance: {}",
@@ -765,6 +740,7 @@ public class TradingService {
                     currencyPair.base.toString(),
                     balance);
 
+                orderVolumeCache.setCachedVolume(exchange, orderId, balance);
                 return balance;
             }
         } catch (IOException e) {
@@ -774,11 +750,12 @@ public class TradingService {
                 e);
         }
 
-        // finally, just return the default value
+        // finally, give up and return the "default" value
         LOGGER.debug("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
 
+        orderVolumeCache.setCachedVolume(exchange, orderId, defaultVolume);
         return defaultVolume;
     }
 
@@ -834,23 +811,26 @@ public class TradingService {
         } else {
             BigDecimal smallestBalance = Arrays.stream(exchanges)
                 .parallel()
-                .map(exchange -> {
-                    try {
-                        BigDecimal balance = exchangeBalanceCache.getCachedBalance(exchange);
+                .map(exchange -> exchangeBalanceCache.getCachedBalance(exchange) // try the cache first
+                    .orElseGet(() -> {
+                        try {
+                            BigDecimal balance = exchangeService.getAccountBalance(exchange); // then make the API call
 
-                        if (balance == null) {
-                            balance = exchangeService.getAccountBalance(exchange);
-                            exchangeBalanceCache.setCachedBalance(exchange, balance);
+                            exchangeBalanceCache.setCachedBalance(exchange, balance); // cache the returned value
+
+                            return balance;
+                        } catch (IOException e) {
+                            LOGGER.info("IOException fetching {} account balance", exchange.getExchangeSpecification().getExchangeName());
+
+                            // set the cache to zero so we don't keep spamming the API when there's an IOException
+                            // we may have gotten the IOE because of rate limiting
+                            // this cache entry will only last a short time
+                            // but it will make us back off awhile before trying again
+                            exchangeBalanceCache.setCachedBalance(exchange, BigDecimal.ZERO);
                         }
 
-                        return balance;
-                    } catch (IOException e) {
-                        LOGGER.trace("IOException fetching {} account balance",
-                            exchange.getExchangeSpecification().getExchangeName());
-                    }
-
-                    return BigDecimal.ZERO;
-                })
+                        return BigDecimal.ZERO; // just return a zero balance if we couldn't get anything
+                    }))
                 .min(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO);
 

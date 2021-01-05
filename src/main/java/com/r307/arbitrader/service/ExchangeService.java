@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
@@ -221,11 +222,11 @@ public class ExchangeService {
      * @return The fee expressed as a percentage, ie. 0.0016 for 0.16%
      */
     public BigDecimal getExchangeFee(Exchange exchange, CurrencyPair currencyPair, boolean isQuiet) {
-        BigDecimal cachedFee = feeCache.getCachedFee(exchange, currencyPair);
+        Optional<BigDecimal> cachedFee = feeCache.getCachedFee(exchange, currencyPair);
 
         // we cache fees because they don't change frequently, but we use them frequently and making API calls is expensive
-        if (cachedFee != null) {
-            return cachedFee;
+        if (cachedFee.isPresent()) {
+            return cachedFee.get();
         }
 
         // if feeOverride is configured, just use that
