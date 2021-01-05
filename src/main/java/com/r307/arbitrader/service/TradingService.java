@@ -146,9 +146,6 @@ public class TradingService {
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
-
-        // TODO this seems to be causing a rate limit problem on Kraken
-        // might need to cache account balances?
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
