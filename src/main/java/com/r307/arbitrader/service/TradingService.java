@@ -111,19 +111,24 @@ public class TradingService {
         // adding more different conditions that can affect whether we trade or not.
         if (activePosition == null) {
             if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
-                entryPosition(spread);
-            } else if (spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) <= 0) {
-                entryPosition(spread);
+                LOGGER.debug("enterPosition() - forced");
+                enterPosition(spread);
+            } else if (spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                LOGGER.debug("enterPosition() - spread in {} > entry spread {}", spread.getIn(), tradingConfiguration.getEntrySpread());
+                enterPosition(spread);
             }
         } else if (spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
                 && longExchangeName.equals(activePosition.getLongTrade().getExchange())
                 && shortExchangeName.equals(activePosition.getShortTrade().getExchange())) {
 
             if (conditionService.isForceCloseCondition()) {
+                LOGGER.debug("exitPosition() - forced");
                 exitPosition(spread);
             } else if (isActivePositionExpired()) {
+                LOGGER.debug("exitPosition() - active position timed out");
                 exitPosition(spread);
-            } else if (spread.getOut().compareTo(tradingConfiguration.getExitTarget()) <= 0) {
+            } else if (spread.getOut().compareTo(activePosition.getExitTarget()) < 0) {
+                LOGGER.debug("exitPosition() - spread out {} < exit target {}", spread.getOut(), activePosition.getExitTarget());
                 exitPosition(spread);
             }
         }
@@ -138,7 +143,7 @@ public class TradingService {
     }
 
     // enter a position
-    private void entryPosition(Spread spread) {
+    private void enterPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
@@ -383,6 +388,8 @@ public class TradingService {
         logExitTrade();
 
         try {
+            LOGGER.info("Exit spread: {}", spread.getOut());
+            LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                 longExchangeName,
                 spread.getCurrencyPair(),
