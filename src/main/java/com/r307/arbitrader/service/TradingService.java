@@ -11,6 +11,7 @@ import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -470,7 +471,44 @@ public class TradingService {
                 .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
-            BigDecimal adjustedVolume = volume.add(fee);
+            final CurrencyPairMetaData currencyPairMetaData = exchange
+                .getExchangeMetaData()
+                .getCurrencyPairs()
+                .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA);
+
+            final BigDecimal adjustedVolume = volume.add(fee);
+
+            if (currencyPairMetaData != null && currencyPairMetaData.getAmountStepSize() != null) {
+                return adjustFeeByStepSize(exchange, volume, fee, currencyPairMetaData, adjustedVolume);
+            }
+
+            LOGGER.info("{} fees are computed in the client: {} - {} = {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                volume,
+                fee,
+                volume);
+        }
+
+        return volume;
+    }
+
+    // if feeComputation == CLIENT we want to compute the fees and subtract them from the volume
+    private BigDecimal subtractFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume) {
+        if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
+            BigDecimal fee = volume
+                .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
+                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+
+            final CurrencyPairMetaData currencyPairMetaData = exchange
+                .getExchangeMetaData()
+                .getCurrencyPairs()
+                .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA);
+
+            final BigDecimal adjustedVolume = volume.subtract(fee);
+
+            if (currencyPairMetaData != null && currencyPairMetaData.getAmountStepSize() != null) {
+                return adjustFeeByStepSize(exchange, volume, fee, currencyPairMetaData, adjustedVolume);
+            }
 
             LOGGER.info("{} fees are computed in the client: {} - {} = {}",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -484,25 +522,17 @@ public class TradingService {
         return volume;
     }
 
-    // if feeComputation == CLIENT we want to compute the fees and subtract them from the volume
-    private BigDecimal subtractFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume) {
-        if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
-            BigDecimal fee = volume
-                .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
-                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
+    @NotNull
+    private BigDecimal adjustFeeByStepSize(Exchange exchange, BigDecimal volume, BigDecimal fee, CurrencyPairMetaData currencyPairMetaData, BigDecimal adjustedVolume) {
+        final BigDecimal adjustedVolumeRoundByStep = roundByStep(adjustedVolume, currencyPairMetaData.getAmountStepSize());
 
-            BigDecimal adjustedVolume = volume.subtract(fee);
+        LOGGER.info("{} fees (rounded by step size) are computed in the client: {} - {} = {}",
+            exchange.getExchangeSpecification().getExchangeName(),
+            volume,
+            fee,
+            adjustedVolumeRoundByStep);
 
-            LOGGER.info("{} fees are computed in the client: {} - {} = {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                volume,
-                fee,
-                adjustedVolume);
-
-            return adjustedVolume;
-        }
-
-        return volume;
+        return adjustedVolumeRoundByStep;
     }
 
     // convenience method to encapsulate logging an exit
