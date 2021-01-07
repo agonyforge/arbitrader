@@ -9,7 +9,7 @@ plugins {
     id 'org.springframework.boot' version '2.4.1'
     id 'io.spring.dependency-management' version '1.0.10.RELEASE'
     id 'info.solidsoft.pitest' version '1.5.2'
-    id 'org.owasp.dependencycheck' version '6.0.3'
+    id 'org.owasp.dependencycheck' version '6.0.5'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
@@ -58,7 +58,7 @@ dependencies {
     compile group: 'commons-io', name: 'commons-io', version: '2.8.0'
 
     testCompile group: 'junit', name: 'junit', version: '4.13.1'
-    testCompile group: 'org.mockito', name: 'mockito-core', version: '3.6.28'
+    testCompile group: 'org.mockito', name: 'mockito-core', version: '3.7.0'
 }
 
 task buildDocker(type: Docker) {
