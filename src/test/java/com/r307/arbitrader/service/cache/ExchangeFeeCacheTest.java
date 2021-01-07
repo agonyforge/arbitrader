@@ -1,21 +1,21 @@
-package com.r307.arbitrader.service;
+package com.r307.arbitrader.service.cache;
 
+import com.r307.arbitrader.BaseTestCase;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExchangeFeeCacheTest {
+public class ExchangeFeeCacheTest extends BaseTestCase {
     @Mock
     private Exchange exchange;
 
@@ -23,13 +23,10 @@ public class ExchangeFeeCacheTest {
     private ExchangeSpecification exchangeSpecification;
 
     private CurrencyPair currencyPair;
-
     private ExchangeFeeCache exchangeFeeCache;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
         when(exchange.getExchangeSpecification()).thenReturn(exchangeSpecification);
         when(exchangeSpecification.getExchangeName()).thenReturn("WhatCoin");
 
@@ -44,14 +41,14 @@ public class ExchangeFeeCacheTest {
         exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new BigDecimal("0.0010"));
         exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new BigDecimal("0.0030"));
 
-        assertEquals(new BigDecimal("0.0025"), exchangeFeeCache.getCachedFee(exchange, currencyPair));
+        assertEquals(Optional.of(new BigDecimal("0.0025")), exchangeFeeCache.getCachedFee(exchange, currencyPair));
     }
 
     @Test
     public void testGetUnknownPair() {
         CurrencyPair altPair = new CurrencyPair("FAKE", "USD");
 
-        assertNull(exchangeFeeCache.getCachedFee(exchange, altPair));
+        assertEquals(Optional.empty(), exchangeFeeCache.getCachedFee(exchange, altPair));
     }
 
     @Test
@@ -62,6 +59,6 @@ public class ExchangeFeeCacheTest {
         when(altExchange.getExchangeSpecification()).thenReturn(altSpec);
         when(altSpec.getExchangeName()).thenReturn("AltEx");
 
-        assertNull(exchangeFeeCache.getCachedFee(altExchange, currencyPair));
+        assertEquals(Optional.empty(), exchangeFeeCache.getCachedFee(altExchange, currencyPair));
     }
 }

@@ -3,7 +3,7 @@ package com.r307.arbitrader.service.ticker;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.service.ErrorCollectorService;
-import com.r307.arbitrader.service.ExchangeFeeCache;
+import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.event.TickerEventPublisher;
@@ -20,7 +20,6 @@ import org.mockito.MockitoAnnotations;
 import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.Assert.*;

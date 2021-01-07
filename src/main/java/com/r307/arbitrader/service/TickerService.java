@@ -102,9 +102,6 @@ public class TickerService {
             List<CurrencyPair> activePairs = new ArrayList<>(queue.get(exchange));
 
             try {
-                LOGGER.debug("{} fetching tickers for: {}", exchange.getExchangeSpecification().getExchangeName(), activePairs);
-
-                // get updated tickers for this exchange
                 fetchTickers(exchange, activePairs);
             } catch (ExchangeException e) {
                 LOGGER.warn("Failed to fetch ticker for {}", exchange.getExchangeSpecification().getExchangeName());

@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,8 +13,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
