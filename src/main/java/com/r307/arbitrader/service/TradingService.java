@@ -111,10 +111,10 @@ public class TradingService {
         // adding more different conditions that can affect whether we trade or not.
         if (activePosition == null) {
             if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
-                LOGGER.debug("enterPosition() - forced");
+                LOGGER.debug("enterPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
                 enterPosition(spread);
             } else if (spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0) {
-                LOGGER.debug("enterPosition() - spread in {} > entry spread {}", spread.getIn(), tradingConfiguration.getEntrySpread());
+                LOGGER.debug("enterPosition() {}/{} {} - spread in {} > entry spread {}", longExchangeName, shortExchangeName, spread.getCurrencyPair(), spread.getIn(), tradingConfiguration.getEntrySpread());
                 enterPosition(spread);
             }
         } else if (spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
@@ -122,13 +122,13 @@ public class TradingService {
                 && shortExchangeName.equals(activePosition.getShortTrade().getExchange())) {
 
             if (conditionService.isForceCloseCondition()) {
-                LOGGER.debug("exitPosition() - forced");
+                LOGGER.debug("exitPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
                 exitPosition(spread);
             } else if (isActivePositionExpired()) {
-                LOGGER.debug("exitPosition() - active position timed out");
+                LOGGER.debug("exitPosition() {}/{} {} - active position timed out", longExchangeName, shortExchangeName, spread.getCurrencyPair());
                 exitPosition(spread);
             } else if (spread.getOut().compareTo(activePosition.getExitTarget()) < 0) {
-                LOGGER.debug("exitPosition() - spread out {} < exit target {}", spread.getOut(), activePosition.getExitTarget());
+                LOGGER.debug("exitPosition() {}/{} {} - spread out {} < exit target {}", longExchangeName, shortExchangeName, spread.getCurrencyPair(), spread.getOut(), activePosition.getExitTarget());
                 exitPosition(spread);
             }
         }
