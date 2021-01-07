@@ -1,13 +1,14 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.BaseTestCase;
 import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeSpecification;
+import org.knowm.xchange.currency.CurrencyPair;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -21,7 +22,7 @@ import static com.r307.arbitrader.service.ConditionService.*;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.when;
 
-public class ConditionServiceTest {
+public class ConditionServiceTest extends BaseTestCase {
     private static final String TEST_EXCHANGE_NAME = "Test Exchange";
 
     @Mock
@@ -32,23 +33,21 @@ public class ConditionServiceTest {
 
     private ConditionService conditionService;
 
-    @Before
-    public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
-        when(exchange.getExchangeSpecification()).thenReturn(exchangeSpecification);
-        when(exchangeSpecification.getExchangeName()).thenReturn(TEST_EXCHANGE_NAME);
-
-        conditionService = new ConditionService();
-    }
-
     @AfterClass
-    public static void tearDown() {
+    public static void afterClass() {
         FileUtils.deleteQuietly(new File(FORCE_OPEN));
         FileUtils.deleteQuietly(new File(FORCE_CLOSE));
         FileUtils.deleteQuietly(new File(EXIT_WHEN_IDLE));
         FileUtils.deleteQuietly(new File(STATUS));
         FileUtils.deleteQuietly(new File(BLACKOUT));
+    }
+
+    @Before
+    public void setUp() {
+        when(exchange.getExchangeSpecification()).thenReturn(exchangeSpecification);
+        when(exchangeSpecification.getExchangeName()).thenReturn(TEST_EXCHANGE_NAME);
+
+        conditionService = new ConditionService();
     }
 
     @Test
@@ -72,30 +71,53 @@ public class ConditionServiceTest {
     @Test
     public void testCheckForceOpenCondition() throws IOException {
         File forceOpen = new File(FORCE_OPEN);
+        CurrencyPair currencyPair = CurrencyPair.BTC_USD;
+        String longExchangeName = "CrazyCoinz";
+        String shortExchangeName = "CoinBazaar";
 
         assertFalse(forceOpen.exists());
-        assertFalse(conditionService.isForceOpenCondition());
+        assertFalse(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
 
-        assertTrue(forceOpen.createNewFile());
+        FileUtils.writeStringToFile(forceOpen,"BTC/USD CrazyCoinz/CoinBazaar", Charset.defaultCharset());
 
         assertTrue(forceOpen.exists());
-        assertTrue(conditionService.isForceOpenCondition());
+        assertTrue(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
 
         FileUtils.deleteQuietly(forceOpen);
     }
 
     @Test
-    public void testReadForceOpenContent() throws IOException {
-        String data = "BitFlyer/Kraken";
+    public void testCheckForceOpenConditionWrongExchange() throws IOException {
         File forceOpen = new File(FORCE_OPEN);
+        CurrencyPair currencyPair = CurrencyPair.BTC_USD;
+        String longExchangeName = "CoinGuru";
+        String shortExchangeName = "CoinBazaar";
 
         assertFalse(forceOpen.exists());
-        assertFalse(conditionService.isForceOpenCondition());
+        assertFalse(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
 
-        FileUtils.writeStringToFile(forceOpen, data, Charset.defaultCharset());
-        assertTrue(conditionService.isForceOpenCondition());
+        FileUtils.writeStringToFile(forceOpen,"BTC/USD CrazyCoins/CoinBazaar", Charset.defaultCharset());
 
-        assertEquals(data, conditionService.readForceOpenContent());
+        assertTrue(forceOpen.exists());
+        assertFalse(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
+
+        FileUtils.deleteQuietly(forceOpen);
+    }
+
+    @Test
+    public void testCheckForceOpenConditionWrongPair() throws IOException {
+        File forceOpen = new File(FORCE_OPEN);
+        CurrencyPair currencyPair = CurrencyPair.XRP_USD;
+        String longExchangeName = "CrazyCoinz";
+        String shortExchangeName = "CoinBazaar";
+
+        assertFalse(forceOpen.exists());
+        assertFalse(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
+
+        FileUtils.writeStringToFile(forceOpen,"BTC/USD CrazyCoins/CoinBazaar", Charset.defaultCharset());
+
+        assertTrue(forceOpen.exists());
+        assertFalse(conditionService.isForceOpenCondition(currencyPair, longExchangeName, shortExchangeName));
 
         FileUtils.deleteQuietly(forceOpen);
     }

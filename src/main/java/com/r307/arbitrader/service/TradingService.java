@@ -5,6 +5,8 @@ import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
+import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
+import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
@@ -57,6 +59,8 @@ public class TradingService {
     private final ExchangeService exchangeService;
     private final SpreadService spreadService;
     private final NotificationService notificationService;
+    private final ExchangeBalanceCache exchangeBalanceCache = new ExchangeBalanceCache();
+    private final OrderVolumeCache orderVolumeCache = new OrderVolumeCache();
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
@@ -78,7 +82,7 @@ public class TradingService {
     }
 
     /**
-     * Attempt to trade (both entry and exit).
+     * Evaluate whether or not to trade (both entry and exit). Execute a trade if appropriate.
      *
      * @param spread The Spread contains the exchanges and prices for the trade.
      */
@@ -91,54 +95,42 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
 
-        LOGGER.debug("Long/Short: {}/{} {} {}/{}",
+        LOGGER.debug("Attempting trade: {}/{} {} {}/{}",
             longExchangeName,
             shortExchangeName,
             spread.getCurrencyPair(),
             spread.getIn(),
             spread.getOut());
 
-        // consider whether to enter a new position:
-        //   are we being forced to open a position?
-        //   is the "in" spread higher than our entry spread?
-        if (!conditionService.isForceCloseCondition() && (conditionService.isForceOpenCondition() || spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0)) {
-            if (activePosition != null) {
-                return;
+        if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
+            LOGGER.warn("Cannot alter position on one or more exchanges due to user configured blackout");
+            return;
+        }
+
+        // This is more verbose than it has to be. I'm trying to keep it easy to read as we continue
+        // adding more different conditions that can affect whether we trade or not.
+        if (activePosition == null) {
+            if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
+                LOGGER.debug("enterPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
+                enterPosition(spread);
+            } else if (spread.getIn().compareTo(tradingConfiguration.getEntrySpread()) > 0) {
+                LOGGER.debug("enterPosition() {}/{} {} - spread in {} > entry spread {}", longExchangeName, shortExchangeName, spread.getCurrencyPair(), spread.getIn(), tradingConfiguration.getEntrySpread());
+                enterPosition(spread);
             }
+        } else if (spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
+                && longExchangeName.equals(activePosition.getLongTrade().getExchange())
+                && shortExchangeName.equals(activePosition.getShortTrade().getExchange())) {
 
-            // if we're being forced, do the current exchanges and currency pair match the requested ones?
-            if (conditionService.isForceOpenCondition()) {
-                String exchanges = conditionService.readForceOpenContent().trim();
-
-                // The force-open file should contain the names of the exchanges you want to force a trade on.
-                // It's meant to be a tool to aid testing entry and exit on specific pairs of exchanges.
-                //
-                // In this format: currencyPair longExchange/shortExchange
-                // For example: BTC/USD BitFlyer/Kraken
-                String current = String.format("%s %s/%s",
-                    spread.getCurrencyPair().toString(),
-                    longExchangeName,
-                    shortExchangeName);
-
-                if (!(current).equals(exchanges)) {
-                    return;
-                }
+            if (conditionService.isForceCloseCondition()) {
+                LOGGER.debug("exitPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
+                exitPosition(spread);
+            } else if (isActivePositionExpired()) {
+                LOGGER.debug("exitPosition() {}/{} {} - active position timed out", longExchangeName, shortExchangeName, spread.getCurrencyPair());
+                exitPosition(spread);
+            } else if (spread.getOut().compareTo(activePosition.getExitTarget()) < 0) {
+                LOGGER.debug("exitPosition() {}/{} {} - spread out {} < exit target {}", longExchangeName, shortExchangeName, spread.getCurrencyPair(), spread.getOut(), activePosition.getExitTarget());
+                exitPosition(spread);
             }
-
-            entryPosition(spread);
-
-        // consider whether to exit an open position
-        //   does the ActivePosition match the current exchanges and currency pair?
-        //   is the "out" spread less than the exit target?
-        //   are we being forced to exit?
-        //   has the configured trade time expired?
-        } else if (activePosition != null
-            && spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
-            && longExchangeName.equals(activePosition.getLongTrade().getExchange())
-            && shortExchangeName.equals(activePosition.getShortTrade().getExchange())
-            && (spread.getOut().compareTo(activePosition.getExitTarget()) < 0 || conditionService.isForceCloseCondition() || isTradeExpired())) {
-
-            exitPosition(spread, shortExchangeName, longExchangeName);
         }
     }
 
@@ -151,7 +143,7 @@ public class TradingService {
     }
 
     // enter a position
-    private void entryPosition(Spread spread) {
+    private void enterPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
@@ -160,14 +152,6 @@ public class TradingService {
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
-
-        // bail out if we're in a blackout period and we're not being forced
-        if (!conditionService.isForceOpenCondition() &&
-            (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange()))) {
-
-            LOGGER.warn("Cannot open position on one or more exchanges due to user configured blackout");
-            return;
-        }
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
         if (!validateMaxExposure(maxExposure, spread, currencyPairLongExchange, currencyPairShortExchange)) {
@@ -239,7 +223,8 @@ public class TradingService {
 
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
 
-        if (!conditionService.isForceOpenCondition() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+        if (!conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)
+            && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
             LOGGER.debug("Spread verification is less than entry spread, will not trade"); // this is debug because it can get spammy
             return;
         }
@@ -318,18 +303,29 @@ public class TradingService {
     }
 
     // exit a position
-    private void exitPosition(Spread spread, String shortExchangeName, String longExchangeName) {
+    private void exitPosition(Spread spread) {
+        final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
+        final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
+
         // figure out how much to trade
-        BigDecimal longVolume = getVolumeForOrder(
-            spread.getLongExchange(),
-            spread.getCurrencyPair(),
-            activePosition.getLongTrade().getOrderId(),
-            activePosition.getLongTrade().getVolume());
-        BigDecimal shortVolume = getVolumeForOrder(
-            spread.getShortExchange(),
-            spread.getCurrencyPair(),
-            activePosition.getShortTrade().getOrderId(),
-            activePosition.getShortTrade().getVolume());
+        BigDecimal longVolume;
+        BigDecimal shortVolume;
+
+        try {
+            longVolume = getVolumeForOrder(
+                spread.getLongExchange(),
+                spread.getCurrencyPair(),
+                activePosition.getLongTrade().getOrderId(),
+                activePosition.getLongTrade().getVolume());
+            shortVolume = getVolumeForOrder(
+                spread.getShortExchange(),
+                spread.getCurrencyPair(),
+                activePosition.getShortTrade().getOrderId(),
+                activePosition.getShortTrade().getVolume());
+        } catch (OrderNotFoundException e) {
+            LOGGER.error(e.getMessage());
+            return;
+        }
 
         LOGGER.debug("Volumes: {}/{}", longVolume, shortVolume);
 
@@ -366,12 +362,7 @@ public class TradingService {
             return;
         }
 
-        if (conditionService.isBlackoutCondition(spread.getLongExchange()) || conditionService.isBlackoutCondition(spread.getShortExchange())) {
-            LOGGER.warn("Cannot exit position on one or more exchanges due to user configured blackout");
-            return;
-        }
-
-        if (!isTradeExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
+        if (!isActivePositionExpired() && !conditionService.isForceCloseCondition() && spreadVerification.compareTo(activePosition.getExitTarget()) > 0) {
             LOGGER.debug("Not enough liquidity to execute both trades profitably!");
             return;
         }
@@ -385,7 +376,7 @@ public class TradingService {
         //
         // Also, don't spam the logs with this warning. It's possible that this condition could last for awhile
         // and this code could be executed frequently.
-        if (isTradeExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
+        if (isActivePositionExpired() && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
             if (!timeoutExitWarning) {
                 LOGGER.warn("Timeout exit triggered");
                 LOGGER.warn("Cannot exit now because spread would cause immediate reentry");
@@ -397,6 +388,8 @@ public class TradingService {
         logExitTrade();
 
         try {
+            LOGGER.info("Exit spread: {}", spread.getOut());
+            LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
             LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
                 longExchangeName,
                 spread.getCurrencyPair(),
@@ -514,7 +507,7 @@ public class TradingService {
 
     // convenience method to encapsulate logging an exit
     private void logExitTrade() {
-        if (isTradeExpired()) {
+        if (isActivePositionExpired()) {
             LOGGER.warn("***** TIMEOUT EXIT *****");
             timeoutExitWarning = false;
         } else if (conditionService.isForceCloseCondition()) {
@@ -528,7 +521,7 @@ public class TradingService {
     private void logEntryTrade(Spread spread, String shortExchangeName, String longExchangeName, BigDecimal exitTarget,
                                BigDecimal longVolume, BigDecimal shortVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice) {
 
-        if (conditionService.isForceOpenCondition()) {
+        if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
             LOGGER.warn("***** FORCED ENTRY *****");
         } else {
             LOGGER.info("***** ENTRY *****");
@@ -557,26 +550,31 @@ public class TradingService {
     // get volume for an entry position considering exposure and exchange step size if there is one
     private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
         final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
-        final BigDecimal stepSize = exchange.getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+        final CurrencyPairMetaData currencyPairMetaData = exchange
+            .getExchangeMetaData()
+            .getCurrencyPairs()
+            .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA);
 
-        if (stepSize != null) {
-            return roundByStep(volume, stepSize);
+        if (currencyPairMetaData == null || currencyPairMetaData.getAmountStepSize() == null) {
+            return volume;
         }
 
-        return volume;
+        return roundByStep(volume, currencyPairMetaData.getAmountStepSize());
     }
 
     // get the smallest possible order for an entry position on an exchange
     private BigDecimal getMinimumAmountForEntryPosition(Spread spread, Exchange longExchange) {
-        BigDecimal minimumAmount = longExchange.getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(longExchange, spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA)
-            .getMinimumAmount();
+        final BigDecimal defaultValue = new BigDecimal("0.001"); // TODO too big?
+        final CurrencyPairMetaData currencyPairMetaData = longExchange
+            .getExchangeMetaData()
+            .getCurrencyPairs()
+            .getOrDefault(exchangeService.convertExchangePair(longExchange, spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA);
 
-        if (minimumAmount == null) {
-            minimumAmount = new BigDecimal("0.001"); // TODO too big?
+        if (currencyPairMetaData == null || currencyPairMetaData.getMinimumAmount() == null) {
+            return defaultValue;
         }
-        return minimumAmount;
+
+        return currencyPairMetaData.getMinimumAmount();
     }
 
     // execute a buy and a sell together
@@ -669,6 +667,9 @@ public class TradingService {
         } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
             || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
 
+        // invalidate the balance cache because we *know* it's incorrect now
+        exchangeBalanceCache.invalidate(longExchange, shortExchange);
+
         // yay!
         LOGGER.info("Trades executed successfully!");
     }
@@ -705,57 +706,63 @@ public class TradingService {
      * @return An order volume.
      */
     BigDecimal getVolumeForOrder(Exchange exchange, CurrencyPair currencyPair, String orderId, BigDecimal defaultVolume) {
-        // first, try to fetch the order from the exchange by its ID and just return its volume
-        // not supported by all exchanges
-        try {
-            LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
-            BigDecimal volume = Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
-                .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new OrderNotFoundException(orderId))
-                .getOriginalAmount();
+        // first, try to fetch the order from the cache
+        // next, fetch from the exchange by its ID and just return its volume
+        // not supported by all exchanges, so then we have to fall back to alternative methods
+        LOGGER.debug("{}: Attempting to fetch volume from cache: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+        BigDecimal volume = orderVolumeCache.getCachedVolume(exchange, orderId)
+            .orElseGet(() -> {
+                LOGGER.debug("{}: Attempting to fetch volume from order by ID: {}", exchange.getExchangeSpecification().getExchangeName(), orderId);
+                try {
+                    return Optional.ofNullable(exchange.getTradeService().getOrder(orderId))
+                        .orElseThrow(() -> new NotAvailableFromExchangeException(orderId))
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new OrderNotFoundException(exchange, orderId))
+                        .getOriginalAmount();
+                } catch (NotAvailableFromExchangeException e) {
+                    LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
+                } catch (IllegalStateException | IOException e) {
+                    LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
+                }
 
-            LOGGER.debug("{}: Order {} volume is: {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                orderId,
-                volume);
+                return BigDecimal.ZERO;
+            });
 
-            if (volume == null || volume.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalStateException("Volume must be more than zero.");
-            }
-
-            LOGGER.debug("{}: Using volume: {}",
-                exchange.getExchangeSpecification().getExchangeName(),
-                orderId);
-
+        // if we got a greater-than-zero volume, we're done
+        // cache it and return it
+        if (BigDecimal.ZERO.compareTo(volume) < 0) {
+            orderVolumeCache.setCachedVolume(exchange, orderId, volume);
             return volume;
-        } catch (NotAvailableFromExchangeException e) {
-            LOGGER.debug("{}: Does not support fetching orders by ID", exchange.getExchangeSpecification().getExchangeName());
-        } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch order {}", exchange.getExchangeSpecification().getExchangeName(), orderId, e);
-        } catch (IllegalStateException e) {
-            LOGGER.debug(e.getMessage());
         }
 
-        // next, try to get the account balance for the BASE pair (eg. the BTC in BTC/USD)
+        // we couldn't get an order volume by ID, so next we try to get the account balance
+        // for the BASE pair (eg. the BTC in BTC/USD)
         try {
             BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base);
 
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
-                LOGGER.debug("{}: Using {} balance: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), balance);
+                LOGGER.debug("{}: Using {} balance: {}",
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair.base.toString(),
+                    balance);
 
+                orderVolumeCache.setCachedVolume(exchange, orderId, balance);
                 return balance;
             }
         } catch (IOException e) {
-            LOGGER.warn("{}: Unable to fetch {} account balance", exchange.getExchangeSpecification().getExchangeName(), currencyPair.base.toString(), e);
+            LOGGER.warn("{}: Unable to fetch {} account balance",
+                exchange.getExchangeSpecification().getExchangeName(),
+                currencyPair.base.toString(),
+                e);
         }
 
-        // finally, just return the default value
+        // finally, give up and return the "default" value
         LOGGER.debug("{}: Falling back to default volume: {}",
             exchange.getExchangeSpecification().getExchangeName(),
             defaultVolume);
 
+        orderVolumeCache.setCachedVolume(exchange, orderId, defaultVolume);
         return defaultVolume;
     }
 
@@ -811,16 +818,26 @@ public class TradingService {
         } else {
             BigDecimal smallestBalance = Arrays.stream(exchanges)
                 .parallel()
-                .map(exchange -> {
-                    try {
-                        return exchangeService.getAccountBalance(exchange);
-                    } catch (IOException e) {
-                        LOGGER.trace("IOException fetching {} account balance",
-                            exchange.getExchangeSpecification().getExchangeName());
-                    }
+                .map(exchange -> exchangeBalanceCache.getCachedBalance(exchange) // try the cache first
+                    .orElseGet(() -> {
+                        try {
+                            BigDecimal balance = exchangeService.getAccountBalance(exchange); // then make the API call
 
-                    return BigDecimal.ZERO;
-                })
+                            exchangeBalanceCache.setCachedBalance(exchange, balance); // cache the returned value
+
+                            return balance;
+                        } catch (IOException e) {
+                            LOGGER.info("IOException fetching {} account balance", exchange.getExchangeSpecification().getExchangeName());
+
+                            // set the cache to zero so we don't keep spamming the API when there's an IOException
+                            // we may have gotten the IOE because of rate limiting
+                            // this cache entry will only last a short time
+                            // but it will make us back off awhile before trying again
+                            exchangeBalanceCache.setCachedBalance(exchange, BigDecimal.ZERO);
+                        }
+
+                        return BigDecimal.ZERO; // just return a zero balance if we couldn't get anything
+                    }))
                 .min(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO);
 
@@ -882,7 +899,7 @@ public class TradingService {
     }
 
     // determine whether a trade has exceeded the configured trade timeout
-    private boolean isTradeExpired() {
+    private boolean isActivePositionExpired() {
         if (tradingConfiguration.getTradeTimeout() == null || activePosition == null || activePosition.getEntryTime() == null) {
             return false;
         }

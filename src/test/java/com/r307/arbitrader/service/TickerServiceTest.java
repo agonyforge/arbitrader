@@ -3,6 +3,7 @@ package com.r307.arbitrader.service;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.event.TickerEventPublisher;
 import com.r307.arbitrader.service.model.TickerEvent;
 import com.r307.arbitrader.service.model.TradeCombination;

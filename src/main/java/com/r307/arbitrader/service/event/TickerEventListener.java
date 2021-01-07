@@ -69,7 +69,7 @@ public class TickerEventListener {
                     final long start = System.currentTimeMillis();
                     tradingService.trade(spread);
 
-                    LOGGER.debug("Analysis for {} ({} ms)", spread, System.currentTimeMillis() - start);
+                    LOGGER.debug("Analyzed {} ({} ms)", spread, System.currentTimeMillis() - start);
                 }
             });
     }
