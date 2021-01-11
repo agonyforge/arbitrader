@@ -18,6 +18,13 @@ apply plugin: 'docker'
 group 'com.r307'
 version '0.11.0-SNAPSHOT'
 
+bootJar {
+    manifest {
+        attributes('Implementation-Title':  jar.getArchiveBaseName().get(),
+            'Implementation-Version': getArchiveVersion())
+    }
+}
+
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
