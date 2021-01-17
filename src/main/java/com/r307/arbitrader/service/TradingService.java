@@ -395,21 +395,21 @@ public class TradingService {
                 spread.getCurrencyPair(),
                 longVolume,
                 longLimitPrice,
-                longLimitPrice.subtract(spread.getLongTicker().getBid()),
+                longLimitPrice.subtract(spread.getLongTicker().getBid()).toPlainString(),
                 Currency.USD.getSymbol(),
-                longVolume.multiply(longLimitPrice),
+                longVolume.multiply(longLimitPrice).toPlainString(),
                 Currency.USD.getSymbol(),
-                longVolume.multiply(spread.getLongTicker().getBid()));
+                longVolume.multiply(spread.getLongTicker().getBid()).toPlainString());
             LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{} (slipped from {}{})",
                 shortExchangeName,
                 spread.getCurrencyPair(),
                 shortVolume,
                 shortLimitPrice,
-                spread.getShortTicker().getAsk().subtract(shortLimitPrice),
+                spread.getShortTicker().getAsk().subtract(shortLimitPrice).toPlainString(),
                 Currency.USD.getSymbol(),
-                shortVolume.multiply(shortLimitPrice),
+                shortVolume.multiply(shortLimitPrice).toPlainString(),
                 Currency.USD.getSymbol(),
-                shortVolume.multiply(spread.getShortTicker().getAsk()));
+                shortVolume.multiply(spread.getShortTicker().getAsk()).toPlainString());
 
             executeOrderPair(
                 spread.getLongExchange(), spread.getShortExchange(),
@@ -538,21 +538,21 @@ public class TradingService {
             spread.getCurrencyPair(),
             longVolume,
             longLimitPrice,
-            longLimitPrice.subtract(spread.getLongTicker().getAsk()),
+            longLimitPrice.subtract(spread.getLongTicker().getAsk()).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice),
+            longVolume.multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getAsk()));
+            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
         LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{} (slipped from {}{})",
             shortExchangeName,
             spread.getCurrencyPair(),
             shortVolume,
             shortLimitPrice,
-            spread.getShortTicker().getBid().subtract(shortLimitPrice),
+            spread.getShortTicker().getBid().subtract(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice),
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getBid()));
+            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
 
     }
 
