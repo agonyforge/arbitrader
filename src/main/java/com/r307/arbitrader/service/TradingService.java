@@ -235,8 +235,8 @@ public class TradingService {
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
         // This will be the amount we sent in the execute order request to the exchange
-        final BigDecimal longVolumeWithFeesAndStepNormalized = adjustStepSize(longExchangeMetaData, currencyPairLongExchange, longVolumeWithFees);
-        final BigDecimal shortVolumeWithFeesAndStepNormalized = adjustStepSize(shortExchangeMetaData, currencyPairShortExchange, shortVolumeWithFees);
+        final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(longExchangeMetaData, currencyPairLongExchange, longVolumeWithFees);
+        final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(shortExchangeMetaData, currencyPairShortExchange, shortVolumeWithFees);
 
         logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, longVolume, shortVolume, longLimitPrice, shortLimitPrice);
 
@@ -259,7 +259,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                longVolumeWithFeesAndStepNormalized, shortVolumeWithFeesAndStepNormalized,
+                longVolumeWithFeesAndAdjustedStep, shortVolumeWithFeesAndAdjustedStep,
                 true);
 
             notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
@@ -392,8 +392,8 @@ public class TradingService {
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
         // This will be the amount we sent in the execute order request to the exchange
-        final BigDecimal longVolumeWithFeesAndStepNormalized = adjustStepSize(spread.getLongExchange().getExchangeMetaData(), spread.getCurrencyPair(), longVolumeWithFees);
-        final BigDecimal shortVolumeWithFeesAndStepNormalized = adjustStepSize(spread.getShortExchange().getExchangeMetaData(), spread.getCurrencyPair(), shortVolumeWithFees);
+        final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(spread.getLongExchange().getExchangeMetaData(), spread.getCurrencyPair(), longVolumeWithFees);
+        final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(spread.getShortExchange().getExchangeMetaData(), spread.getCurrencyPair(), shortVolumeWithFees);
 
         logExitTrade();
 
@@ -421,7 +421,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                longVolumeWithFeesAndStepNormalized, shortVolumeWithFeesAndStepNormalized,
+                longVolumeWithFeesAndAdjustedStep, shortVolumeWithFeesAndAdjustedStep,
                 false);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
