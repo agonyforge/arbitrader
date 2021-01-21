@@ -183,18 +183,8 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        BigDecimal longVolume = getVolumeForEntryPosition(
-            spread.getLongExchange(),
-            maxExposure,
-            spread.getLongTicker().getAsk(),
-            spread.getCurrencyPair(),
-            longScale);
-        BigDecimal shortVolume = getVolumeForEntryPosition(
-            spread.getShortExchange(),
-            maxExposure,
-            spread.getShortTicker().getBid(),
-            spread.getCurrencyPair(),
-            shortScale);
+        BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
+        BigDecimal shortVolume = getVolumeForEntryPosition(maxExposure, spread.getShortTicker().getBid(), shortScale);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -570,18 +560,8 @@ public class TradingService {
     }
 
     // get volume for an entry position considering exposure and exchange step size if there is one
-    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
-        final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
-        final CurrencyPairMetaData currencyPairMetaData = exchange
-            .getExchangeMetaData()
-            .getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA);
-
-        if (currencyPairMetaData == null || currencyPairMetaData.getAmountStepSize() == null) {
-            return volume;
-        }
-
-        return roundByStep(volume, currencyPairMetaData.getAmountStepSize());
+    private BigDecimal getVolumeForEntryPosition(BigDecimal maxExposure, BigDecimal price, int scale) {
+        return maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
     }
 
     // get the smallest possible order for an entry position on an exchange
