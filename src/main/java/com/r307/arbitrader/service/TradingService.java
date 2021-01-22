@@ -11,6 +11,7 @@ import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
 import com.r307.arbitrader.service.model.Spread;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -18,6 +19,7 @@ import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
+import org.knowm.xchange.dto.meta.ExchangeMetaData;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
@@ -161,18 +163,16 @@ public class TradingService {
         // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
         // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
         final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
-        final int longScale = spread
-            .getLongExchange()
-            .getExchangeMetaData()
-            .getCurrencies()
-            .getOrDefault(currencyPairLongExchange.base, defaultMetaData)
-            .getScale();
-        final int shortScale = spread
-            .getShortExchange()
-            .getExchangeMetaData()
-            .getCurrencies()
-            .getOrDefault(currencyPairShortExchange.base, defaultMetaData)
-            .getScale();
+
+        final ExchangeMetaData longExchangeMetaData = spread.getLongExchange().getExchangeMetaData();
+        final CurrencyMetaData longExchangeCurrencyMetaData = longExchangeMetaData.getCurrencies()
+            .getOrDefault(currencyPairLongExchange.base, defaultMetaData);
+        final int longScale = longExchangeCurrencyMetaData.getScale();
+
+        final ExchangeMetaData shortExchangeMetaData = spread.getShortExchange().getExchangeMetaData();
+        final CurrencyMetaData shortExchangeCurrencyMetaData = shortExchangeMetaData.getCurrencies()
+            .getOrDefault(currencyPairShortExchange.base, defaultMetaData);
+        final int shortScale = shortExchangeCurrencyMetaData.getScale();
 
         LOGGER.debug("Max exposure: {}", maxExposure);
         LOGGER.debug("Long scale: {}", longScale);
@@ -183,18 +183,8 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        BigDecimal longVolume = getVolumeForEntryPosition(
-            spread.getLongExchange(),
-            maxExposure,
-            spread.getLongTicker().getAsk(),
-            spread.getCurrencyPair(),
-            longScale);
-        BigDecimal shortVolume = getVolumeForEntryPosition(
-            spread.getShortExchange(),
-            maxExposure,
-            spread.getShortTicker().getBid(),
-            spread.getCurrencyPair(),
-            shortScale);
+        BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
+        BigDecimal shortVolume = getVolumeForEntryPosition(maxExposure, spread.getShortTicker().getBid(), shortScale);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -230,8 +220,13 @@ public class TradingService {
         }
 
         // we need to add fees for exchanges where feeComputation is set to CLIENT
-        BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
-        BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+        final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+        final BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+
+        // Before executing the order we adjust the step size for each side of the trade (long and short).
+        // This will be the amount we sent in the execute order request to the exchange
+        final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(longExchangeMetaData, currencyPairLongExchange, longVolumeWithFees);
+        final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(shortExchangeMetaData, currencyPairShortExchange, shortVolumeWithFees);
 
         logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, longVolume, shortVolume, longLimitPrice, shortLimitPrice);
 
@@ -254,7 +249,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                longVolumeWithFees, shortVolumeWithFees,
+                longVolumeWithFeesAndAdjustedStep, shortVolumeWithFeesAndAdjustedStep,
                 true);
 
             notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
@@ -367,10 +362,6 @@ public class TradingService {
             return;
         }
 
-        // if an exchange is configured as feeComputation = CLIENT then we subtract the fees here
-        BigDecimal longVolumeWithFees = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
-        BigDecimal shortVolumeWithFees = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
-
         // If we are being forced to exit or the timeout has elapsed, but the spread is still high enough that
         // we could re-enter this position, then don't exit.
         //
@@ -384,6 +375,15 @@ public class TradingService {
             }
             return;
         }
+
+        // if an exchange is configured as feeComputation = CLIENT then we subtract the fees here
+        final BigDecimal longVolumeWithFees = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+        final BigDecimal shortVolumeWithFees = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+
+        // Before executing the order we adjust the step size for each side of the trade (long and short).
+        // This will be the amount we sent in the execute order request to the exchange
+        final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(spread.getLongExchange().getExchangeMetaData(), spread.getCurrencyPair(), longVolumeWithFees);
+        final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(spread.getShortExchange().getExchangeMetaData(), spread.getCurrencyPair(), shortVolumeWithFees);
 
         logExitTrade();
 
@@ -411,7 +411,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                longVolumeWithFees, shortVolumeWithFees,
+                longVolumeWithFeesAndAdjustedStep, shortVolumeWithFeesAndAdjustedStep,
                 false);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
@@ -470,9 +470,9 @@ public class TradingService {
                 .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
-            BigDecimal adjustedVolume = volume.add(fee);
+            final BigDecimal adjustedVolume = volume.add(fee);
 
-            LOGGER.info("{} fees are computed in the client: {} - {} = {}",
+            LOGGER.info("{} fees are computed in the client: {} + {} = {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 volume,
                 fee,
@@ -491,7 +491,7 @@ public class TradingService {
                 .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
-            BigDecimal adjustedVolume = volume.subtract(fee);
+            final BigDecimal adjustedVolume = volume.subtract(fee);
 
             LOGGER.info("{} fees are computed in the client: {} - {} = {}",
                 exchange.getExchangeSpecification().getExchangeName(),
@@ -500,6 +500,18 @@ public class TradingService {
                 adjustedVolume);
 
             return adjustedVolume;
+        }
+
+        return volume;
+    }
+
+    @NotNull
+    private BigDecimal adjustStepSize(ExchangeMetaData exchangeMetaData, CurrencyPair currencyPairExchange, BigDecimal volume) {
+        final CurrencyPairMetaData currencyPairMetaData = exchangeMetaData.getCurrencyPairs()
+            .getOrDefault(currencyPairExchange, NULL_CURRENCY_PAIR_METADATA);
+
+        if (currencyPairExchange != null && currencyPairMetaData.getAmountStepSize() != null) {
+            return roundByStep(volume, currencyPairMetaData.getAmountStepSize());
         }
 
         return volume;
@@ -548,18 +560,8 @@ public class TradingService {
     }
 
     // get volume for an entry position considering exposure and exchange step size if there is one
-    private BigDecimal getVolumeForEntryPosition(Exchange exchange, BigDecimal maxExposure, BigDecimal price, CurrencyPair currencyPair, int scale) {
-        final BigDecimal volume = maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
-        final CurrencyPairMetaData currencyPairMetaData = exchange
-            .getExchangeMetaData()
-            .getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(exchange, currencyPair), NULL_CURRENCY_PAIR_METADATA);
-
-        if (currencyPairMetaData == null || currencyPairMetaData.getAmountStepSize() == null) {
-            return volume;
-        }
-
-        return roundByStep(volume, currencyPairMetaData.getAmountStepSize());
+    private BigDecimal getVolumeForEntryPosition(BigDecimal maxExposure, BigDecimal price, int scale) {
+        return maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
     }
 
     // get the smallest possible order for an entry position on an exchange
