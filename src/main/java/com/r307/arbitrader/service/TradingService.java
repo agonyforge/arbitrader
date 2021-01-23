@@ -209,8 +209,8 @@ public class TradingService {
         // This recalculation of the spread is a little computationally expensive, which is why we don't do it
         // until we know we're close to wanting to trade.
         try {
-            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getLongTicker().getAsk(),  spread.getCurrencyPair(), longVolume, Order.OrderType.ASK);
-            shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getLongTicker().getBid(),spread.getCurrencyPair(), shortVolume, Order.OrderType.BID);
+            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK);
+            shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID);
         } catch (ExchangeException e) {
             LOGGER.warn("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
@@ -337,8 +337,8 @@ public class TradingService {
         // at a slightly worse price, which we call "slip". This is a little bit computationally expensive which is why
         // we wait until we're pretty sure we want to trade before we do it.
         try {
-            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getLongTicker().getBid(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
-            shortLimitPrice = getLimitPrice(spread.getShortExchange(),spread.getLongTicker().getAsk(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
+            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
+            shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
         } catch (ExchangeException e) {
             LOGGER.warn("Failed to fetch order books (on active position) for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
@@ -784,7 +784,7 @@ public class TradingService {
      * @param orderType Are we buying or selling? Use the bid or ask price?
      * @return The more accurate price for this order.
      */
-    BigDecimal getLimitPrice(Exchange exchange, BigDecimal ticketPrice, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
+    BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
         CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
 
         try {

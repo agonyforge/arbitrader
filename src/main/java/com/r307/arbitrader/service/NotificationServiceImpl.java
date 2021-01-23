@@ -85,7 +85,7 @@ public class NotificationServiceImpl implements NotificationService {
             Currency.USD.getSymbol(),
             longVolume.multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getAsk()));
+            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
 
         final String shortEntryString = String.format("Short entry: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
@@ -94,9 +94,9 @@ public class NotificationServiceImpl implements NotificationService {
             shortLimitPrice.toPlainString(),
             spread.getShortTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice),
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getBid()));
+            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
 
         final String emailBody = "***** ENTRY *****\n" +
             String.format("Entry spread: %s\n", spread.getIn().toPlainString()) +
@@ -130,9 +130,9 @@ public class NotificationServiceImpl implements NotificationService {
             longLimitPrice.toPlainString(),
             spread.getLongTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice),
+            longVolume.multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getBid()));
+            longVolume.multiply(spread.getLongTicker().getBid()).toPlainString());
 
         final String shortCloseString = String.format("Short close: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
@@ -141,9 +141,9 @@ public class NotificationServiceImpl implements NotificationService {
             shortLimitPrice.toPlainString(),
             spread.getShortTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice),
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getAsk()));
+            shortVolume.multiply(spread.getShortTicker().getAsk()).toPlainString());
 
         final BigDecimal profit = updatedBalance.subtract(entryBalance);
 
