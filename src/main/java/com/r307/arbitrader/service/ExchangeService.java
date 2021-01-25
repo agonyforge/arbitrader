@@ -294,6 +294,8 @@ public class ExchangeService {
             return configuredFee;
         }
 
+        // Last fall back - use CurrencyPairMetaData trading fee
+        feeCache.setCachedFee(exchange, currencyPair, currencyPairMetaData.getTradingFee());
         return currencyPairMetaData.getTradingFee();
     }
 }
