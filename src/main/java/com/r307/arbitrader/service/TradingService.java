@@ -390,22 +390,26 @@ public class TradingService {
         try {
             LOGGER.info("Exit spread: {}", spread.getOut());
             LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
-            LOGGER.info("Long close: {} {} {} @ {} ({} slip) = {}{}",
+            LOGGER.info("Long close: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
                 longExchangeName,
                 spread.getCurrencyPair(),
                 longVolume,
                 longLimitPrice,
-                longLimitPrice.subtract(spread.getLongTicker().getBid()),
+                spread.getLongTicker().getBid().toPlainString(),
                 Currency.USD.getSymbol(),
-                longVolume.multiply(spread.getLongTicker().getBid()));
-            LOGGER.info("Short close: {} {} {} @ {} ({} slip) = {}{}",
+                longVolume.multiply(longLimitPrice).toPlainString(),
+                Currency.USD.getSymbol(),
+                longVolume.multiply(spread.getLongTicker().getBid()).toPlainString());
+            LOGGER.info("Short close: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
                 shortExchangeName,
                 spread.getCurrencyPair(),
                 shortVolume,
                 shortLimitPrice,
-                spread.getShortTicker().getAsk().subtract(shortLimitPrice),
+                spread.getShortTicker().getAsk().toPlainString(),
                 Currency.USD.getSymbol(),
-                shortVolume.multiply(spread.getShortTicker().getAsk()));
+                shortVolume.multiply(shortLimitPrice).toPlainString(),
+                Currency.USD.getSymbol(),
+                shortVolume.multiply(spread.getShortTicker().getAsk()).toPlainString());
 
             executeOrderPair(
                 spread.getLongExchange(), spread.getShortExchange(),
@@ -541,22 +545,27 @@ public class TradingService {
 
         LOGGER.info("Entry spread: {}", spread.getIn());
         LOGGER.info("Exit spread target: {}", exitTarget);
-        LOGGER.info("Long entry: {} {} {} @ {} ({} slip) = {}{}",
+        LOGGER.info("Long entry: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
             longExchangeName,
             spread.getCurrencyPair(),
             longVolume,
             longLimitPrice,
-            longLimitPrice.subtract(spread.getLongTicker().getAsk()),
+            spread.getLongTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice));
-        LOGGER.info("Short entry: {} {} {} @ {} ({} slip) = {}{}",
+            longVolume.multiply(longLimitPrice).toPlainString(),
+            Currency.USD.getSymbol(),
+            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
+        LOGGER.info("Short entry: {} {} {} @ {} (slipped {}) = {}{} (slipped from {}{})",
             shortExchangeName,
             spread.getCurrencyPair(),
             shortVolume,
             shortLimitPrice,
-            spread.getShortTicker().getBid().subtract(shortLimitPrice),
+            spread.getShortTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice));
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
+            Currency.USD.getSymbol(),
+            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
+
     }
 
     // get volume for an entry position considering exposure and exchange step size if there is one

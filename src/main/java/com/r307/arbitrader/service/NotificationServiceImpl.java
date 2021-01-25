@@ -76,23 +76,27 @@ public class NotificationServiceImpl implements NotificationService {
                                                            BigDecimal longLimitPrice, BigDecimal shortVolume,
                                                            BigDecimal shortLimitPrice) {
 
-        final String longEntryString = String.format("Long entry: %s %s %s @ %s (%s slip) = %s%s\n",
+        final String longEntryString = String.format("Long entry: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getLongExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
             longVolume.toPlainString(),
             longLimitPrice.toPlainString(),
-            longLimitPrice.subtract(spread.getLongTicker().getAsk()).toPlainString(),
+            spread.getLongTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice).toPlainString());
+            longVolume.multiply(longLimitPrice).toPlainString(),
+            Currency.USD.getSymbol(),
+            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
 
-        final String shortEntryString = String.format("Short entry: %s %s %s @ %s (%s slip) = %s%s\n",
+        final String shortEntryString = String.format("Short entry: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
             shortVolume.toPlainString(),
             shortLimitPrice.toPlainString(),
-            spread.getShortTicker().getBid().subtract(shortLimitPrice).toPlainString(),
+            spread.getShortTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice).toPlainString());
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
+            Currency.USD.getSymbol(),
+            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
 
         final String emailBody = "***** ENTRY *****\n" +
             String.format("Entry spread: %s\n", spread.getIn().toPlainString()) +
@@ -119,21 +123,25 @@ public class NotificationServiceImpl implements NotificationService {
                                                           BigDecimal shortVolume, BigDecimal shortLimitPrice,
                                                           BigDecimal entryBalance, BigDecimal updatedBalance) {
 
-        final String longCloseString = String.format("Long close: %s %s %s @ %s (%s slip) = %s%s \n",
+        final String longCloseString = String.format("Long close: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getLongExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
             longVolume.toPlainString(),
             longLimitPrice.toPlainString(),
-            longLimitPrice.subtract(spread.getLongTicker().getBid()).toPlainString(),
+            spread.getLongTicker().getBid().toPlainString(),
+            Currency.USD.getSymbol(),
+            longVolume.multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
             longVolume.multiply(spread.getLongTicker().getBid()).toPlainString());
 
-        final String shortCloseString = String.format("Short close: %s %s %s @ %s (%s slip) = %s%s \n",
+        final String shortCloseString = String.format("Short close: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
             shortVolume.toPlainString(),
             shortLimitPrice.toPlainString(),
-            spread.getShortTicker().getAsk().subtract(shortLimitPrice).toPlainString(),
+            spread.getShortTicker().getAsk().toPlainString(),
+            Currency.USD.getSymbol(),
+            shortVolume.multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
             shortVolume.multiply(spread.getShortTicker().getAsk()).toPlainString());
 
