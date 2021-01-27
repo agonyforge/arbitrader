@@ -3,6 +3,7 @@ package com.r307.arbitrader.service.paper;
 import com.r307.arbitrader.config.PaperConfiguration;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -17,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -130,8 +132,10 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     private void updateOrders() {
         for(LimitOrder order: orders) {
             if(order.getStatus().isOpen()) {
+                final boolean isShort = order.getType().equals(Order.OrderType.ASK) || order.getType().equals(Order.OrderType.EXIT_ASK);
+
                 if(autoFill) {
-                    fillOrder(order);
+                    fillOrder(order, isShort);
                 } else {
                     Order.OrderType type = order.getType();
                     Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
@@ -141,7 +145,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     //Check if limit price was reached
                     boolean matchedOrder = type == Order.OrderType.BID && ticker.getAsk().compareTo(order.getLimitPrice()) <= 0 || type == Order.OrderType.ASK && ticker.getBid().compareTo(order.getLimitPrice()) >= 0;
                     if (matchedOrder) {
-                        fillOrder(order);
+                        fillOrder(order, isShort);
                     }
                 }
             }
@@ -149,13 +153,23 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
 
-    private void fillOrder(LimitOrder order) {
+    private void fillOrder(LimitOrder order, boolean isShort) {
+        final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
+        final String exchangeName = exchange.getExchangeSpecification().getExchangeName();
+
+        if (isShort && !exchangeFee.getShortFee().isPresent()) {
+            LOGGER.error("exchange:{}|missing short fee configuration. Go to application.yml and set a shot fee for this exchange", exchangeName);
+            throw new RuntimeException("Missing short fee configuration for exchange " + exchangeName);
+        }
+
+        final BigDecimal fee = isShort ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee();
+
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(order.getLimitPrice());
         order.setCumulativeAmount(order.getOriginalAmount());
-        order.setFee(order.getCumulativeCounterAmount().multiply(exchangeService.getExchangeFee(exchange,order.getCurrencyPair(),false).divide(new BigDecimal("100"))));
+        order.setFee(order.getCumulativeCounterAmount().multiply(fee.divide(new BigDecimal("100"), RoundingMode.HALF_EVEN)));
         LOGGER.info("{} paper exchange: Order {} filled for {}{}, with {} fees.",
-            exchange.getExchangeSpecification().getExchangeName(),
+            exchangeName,
             order.getId(),
             order.getCumulativeCounterAmount(),
             order.getCurrencyPair().counter,
@@ -168,7 +182,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             exchange.getPaperAccountService().setBalance(exchange.getPaperAccountService().getBalance().subtract(order.getCumulativeCounterAmount()));
         }
         exchange.getPaperAccountService().setBalance(exchange.getPaperAccountService().getBalance().subtract(order.getFee()));
-        LOGGER.info("{} paper account: new balance is {}", exchange.getExchangeSpecification().getExchangeName(), exchange.getPaperAccountService().getBalance());
+        LOGGER.info("{} paper account: new balance is {}", exchangeName, exchange.getPaperAccountService().getBalance());
         userTrades.getUserTrades().add(new UserTrade(order.getType(), order.getOriginalAmount(),
         order.getInstrument(),
         order.getLimitPrice(),

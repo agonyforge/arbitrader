@@ -9,6 +9,7 @@ import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.model.ArbitrageLog;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.model.Spread;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
@@ -148,8 +149,8 @@ public class TradingService {
     private void enterPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
-        final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final ExchangeFee longExchangeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
+        final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
@@ -179,8 +180,8 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
-        LOGGER.debug("Long fee percent: {}", longFeePercent);
-        LOGGER.debug("Short fee percent: {}", shortFeePercent);
+        LOGGER.debug("Long fee percent: {}", longExchangeFee.getLongFee());
+        LOGGER.debug("Short fee percent: {}", shortExchangeFee.getShortFee().orElse(null));
 
         // figure out how much we want to trade
         BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
@@ -220,8 +221,8 @@ public class TradingService {
         }
 
         // we need to add fees for exchanges where feeComputation is set to CLIENT
-        final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
-        final BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+        final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, false);
+        final BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, true);
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
         // This will be the amount we sent in the execute order request to the exchange
@@ -377,8 +378,8 @@ public class TradingService {
         }
 
         // if an exchange is configured as feeComputation = CLIENT then we subtract the fees here
-        final BigDecimal longVolumeWithFees = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
-        final BigDecimal shortVolumeWithFees = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+        final BigDecimal longVolumeWithFees = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, false);
+        final BigDecimal shortVolumeWithFees = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, true);
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
         // This will be the amount we sent in the execute order request to the exchange
@@ -468,10 +469,19 @@ public class TradingService {
     }
 
     // if feeComputation == CLIENT we want to compute the fees and add them to the volume
-    private BigDecimal addFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume) {
+    private BigDecimal addFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume, boolean isShortFee) {
         if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
+            final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, currencyPair, true);
+
+            if (isShortFee && !exchangeFee.getShortFee().isPresent()) {
+                LOGGER.error("exchange:{}|missing margin fee for this exchang. Go to your application.yml and set a margin fee for this exchange",
+                    exchange.getExchangeSpecification().getExchangeName());
+                // Crash the bot
+                throw new RuntimeException("Missing margin fee configuration for exchange: " + exchange.getExchangeSpecification().getExchangeName());
+            }
+
             BigDecimal fee = volume
-                .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
+                .multiply(isShortFee ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee())
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
             final BigDecimal adjustedVolume = volume.add(fee);
@@ -489,10 +499,19 @@ public class TradingService {
     }
 
     // if feeComputation == CLIENT we want to compute the fees and subtract them from the volume
-    private BigDecimal subtractFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume) {
+    private BigDecimal subtractFees(Exchange exchange, CurrencyPair currencyPair, BigDecimal volume, boolean isShortFee) {
         if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
+            final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, currencyPair, true);
+
+            if (isShortFee && !exchangeFee.getShortFee().isPresent()) {
+                LOGGER.error("exchange:{}|missing margin fee for this exchang. Go to your application.yml and set a margin fee for this exchange",
+                    exchange.getExchangeSpecification().getExchangeName());
+                // Crash the bot
+                throw new RuntimeException("Missing margin fee configuration for exchange: " + exchange.getExchangeSpecification().getExchangeName());
+            }
+
             BigDecimal fee = volume
-                .multiply(exchangeService.getExchangeFee(exchange, currencyPair, true))
+                .multiply(isShortFee ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee())
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
             final BigDecimal adjustedVolume = volume.subtract(fee);

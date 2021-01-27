@@ -155,9 +155,12 @@ trading:
         - REP/USD
         - ZEC/USD
 
-      # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
+      # The amount of fees Kraken charges for long trades. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
       fee: 0.0026
+      # The amount of fees Kraken charges for margin trades. This fee is only needed if this exchange has margin set to true
+      marginFee: 0.0002
+
       # Enable (value set to true) or disable (value set to false) this exchange. If 'active' configuration is not set
       # then, by default, the exchange is set as active
       active: true
@@ -192,6 +195,10 @@ trading:
         - ONT/USD
         - DASH/USD
       fee: 0.0010
+      # The amount of fees Kraken charges for Quoine (Liquid) trades.  This fee is only needed if this exchange has margin set to true.
+      # Liquid uses a lending market way to offer margin trade. At the time of writing this note, the average (top lower)
+      # fee percentage is around 0.002%. For more information go to https://app.liquid.com/lend/market
+      marginFee: 0.00002
 
     -
       exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange

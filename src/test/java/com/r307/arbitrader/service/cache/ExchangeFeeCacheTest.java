@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service.cache;
 
 import com.r307.arbitrader.BaseTestCase;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -12,6 +13,8 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,11 +40,14 @@ public class ExchangeFeeCacheTest extends BaseTestCase {
 
     @Test
     public void testSetAndGet() {
-        exchangeFeeCache.setCachedFee(exchange, currencyPair, new BigDecimal("0.0025"));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new BigDecimal("0.0010"));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new BigDecimal("0.0030"));
+        exchangeFeeCache.setCachedFee(exchange, currencyPair, new ExchangeFee(null, new BigDecimal("0.0025")));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new ExchangeFee(new BigDecimal("0.0002"), new BigDecimal("0.0010")));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new ExchangeFee(new BigDecimal("0.0001"), new BigDecimal("0.0030")));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BCC_USD, new ExchangeFee(null, new BigDecimal("0.0030")));
 
-        assertEquals(Optional.of(new BigDecimal("0.0025")), exchangeFeeCache.getCachedFee(exchange, currencyPair));
+        assertTrue(exchangeFeeCache.getCachedFee(exchange, currencyPair).isPresent());
+        assertEquals(new BigDecimal("0.0025"), exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getLongFee());
+        assertFalse(exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getShortFee().isPresent());
     }
 
     @Test
