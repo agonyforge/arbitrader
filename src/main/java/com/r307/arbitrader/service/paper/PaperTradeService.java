@@ -132,7 +132,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     private void updateOrders() {
         for(LimitOrder order: orders) {
             if(order.getStatus().isOpen()) {
-                final boolean isShort = order.getType().equals(Order.OrderType.ASK) || order.getType().equals(Order.OrderType.EXIT_ASK);
+                final boolean isShort = order.getType().equals(Order.OrderType.BID);
 
                 if(autoFill) {
                     fillOrder(order, isShort);
