@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service.paper;
 
+import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.PaperConfiguration;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
@@ -132,10 +133,8 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     private void updateOrders() {
         for(LimitOrder order: orders) {
             if(order.getStatus().isOpen()) {
-                final boolean isShort = order.getType().equals(Order.OrderType.BID);
-
                 if(autoFill) {
-                    fillOrder(order, isShort);
+                    fillOrder(order);
                 } else {
                     Order.OrderType type = order.getType();
                     Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
@@ -145,7 +144,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     //Check if limit price was reached
                     boolean matchedOrder = type == Order.OrderType.BID && ticker.getAsk().compareTo(order.getLimitPrice()) <= 0 || type == Order.OrderType.ASK && ticker.getBid().compareTo(order.getLimitPrice()) >= 0;
                     if (matchedOrder) {
-                        fillOrder(order, isShort);
+                        fillOrder(order);
                     }
                 }
             }
@@ -153,16 +152,17 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
 
-    private void fillOrder(LimitOrder order, boolean isShort) {
+    private void fillOrder(LimitOrder order) {
         final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
         final String exchangeName = exchange.getExchangeSpecification().getExchangeName();
+        final ExchangeConfiguration exchangeMetadata = exchangeService.getExchangeMetadata(exchange);
 
-        if (isShort && !exchangeFee.getShortFee().isPresent()) {
+        if (exchangeMetadata.getMargin() && !exchangeFee.getShortFee().isPresent()) {
             LOGGER.error("exchange:{}|missing short fee configuration. Go to application.yml and set a shot fee for this exchange", exchangeName);
             throw new RuntimeException("Missing short fee configuration for exchange " + exchangeName);
         }
 
-        final BigDecimal fee = isShort ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee();
+        final BigDecimal fee = exchangeMetadata.getMargin() ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee();
 
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(order.getLimitPrice());
