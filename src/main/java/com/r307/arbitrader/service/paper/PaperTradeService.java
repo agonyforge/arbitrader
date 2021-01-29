@@ -155,14 +155,23 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     private void fillOrder(LimitOrder order) {
         final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
         final String exchangeName = exchange.getExchangeSpecification().getExchangeName();
-        final ExchangeConfiguration exchangeMetadata = exchangeService.getExchangeMetadata(exchange);
+        final ExchangeConfiguration exchangeConfiguration = exchangeService.getExchangeMetadata(exchange);
 
-        if (exchangeMetadata.getMargin() && !exchangeFee.getShortFee().isPresent()) {
+        // If leverage is empty it means it is a long order. If it is NOT empty then it is a short order
+        if (order.getLeverage() != null && !order.getLeverage().isEmpty() && !exchangeFee.getShortFee().isPresent()) {
             LOGGER.error("exchange:{}|missing short fee configuration. Go to application.yml and set a shot fee for this exchange", exchangeName);
             throw new RuntimeException("Missing short fee configuration for exchange " + exchangeName);
         }
 
-        final BigDecimal fee = exchangeMetadata.getMargin() ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee();
+        final BigDecimal fee;
+        if (order.getLeverage() == null) {
+            fee = exchangeFee.getLongFee();
+            LOGGER.info("exchange:{}|marginExchange:{}|short order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
+        }
+        else {
+            fee = exchangeFee.getShortFee().get();
+            LOGGER.info("exchange:{}|marginExchange:{}|long order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
+        }
 
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(order.getLimitPrice());
@@ -184,14 +193,13 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         exchange.getPaperAccountService().setBalance(exchange.getPaperAccountService().getBalance().subtract(order.getFee()));
         LOGGER.info("{} paper account: new balance is {}", exchangeName, exchange.getPaperAccountService().getBalance());
         userTrades.getUserTrades().add(new UserTrade(order.getType(), order.getOriginalAmount(),
-        order.getInstrument(),
-        order.getLimitPrice(),
-        order.getTimestamp(),
-        order.getId(),
-        order.getId(),
-        order.getFee(),
-        Currency.USD,
-        order.getUserReference()));
-
+            order.getInstrument(),
+            order.getLimitPrice(),
+            order.getTimestamp(),
+            order.getId(),
+            order.getId(),
+            order.getFee(),
+            Currency.USD,
+            order.getUserReference()));
     }
 }
