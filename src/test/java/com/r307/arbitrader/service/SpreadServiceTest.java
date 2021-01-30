@@ -23,6 +23,9 @@ public class SpreadServiceTest extends BaseTestCase {
     @Mock
     private TickerService tickerService;
 
+    @Mock
+    private ExchangeService exchangeService;
+
     private SpreadService spreadService;
 
     @Before
@@ -34,7 +37,7 @@ public class SpreadServiceTest extends BaseTestCase {
             .withExchangeMetaData()
             .build();
 
-        spreadService = new SpreadService(tradingConfiguration, tickerService);
+        spreadService = new SpreadService(tradingConfiguration, tickerService, exchangeService);
     }
 
     @Test

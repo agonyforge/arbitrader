@@ -63,7 +63,7 @@ public class TradingServiceTest extends BaseTestCase {
             new TradingConfiguration(),
             exchangeService,
             errorCollectorService);
-        spreadService = new SpreadService(tradingConfiguration, tickerService);
+        spreadService = new SpreadService(tradingConfiguration, tickerService, exchangeService);
         NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration);
         tradingConfiguration = new TradingConfiguration();
 

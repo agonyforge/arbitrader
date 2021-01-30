@@ -32,10 +32,16 @@ public class SpreadService {
     private final Map<String, BigDecimal> maxSpreadOut = new HashMap<>();
     private final TradingConfiguration tradingConfiguration;
     private final TickerService tickerService;
+    private final ExchangeService exchangeService;
 
-    public SpreadService(TradingConfiguration tradingConfiguration, TickerService tickerService) {
+    public SpreadService(
+        TradingConfiguration tradingConfiguration,
+        TickerService tickerService,
+        ExchangeService exchangeService) {
+
         this.tradingConfiguration = tradingConfiguration;
         this.tickerService = tickerService;
+        this.exchangeService = exchangeService;
     }
 
     /**
@@ -101,11 +107,14 @@ public class SpreadService {
             return null;
         }
 
+        BigDecimal longFee = exchangeService.getExchangeFee(longExchange, tradeCombination.getCurrencyPair(), true);
+        BigDecimal shortFee = exchangeService.getExchangeFee(shortExchange, tradeCombination.getCurrencyPair(), true);
+
         // A Spread is a combination of a spread "in" and spread "out".
         // "in" matches against entrySpread to see if the prices are ready to enter a position.
         // "out" matches against exitTarget to see if the prices are ready to exit a position.
-        BigDecimal spreadIn = computeSpread(longTicker.getAsk(), shortTicker.getBid());
-        BigDecimal spreadOut = computeSpread(longTicker.getBid(), shortTicker.getAsk());
+        BigDecimal spreadIn = computeSpread(effectiveBuyPrice(longTicker.getAsk(), longFee), effectiveSellPrice(shortTicker.getBid(), shortFee));
+        BigDecimal spreadOut = computeSpread(effectiveSellPrice(longTicker.getBid(), longFee), effectiveBuyPrice(shortTicker.getAsk(), shortFee));
 
         Spread spread = new Spread(
             currencyPair,
@@ -120,6 +129,32 @@ public class SpreadService {
         publish(spread);
 
         return spread;
+    }
+
+    // the effective price includes the fees
+    // effective price = price * fee percentage
+    // volume + fees = effective price * volume
+
+    /**
+     * Computes the "effective price" for a buy which is the price including exchange fees.
+     * The formula is: effective = price * (1 + fee)
+     * @param price The original price
+     * @param fee The fee as a percentage, eg. 0.0025 for 0.25%
+     * @return The price adjusted for fees
+     */
+    public BigDecimal effectiveBuyPrice(BigDecimal price, BigDecimal fee) {
+        return price.multiply(BigDecimal.ONE.add(fee));
+    }
+
+    /**
+     * Computes the "effective price" for a sell which is the price including exchange fees.
+     * The formula is: effective = price * (1 + fee)
+     * @param price The original price
+     * @param fee The fee as a percentage, eg. 0.0025 for 0.25%
+     * @return The price adjusted for fees
+     */
+    public BigDecimal effectiveSellPrice(BigDecimal price, BigDecimal fee) {
+        return price.multiply(BigDecimal.ONE.subtract(fee));
     }
 
     /**

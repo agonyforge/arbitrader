@@ -152,7 +152,7 @@ public class TradingService {
         final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
-        final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
+        final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget()); // TODO should we drop the subtract so it's absolute instead of relative?
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
@@ -199,8 +199,8 @@ public class TradingService {
         // This recalculation of the spread is a little computationally expensive, which is why we don't do it
         // until we know we're close to wanting to trade.
         try {
-            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK);
-            shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID);
+            longLimitPrice = spreadService.effectiveBuyPrice(getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK), longFeePercent);
+            shortLimitPrice = spreadService.effectiveSellPrice(getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID), shortFeePercent);
         } catch (ExchangeException e) {
             LOGGER.warn("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
@@ -217,6 +217,33 @@ public class TradingService {
             && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
             LOGGER.debug("Spread verification is less than entry spread, will not trade"); // this is debug because it can get spammy
             return;
+        }
+
+        { // estimate profit at exit
+            // hey! this is the magical part!
+            // we use exitTarget and longEffectivePrice to calculate a short exit effective price that gives us the target spread
+            // and now we can estimate the profit of the trade!
+            BigDecimal longExitEffectivePrice = spreadService.effectiveSellPrice(longLimitPrice, longFeePercent);
+            BigDecimal shortExitEffectivePrice = exitTarget.multiply(longExitEffectivePrice).add(longExitEffectivePrice);
+
+            BigDecimal longEntryCost = longVolume.multiply(longLimitPrice);
+            BigDecimal longExitCost = longVolume.multiply(longExitEffectivePrice);
+            BigDecimal longProfit = longExitCost.subtract(longEntryCost);
+
+            BigDecimal shortEntryCost = shortVolume.multiply(shortLimitPrice);
+            BigDecimal shortExitCost = shortVolume.multiply(shortExitEffectivePrice);
+            BigDecimal shortProfit = shortEntryCost.subtract(shortExitCost);
+
+            BigDecimal profit = longProfit.add(shortProfit);
+
+            LOGGER.info("Estimated profit: {}", profit);
+
+            if (profit.compareTo(BigDecimal.ZERO) <= 0) {
+                LOGGER.warn("Trade is not expected to be profitable. Tuck and roll!");
+                return;
+            } else {
+                LOGGER.info("Trade looks good. Let's GOOOOO!!!");
+            }
         }
 
         // we need to add fees for exchanges where feeComputation is set to CLIENT
@@ -591,9 +618,14 @@ public class TradingService {
     // execute a buy and a sell together
     private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
                                   CurrencyPair currencyPair,
-                                  BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
+                                  BigDecimal rawLongLimitPrice, BigDecimal rawShortLimitPrice,
                                   BigDecimal longVolume, BigDecimal shortVolume,
                                   boolean isPositionOpen) throws IOException, ExchangeException {
+
+        final CurrencyPairMetaData longCurrencyPairMetaData = longExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA);
+        final CurrencyPairMetaData shortCurrencyPairMetaData = shortExchange.getExchangeMetaData().getCurrencyPairs().getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA);
+        final BigDecimal longLimitPrice = rawLongLimitPrice.setScale(Optional.ofNullable(longCurrencyPairMetaData.getPriceScale()).orElse(BTC_SCALE), RoundingMode.HALF_EVEN);
+        final BigDecimal shortLimitPrice = rawShortLimitPrice.setScale(Optional.ofNullable(shortCurrencyPairMetaData.getPriceScale()).orElse(BTC_SCALE), RoundingMode.HALF_EVEN);
 
         // build two limit orders - orders that execute at a specific price
         // this helps us to get the "maker" price on exchanges where the fees are lower for makers
