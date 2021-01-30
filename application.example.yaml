@@ -60,6 +60,13 @@ trading:
   # Fees will be added to this amount.
   exitTarget: 0.0050
 
+  # (Default: false)
+  # Log notifications when a spreadIn reaches an all time high, or a spreadOut reaches an all time low.
+  # This gets very noisy at first because the values all start out empty, but after a few minutes it quiets down.
+  # These notifications can be very useful for tuning your entrySpread and exitTarget because it shows you what the
+  # ranges for the spreads are.
+  spreadNotifications: false
+
   # (Optional)
   # Specify the size per trade. If this value is missing, the bot will default to 90% of the balance
   # of the exchange that has the smallest balance. I highly recommend starting out the bot
@@ -84,10 +91,14 @@ trading:
   # (Optional)
   # Enable paper trading. Orders will not be forwarded to the exchanges. Instead, a paper exchange will execute the
   # order at the limit price. The paper exchange start with a cash balance of 100.
+  #
+  # Set active to true to turn on paper trading (default) or false to trade real money.
+  #
   # Enable the autoFill option to fill the trigger the order completion after 1s: useful to avoid waiting for the good
   # market condition. If false, the paper exchange will wait for the limit price to be met by the real exchange.
-  #paper:
-  #  autoFill: true
+  paper:
+    active: true
+    autoFill: true
 
   # Connection information for each exchange goes in this list.
   #

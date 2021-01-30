@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.r307.arbitrader.BaseTestCase;
 import com.r307.arbitrader.ExchangeBuilder;
 import com.r307.arbitrader.config.JsonConfiguration;
 import com.r307.arbitrader.config.NotificationConfiguration;
@@ -15,7 +16,6 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.io.File;
@@ -32,7 +32,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;
 
-public class TradingServiceTest {
+public class TradingServiceTest extends BaseTestCase {
     private static final CurrencyPair currencyPair = new CurrencyPair("BTC/USD");
     private static final int CSV_NUMBER_OF_COLUMNS = 12;
 
@@ -43,14 +43,14 @@ public class TradingServiceTest {
 
     @Mock
     private ExchangeService exchangeService;
-    private SpreadService spreadService;
 
     @Mock
+    private SpreadService spreadService;
+
     private TradingService tradingService;
 
     @Before
     public void setUp() throws IOException {
-        MockitoAnnotations.initMocks(this);
         final JavaMailSender javaMailSenderMock = mock(JavaMailSender.class);
 
         ObjectMapper objectMapper = new JsonConfiguration().objectMapper();
@@ -63,7 +63,7 @@ public class TradingServiceTest {
             new TradingConfiguration(),
             exchangeService,
             errorCollectorService);
-        spreadService = new SpreadService(tickerService);
+        spreadService = new SpreadService(tradingConfiguration, tickerService);
         NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration);
         tradingConfiguration = new TradingConfiguration();
 
