@@ -135,7 +135,7 @@ public class TradingScheduler {
             } else {
                 exchange = ExchangeFactory.INSTANCE.createExchange(specification);
             }
-            if(tradingConfiguration.getPaper() != null) {
+            if(tradingConfiguration.getPaper() != null && tradingConfiguration.getPaper().isActive()) {
                 exchange=new PaperExchange(exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService, tradingConfiguration.getPaper());
             }
             exchanges.add(exchange);
@@ -155,6 +155,10 @@ public class TradingScheduler {
         // tell the user whether trade timeout is configured
         if (tradingConfiguration.getTradeTimeout() != null) {
             LOGGER.info("Using trade timeout of {} hours", tradingConfiguration.getTradeTimeout());
+        }
+
+        if (tradingConfiguration.getPaper() != null && tradingConfiguration.getPaper().isActive()) {
+            LOGGER.info("Paper trading enabled, will NOT trade real money");
         }
 
         // load active trades from file, if there is one

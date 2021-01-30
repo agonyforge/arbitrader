@@ -1,28 +1,32 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.BaseTestCase;
 import com.r307.arbitrader.ExchangeBuilder;
+import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.Spread;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.Mock;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 
-public class SpreadServiceTest {
+public class SpreadServiceTest extends BaseTestCase {
     private Exchange longExchange;
     private Exchange shortExchange;
+
+    @Mock
+    private TradingConfiguration tradingConfiguration;
+
+    @Mock
+    private TickerService tickerService;
 
     private SpreadService spreadService;
 
     @Before
     public void setUp() throws IOException {
-        MockitoAnnotations.initMocks(this);
-        final TickerService tickerServiceMock = Mockito.mock(TickerService.class);
-
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
             .withExchangeMetaData()
             .build();
@@ -30,7 +34,7 @@ public class SpreadServiceTest {
             .withExchangeMetaData()
             .build();
 
-        spreadService = new SpreadService(tickerServiceMock);
+        spreadService = new SpreadService(tradingConfiguration, tickerService);
     }
 
     @Test

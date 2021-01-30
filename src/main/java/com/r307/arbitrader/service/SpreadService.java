@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import org.knowm.xchange.Exchange;
@@ -29,9 +30,11 @@ public class SpreadService {
     private final Map<String, BigDecimal> maxSpreadIn = new HashMap<>();
     private final Map<String, BigDecimal> minSpreadOut = new HashMap<>();
     private final Map<String, BigDecimal> maxSpreadOut = new HashMap<>();
+    private final TradingConfiguration tradingConfiguration;
     private final TickerService tickerService;
 
-    public SpreadService(TickerService tickerService) {
+    public SpreadService(TradingConfiguration tradingConfiguration, TickerService tickerService) {
+        this.tradingConfiguration = tradingConfiguration;
         this.tickerService = tickerService;
     }
 
@@ -41,8 +44,26 @@ public class SpreadService {
      *
      * @param spread A new Spread.
      */
-    public void publish(Spread spread) {
+    void publish(Spread spread) {
         String spreadKey = spreadKey(spread.getLongExchange(), spread.getShortExchange(), spread.getCurrencyPair());
+
+        if (LOGGER.isInfoEnabled() && tradingConfiguration.isSpreadNotifications()) {
+            if (spread.getIn().compareTo(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))) > 0) {
+                LOGGER.info("Record high spreadIn: {}/{} {} {}",
+                    spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getCurrencyPair(),
+                    spread.getIn());
+            }
+
+            if (spread.getOut().compareTo(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))) < 0) {
+                LOGGER.info("Record low spreadOut: {}/{} {} {}",
+                    spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getShortExchange().getExchangeSpecification().getExchangeName(),
+                    spread.getCurrencyPair(),
+                    spread.getIn());
+            }
+        }
 
         minSpreadIn.put(spreadKey, spread.getIn().min(minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
         maxSpreadIn.put(spreadKey, spread.getIn().max(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
