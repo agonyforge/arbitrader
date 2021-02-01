@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -176,7 +175,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(order.getLimitPrice());
         order.setCumulativeAmount(order.getOriginalAmount());
-        order.setFee(order.getCumulativeCounterAmount().multiply(fee.divide(new BigDecimal("100"), RoundingMode.HALF_EVEN)));
+        order.setFee(order.getCumulativeCounterAmount().multiply(fee));
         LOGGER.info("{} paper exchange: Order {} filled for {}{}, with {} fees.",
             exchangeName,
             order.getId(),
