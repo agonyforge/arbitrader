@@ -186,8 +186,10 @@ public class TradingService {
         BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
         BigDecimal shortVolume = getVolumeForEntryPosition(maxExposure, spread.getShortTicker().getBid(), shortScale);
 
-        BigDecimal longLimitPrice;
-        BigDecimal shortLimitPrice;
+        final BigDecimal longLimitPrice; // price from the exchange
+        final BigDecimal shortLimitPrice; // price from the exchange
+        final BigDecimal longEntryEffectiveLimitPrice; // price + fees, multiply by volume to get total cost of transaction
+        final BigDecimal shortEntryEffectiveLimitPrice; // price + fees
 
         // We originally calculated a spread based on the *entire order* being executed at the bid or ask price.
         //
@@ -199,8 +201,11 @@ public class TradingService {
         // This recalculation of the spread is a little computationally expensive, which is why we don't do it
         // until we know we're close to wanting to trade.
         try {
-            longLimitPrice = spreadService.effectiveBuyPrice(getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK), longFeePercent);
-            shortLimitPrice = spreadService.effectiveSellPrice(getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID), shortFeePercent);
+            longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.ASK);
+            shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.BID);
+
+            longEntryEffectiveLimitPrice = spreadService.effectiveBuyPrice(longLimitPrice, longFeePercent);
+            shortEntryEffectiveLimitPrice = spreadService.effectiveSellPrice(shortLimitPrice, shortFeePercent);
         } catch (ExchangeException e) {
             LOGGER.warn("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
@@ -211,7 +216,7 @@ public class TradingService {
             return;
         }
 
-        BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
+        BigDecimal spreadVerification = spreadService.computeSpread(longEntryEffectiveLimitPrice, shortEntryEffectiveLimitPrice);
 
         if (!conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)
             && spreadVerification.compareTo(tradingConfiguration.getEntrySpread()) < 0) {
@@ -219,6 +224,7 @@ public class TradingService {
             return;
         }
 
+        // TODO move me into a method before PR
         { // estimate profit at exit
             // hey! this is the magical part!
             // we use exitTarget and longEffectivePrice to calculate a short exit effective price that gives us the target spread
@@ -226,11 +232,11 @@ public class TradingService {
             BigDecimal longExitEffectivePrice = spreadService.effectiveSellPrice(longLimitPrice, longFeePercent);
             BigDecimal shortExitEffectivePrice = exitTarget.multiply(longExitEffectivePrice).add(longExitEffectivePrice);
 
-            BigDecimal longEntryCost = longVolume.multiply(longLimitPrice);
+            BigDecimal longEntryCost = longVolume.multiply(longEntryEffectiveLimitPrice);
             BigDecimal longExitCost = longVolume.multiply(longExitEffectivePrice);
             BigDecimal longProfit = longExitCost.subtract(longEntryCost);
 
-            BigDecimal shortEntryCost = shortVolume.multiply(shortLimitPrice);
+            BigDecimal shortEntryCost = shortVolume.multiply(shortEntryEffectiveLimitPrice);
             BigDecimal shortExitCost = shortVolume.multiply(shortExitEffectivePrice);
             BigDecimal shortProfit = shortEntryCost.subtract(shortExitCost);
 
