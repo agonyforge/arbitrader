@@ -16,7 +16,6 @@ import org.knowm.xchange.service.trade.params.orders.OrderQueryParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -153,7 +152,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(order.getLimitPrice());
         order.setCumulativeAmount(order.getOriginalAmount());
-        order.setFee(order.getCumulativeCounterAmount().multiply(exchangeService.getExchangeFee(exchange,order.getCurrencyPair(),false).divide(new BigDecimal("100"))));
+        order.setFee(order.getCumulativeCounterAmount().multiply(exchangeService.getExchangeFee(exchange,order.getCurrencyPair(),false)));
         LOGGER.info("{} paper exchange: Order {} filled for {}{}, with {} fees.",
             exchange.getExchangeSpecification().getExchangeName(),
             order.getId(),
