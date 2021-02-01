@@ -334,6 +334,8 @@ public class TradingService {
     private void exitPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
+        final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
+        final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
 
         // figure out how much to trade
         BigDecimal longVolume;
@@ -357,8 +359,10 @@ public class TradingService {
 
         LOGGER.debug("Volumes: {}/{}", longVolume, shortVolume);
 
-        BigDecimal longLimitPrice;
-        BigDecimal shortLimitPrice;
+        final BigDecimal longLimitPrice;
+        final BigDecimal shortLimitPrice;
+        final BigDecimal longExitEffectiveLimitPrice; // price + fees, multiply by volume to get total cost of transaction
+        final BigDecimal shortExitEffectiveLimitPrice; // price + fees
 
         // Calculate a more accurate price based on the order book rather than just multiplying the bid or ask price.
         // Sometimes there isn't enough currency available at the listed price and part of your order has to be filled
@@ -367,6 +371,9 @@ public class TradingService {
         try {
             longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), longVolume, Order.OrderType.BID);
             shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume, Order.OrderType.ASK);
+
+            longExitEffectiveLimitPrice = spreadService.effectiveBuyPrice(longLimitPrice, longFeePercent);
+            shortExitEffectiveLimitPrice = spreadService.effectiveSellPrice(shortLimitPrice, shortFeePercent);
         } catch (ExchangeException e) {
             LOGGER.warn("Failed to fetch order books (on active position) for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
@@ -380,7 +387,7 @@ public class TradingService {
         LOGGER.debug("Limit prices: {}/{}", longLimitPrice, shortLimitPrice);
 
         // this spread is based on the prices we calculated using the order book, so it's more accurate than the original estimate
-        BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
+        BigDecimal spreadVerification = spreadService.computeSpread(longExitEffectiveLimitPrice, shortExitEffectiveLimitPrice);
 
         LOGGER.debug("Exit spread: {}", spreadVerification);
         LOGGER.debug("Exit spread target: {}", activePosition.getExitTarget());
