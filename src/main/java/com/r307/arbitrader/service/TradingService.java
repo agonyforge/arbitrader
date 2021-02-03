@@ -246,7 +246,7 @@ public class TradingService {
 
             if (profit.compareTo(BigDecimal.ZERO) <= 0) {
                 LOGGER.warn("Trade is not expected to be profitable. Tuck and roll!");
-                //return;
+                return;
             } else {
                 LOGGER.info("Trade looks good. Let's GOOOOO!!!");
             }
