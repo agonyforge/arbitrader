@@ -54,11 +54,14 @@ notifications:
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.
-  entrySpread: 0.0080
+  # Fees are added to this amount
+  # Increasing this value will make trades harder to enter
+  entrySpread: 0.0019
 
-  # The percentage difference *in profit only* before we will close our positions.
-  # Fees will be added to this amount.
-  exitTarget: 0.0050
+  # The percentage difference between the "long" and "short" exchanges before we will open our positions.
+  # Fees are added to this amount.
+  # Increasing this value will make trades easier to exit. The minimum profit percentage is entrySpread-exitSpread.
+  exitSpread: 0.0018
 
   # (Default: false)
   # Log notifications when a spreadIn reaches an all time high, or a spreadOut reaches an all time low.

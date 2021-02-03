@@ -152,7 +152,7 @@ public class TradingService {
         final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
-        final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget()); // TODO should we drop the subtract so it's absolute instead of relative?
+        final BigDecimal exitTarget = tradingConfiguration.getExitSpread();
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
@@ -246,7 +246,7 @@ public class TradingService {
 
             if (profit.compareTo(BigDecimal.ZERO) <= 0) {
                 LOGGER.warn("Trade is not expected to be profitable. Tuck and roll!");
-                return;
+                //return;
             } else {
                 LOGGER.info("Trade looks good. Let's GOOOOO!!!");
             }

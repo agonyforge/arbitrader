@@ -18,7 +18,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Configuration
 public class TradingConfiguration {
     private BigDecimal entrySpread;
-    private BigDecimal exitTarget;
+    private BigDecimal exitSpread;
     private Boolean spreadNotifications = false;
     private BigDecimal fixedExposure;
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
@@ -34,12 +34,12 @@ public class TradingConfiguration {
         this.entrySpread = entrySpread;
     }
 
-    public BigDecimal getExitTarget() {
-        return exitTarget;
+    public BigDecimal getExitSpread() {
+        return exitSpread;
     }
 
-    public void setExitTarget(BigDecimal exitTarget) {
-        this.exitTarget = exitTarget;
+    public void setExitSpread(BigDecimal exitSpread) {
+        this.exitSpread = exitSpread;
     }
 
     public Boolean isSpreadNotifications() {

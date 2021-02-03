@@ -148,7 +148,7 @@ public class SpreadService {
 
     /**
      * Computes the "effective price" for a sell which is the price including exchange fees.
-     * The formula is: effective = price * (1 + fee)
+     * The formula is: effective = price * (1 - fee)
      * @param price The original price
      * @param fee The fee as a percentage, eg. 0.0025 for 0.25%
      * @return The price adjusted for fees
