@@ -183,8 +183,9 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
-        BigDecimal shortVolume = getVolumeForEntryPosition(maxExposure, spread.getShortTicker().getBid(), shortScale);
+        BigDecimal shortVolume = getVolumeForShortTrade(maxExposure, spread.getShortTicker().getBid(), shortScale);
+        BigDecimal longVolume = getVolumeForLongTrade(shortVolume, shortFeePercent, longFeePercent, longScale);
+
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -219,12 +220,17 @@ public class TradingService {
             return;
         }
 
+        //Adjust the volume after slip so the trade stays market neutral
+        shortVolume = getVolumeForShortTrade(maxExposure, shortLimitPrice, shortScale);
+        longVolume = getVolumeForLongTrade(shortVolume, shortFeePercent, longFeePercent, longScale);
+
         // we need to add fees for exchanges where feeComputation is set to CLIENT
         final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
         final BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
         // This will be the amount we sent in the execute order request to the exchange
+        // TODO the volumes need to be adjusted so the trade stays market neutral
         final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(longExchangeMetaData, currencyPairLongExchange, longVolumeWithFees);
         final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(shortExchangeMetaData, currencyPairShortExchange, shortVolumeWithFees);
 
@@ -568,8 +574,14 @@ public class TradingService {
 
     }
 
-    // get volume for an entry position considering exposure and exchange step size if there is one
-    private BigDecimal getVolumeForEntryPosition(BigDecimal maxExposure, BigDecimal price, int scale) {
+    // get the volume to trade on the long exchange
+    private BigDecimal getVolumeForLongTrade(BigDecimal shortVolume, BigDecimal shortFee, BigDecimal longFee, int scale) {
+        // see https://github.com/scionaltera/arbitrader/issues/325
+        return shortVolume.multiply(BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee), scale, RoundingMode.HALF_EVEN);
+    }
+
+    // get volume to trade on the short exchange
+    private BigDecimal getVolumeForShortTrade(BigDecimal maxExposure, BigDecimal price, int scale) {
         return maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
     }
 
