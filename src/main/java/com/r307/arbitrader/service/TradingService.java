@@ -271,7 +271,7 @@ public class TradingService {
         //Otherwise it could mess with profit estimations!
         if (!conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)
             && !isMarketNeutral(longVolume,shortVolume,longFeePercent,shortFeePercent)) {
-            LOGGER.info("Trade is not market neutral, profit estimates might be off, will not trade"); // this is debug because it can get spammy
+            LOGGER.info("Trade is not market neutral, profit estimates might be off, will not trade");
             return;
         }
 
