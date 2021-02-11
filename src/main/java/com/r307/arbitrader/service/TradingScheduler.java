@@ -77,7 +77,7 @@ public class TradingScheduler {
                 return;
             }
 
-            Class<Exchange> exchangeClass;
+            Class<? extends Exchange> exchangeClass;
 
             try {
                 // try to load the exchange class
