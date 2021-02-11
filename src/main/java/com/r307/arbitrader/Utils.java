@@ -23,7 +23,7 @@ public final class Utils {
      * @return A Class that is an Exchange.
      * @throws ClassNotFoundException when the class cannot be found.
      */
-    public static Class<Exchange> loadExchangeClass(String clazzName) throws ClassNotFoundException {
+    public static Class<? extends Exchange> loadExchangeClass(String clazzName) throws ClassNotFoundException {
         Class<?> clazz = Class.forName(clazzName); // loads the class into the JVM or throws
         Class<?> superclazz = clazz;
 
@@ -39,8 +39,7 @@ public final class Utils {
 
         LOGGER.info("Loaded exchange class: {}", clazz.getCanonicalName());
 
-        //noinspection unchecked
-        return (Class<Exchange>)clazz;
+        return clazz.asSubclass(Exchange.class);
     }
 
     /**
