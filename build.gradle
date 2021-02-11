@@ -73,7 +73,7 @@ task buildDocker(type: Docker) {
     applicationName = jar.getArchiveBaseName().get()
     dockerfile = file('src/main/docker/local/Dockerfile')
     tagVersion = "latest"
-    tag = "scionaltera/${applicationName}"
+    tag = "agonyforge/${applicationName}"
 
     doFirst {
         copy {
