@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
@@ -183,8 +184,8 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        BigDecimal longVolume = getVolumeForLongTrade(maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent,longScale,shortScale);
-        BigDecimal shortVolume = getVolumeForShortTrade(longVolume, longFeePercent,shortFeePercent, shortScale);
+        BigDecimal longVolume = getVolumeForLongTrade(maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent);
+        BigDecimal shortVolume = getShortVolumeFromLong(longVolume, longFeePercent,shortFeePercent);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -220,19 +221,59 @@ public class TradingService {
         }
 
         //Adjust the volume after slip so the trade stays market neutral
-        longVolume = getVolumeForLongTrade(maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent,longScale,shortScale);
-        shortVolume = getVolumeForShortTrade(longVolume, longFeePercent,shortFeePercent, shortScale);
+        longVolume = getVolumeForLongTrade(maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
+        shortVolume = getShortVolumeFromLong(longVolume, longFeePercent,shortFeePercent);
 
 
-        // we need to add fees for exchanges where feeComputation is set to CLIENT
-        final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
-        final BigDecimal shortVolumeWithFees = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+        //We need to add fees for exchanges where feeComputation is set to CLIENT
+        // The order volumes will be used to pass the orders after step size and rounding
+        BigDecimal longOrderVolume = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+        BigDecimal shortOrderVolume = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
 
         // Before executing the order we adjust the step size for each side of the trade (long and short).
-        // This will be the amount we sent in the execute order request to the exchange
-        // TODO the volumes need to be adjusted so the trade stays market neutral
-        final BigDecimal longVolumeWithFeesAndAdjustedStep = adjustStepSize(longExchangeMetaData, currencyPairLongExchange, longVolumeWithFees);
-        final BigDecimal shortVolumeWithFeesAndAdjustedStep = adjustStepSize(shortExchangeMetaData, currencyPairShortExchange, shortVolumeWithFees);
+        // When adjusting the order volumes, the underlying longVolume and shortVolume need to be adjusted as well as
+        // they are used to ensure market neutrality and estimate profits.
+        final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
+            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+        final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
+            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+
+        if(spread.getCurrencyPair() != null) {
+            if(longAmountStepSize != null && shortAmountStepSize != null) {
+                //Unhappy scenario
+                //It will be hard to find a volume that match the step sizes on both exchanges and the market neutrality
+                longOrderVolume = roundByStep(longOrderVolume, longAmountStepSize);
+                shortOrderVolume = roundByStep(shortOrderVolume, shortAmountStepSize);
+            } else if (longAmountStepSize != null) {
+                //Long exchange has a step size, round the long volume
+                longOrderVolume = adjustStepSize (spread.getLongExchange().getExchangeMetaData(), spread.getCurrencyPair(), longOrderVolume);
+                //Adjust other volumes to respect market neutrality
+                longVolume = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longOrderVolume);
+                shortVolume = getShortVolumeFromLong(longVolume, longFeePercent, shortFeePercent);
+                shortOrderVolume = addFees(spread.getShortExchange(), spread.getCurrencyPair(), shortVolume);
+            } else if (shortAmountStepSize != null) {
+                //Short exchange has a step size, round the short volume
+                shortOrderVolume = adjustStepSize (spread.getShortExchange().getExchangeMetaData(), spread.getCurrencyPair(), shortOrderVolume);
+                //Adjust other volumes to respect market neutrality
+                shortVolume = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortOrderVolume);
+                longVolume = getLongVolumeFromShort(shortVolume, longFeePercent, shortFeePercent);
+                longOrderVolume = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
+            }
+        }
+
+        // Round the volumes so they are compatible with the exchanges' scales
+        longOrderVolume = longOrderVolume.setScale(longScale,RoundingMode.HALF_EVEN);
+        shortOrderVolume = shortOrderVolume.setScale(shortScale,RoundingMode.HALF_EVEN);
+        longVolume = subtractFees(spread.getLongExchange(), spread.getCurrencyPair(), longOrderVolume);
+        shortVolume = subtractFees(spread.getShortExchange(), spread.getCurrencyPair(), shortOrderVolume);
+
+        //Scales or steps might have broken market neutrality, check that the entry is still as market neutral as possible
+        //Otherwise it could mess with profit estimations!
+        if (!conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)
+            && !isMarketNeutral(longVolume,shortVolume,longFeePercent,shortFeePercent)) {
+            LOGGER.info("Trade is not market neutral, profit estimates might be off, will not trade"); // this is debug because it can get spammy
+            return;
+        }
 
         logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, longVolume, shortVolume, longLimitPrice, shortLimitPrice);
 
@@ -255,7 +296,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                longVolumeWithFeesAndAdjustedStep, shortVolumeWithFeesAndAdjustedStep,
+                longOrderVolume, shortOrderVolume,
                 true);
 
             notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, longVolume,
@@ -578,37 +619,58 @@ public class TradingService {
      * Calculates the volume to trade on the long exchange such as:
      * - the total price does not exceed the long exchange maximum exposure
      * - the total price to trade on the short exchange does not exceed the short exchange maximum exposure
-     * @see #getVolumeForShortTrade and #getFeeFactor
+     * @see #getShortVolumeFromLong and #getFeeFactor
      * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
      */
-    private BigDecimal getVolumeForLongTrade(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+    private BigDecimal getVolumeForLongTrade(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
         //volume limit induced by the maximum exposure on the long exchange
-        BigDecimal longVolume1 = longMaxExposure.divide(longPrice,longScale,RoundingMode.HALF_EVEN);
+        BigDecimal longVolume1 = longMaxExposure.divide(longPrice,RoundingMode.HALF_EVEN);
 
         //volume limit induced by the maximum exposure on the short exchange: shortVolume * shortPrice == shortMaxExposure
         //to respect market neutrality: shortVolume = longVolume2 / feeFactor
-        BigDecimal longVolume2 = getFeeFactor(longFee,shortFee).multiply(shortMaxExposure).divide(shortPrice,shortScale,RoundingMode.HALF_EVEN);
+        BigDecimal longVolume2 = getFeeFactor(longFee,shortFee).multiply(shortMaxExposure).divide(shortPrice,RoundingMode.HALF_EVEN);
         return longVolume1.min(longVolume2);
     }
 
     /**
-     * Calculates the volume to trade on the short exchange such as market neutrality is respected:
-     * this is ensured by longVolume = feeFactor * shortVolume
-     * - the total price does not exceed the longMaxExposure
-     * - the total price to trade on the short exchange does not exceed the shortMaxExposure
+     * Calculates a market neutral volume to trade on the short exchange from the volume to trade on the long exchange
      * @see #getVolumeForLongTrade and #getFeeFactor
      */
-    private BigDecimal getVolumeForShortTrade(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee, int shortScale) {
-        return longVolume.divide(getFeeFactor(longFee,shortFee), shortScale, RoundingMode.HALF_EVEN);
+    private BigDecimal getShortVolumeFromLong(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee) {
+        return longVolume.divide(getFeeFactor(longFee,shortFee),RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * Calculates a market neutral volume to trade on the long exchange from the volume to trade on the short exchange
+     */
+    private BigDecimal getLongVolumeFromShort(BigDecimal shortVolume, BigDecimal longFee, BigDecimal shortFee) {
+        return shortVolume.multiply(getFeeFactor(longFee,shortFee));
     }
 
     /**
      * Get the long exchange volume multiplier to compensate for the exit fees
      * Trading the same amount on both exchanges is not market neutral. A higher volume traded on the long exchange
-     * is needed to compensate for the fees that could increase if the price increases.
+     * is required to compensate for the fees that could increase if the price increases.
+     * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
      */
-    private BigDecimal getFeeFactor(BigDecimal shortFee, BigDecimal longFee) {
-        return (BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee));
+    private BigDecimal getFeeFactor(BigDecimal longFee, BigDecimal shortFee) {
+        return (BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee),RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * Check if the trade is still market neutral enough
+     * If the difference between longVolume and shortVolume * feeFactor is greater than the threshold, we consider the
+     * delta too big for the trade to be neutral.
+     * The threshold is set to (feeFactor - 1) * shortVolume, so that volumeLong < (volumeShort + 2 * threshold) and
+     * volumeShort < volumeLong return true. It means that the extra volume traded on the long exchange should
+     * compensate between 0 exit fees and twice the exit fees.
+     * TODO find the optimal threshold
+     */
+    private boolean isMarketNeutral(BigDecimal longVolume, BigDecimal shortVolume, BigDecimal longFee, BigDecimal shortFee) {
+        BigDecimal feeFactor = getFeeFactor(longFee,shortFee);
+        BigDecimal volumeDelta = shortVolume.multiply(getFeeFactor(longFee,shortFee)).subtract(longVolume).abs();
+        BigDecimal threshold = shortVolume.multiply(feeFactor.subtract(BigDecimal.ONE)).abs();
+        return volumeDelta.compareTo(threshold)<0;
     }
 
     // get the smallest possible order for an entry position on an exchange
