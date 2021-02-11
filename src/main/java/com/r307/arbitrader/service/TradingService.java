@@ -183,9 +183,8 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        BigDecimal shortVolume = getVolumeForShortTrade(maxExposure, spread.getShortTicker().getBid(), shortScale);
-        BigDecimal longVolume = getVolumeForLongTrade(shortVolume, shortFeePercent, longFeePercent, longScale);
-
+        BigDecimal longVolume = getVolumeForLongTrade(maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent,longScale,shortScale);
+        BigDecimal shortVolume = getVolumeForShortTrade(longVolume, longFeePercent,shortFeePercent, shortScale);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -221,8 +220,9 @@ public class TradingService {
         }
 
         //Adjust the volume after slip so the trade stays market neutral
-        shortVolume = getVolumeForShortTrade(maxExposure, shortLimitPrice, shortScale);
-        longVolume = getVolumeForLongTrade(shortVolume, shortFeePercent, longFeePercent, longScale);
+        longVolume = getVolumeForLongTrade(maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent,longScale,shortScale);
+        shortVolume = getVolumeForShortTrade(longVolume, longFeePercent,shortFeePercent, shortScale);
+
 
         // we need to add fees for exchanges where feeComputation is set to CLIENT
         final BigDecimal longVolumeWithFees = addFees(spread.getLongExchange(), spread.getCurrencyPair(), longVolume);
@@ -574,15 +574,41 @@ public class TradingService {
 
     }
 
-    // get the volume to trade on the long exchange
-    private BigDecimal getVolumeForLongTrade(BigDecimal shortVolume, BigDecimal shortFee, BigDecimal longFee, int scale) {
-        // see https://github.com/scionaltera/arbitrader/issues/325
-        return shortVolume.multiply(BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee), scale, RoundingMode.HALF_EVEN);
+    /**
+     * Calculates the volume to trade on the long exchange such as:
+     * - the total price does not exceed the long exchange maximum exposure
+     * - the total price to trade on the short exchange does not exceed the short exchange maximum exposure
+     * @see #getVolumeForShortTrade and #getFeeFactor
+     * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
+     */
+    private BigDecimal getVolumeForLongTrade(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+        //volume limit induced by the maximum exposure on the long exchange
+        BigDecimal longVolume1 = longMaxExposure.divide(longPrice,longScale,RoundingMode.HALF_EVEN);
+
+        //volume limit induced by the maximum exposure on the short exchange: shortVolume * shortPrice == shortMaxExposure
+        //to respect market neutrality: shortVolume = longVolume2 / feeFactor
+        BigDecimal longVolume2 = getFeeFactor(longFee,shortFee).multiply(shortMaxExposure).divide(shortPrice,shortScale,RoundingMode.HALF_EVEN);
+        return longVolume1.min(longVolume2);
     }
 
-    // get volume to trade on the short exchange
-    private BigDecimal getVolumeForShortTrade(BigDecimal maxExposure, BigDecimal price, int scale) {
-        return maxExposure.divide(price, scale, RoundingMode.HALF_EVEN);
+    /**
+     * Calculates the volume to trade on the short exchange such as market neutrality is respected:
+     * this is ensured by longVolume = feeFactor * shortVolume
+     * - the total price does not exceed the longMaxExposure
+     * - the total price to trade on the short exchange does not exceed the shortMaxExposure
+     * @see #getVolumeForLongTrade and #getFeeFactor
+     */
+    private BigDecimal getVolumeForShortTrade(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee, int shortScale) {
+        return longVolume.divide(getFeeFactor(longFee,shortFee), shortScale, RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * Get the long exchange volume multiplier to compensate for the exit fees
+     * Trading the same amount on both exchanges is not market neutral. A higher volume traded on the long exchange
+     * is needed to compensate for the fees that could increase if the price increases.
+     */
+    private BigDecimal getFeeFactor(BigDecimal shortFee, BigDecimal longFee) {
+        return (BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee));
     }
 
     // get the smallest possible order for an entry position on an exchange
