@@ -6,7 +6,7 @@
 # The configurations here are meant to demonstrate and document the different features of Arbitrader.
 # For more up to date configurations that have been contributed and tested by our community check out
 # this page:
-# https://github.com/scionaltera/arbitrader/wiki/Recommended-Exchange-Configurations
+# https://github.com/agonyforge/arbitrader/wiki/Recommended-Exchange-Configurations
 
 # If you want to see a LOT of logs, you can turn on DEBUG by uncommenting this:
 #logging:

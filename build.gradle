@@ -44,7 +44,7 @@ dependencies {
     compile group: 'org.springframework.boot', name: 'spring-boot-starter-mail'
 
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
-    compile group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.0'
+    compile group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
 
     compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.4'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.4'
@@ -73,7 +73,7 @@ task buildDocker(type: Docker) {
     applicationName = jar.getArchiveBaseName().get()
     dockerfile = file('src/main/docker/local/Dockerfile')
     tagVersion = "latest"
-    tag = "scionaltera/${applicationName}"
+    tag = "agonyforge/${applicationName}"
 
     doFirst {
         copy {
