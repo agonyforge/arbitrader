@@ -28,10 +28,10 @@ public class ExchangeConfiguration {
     private List<CurrencyPair> tradingPairs = new ArrayList<>();
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
-    private BigDecimal fee;
-    private BigDecimal feeOverride;
+    private BigDecimal tradeFee;
+    private BigDecimal tradeFeeOverride;
     private BigDecimal marginFee;
-    private BigDecimal marginFeeOverrride;
+    private BigDecimal marginFeeOverride;
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
     private List<Object> tickerArguments = new ArrayList<>();
@@ -126,20 +126,20 @@ public class ExchangeConfiguration {
         this.marginExclude = marginExclude;
     }
 
-    public BigDecimal getFee() {
-        return fee;
+    public BigDecimal getTradeFee() {
+        return tradeFee;
     }
 
-    public void setFee(BigDecimal fee) {
-        this.fee = fee;
+    public void setTradeFee(BigDecimal tradeFee) {
+        this.tradeFee = tradeFee;
     }
 
-    public BigDecimal getFeeOverride() {
-        return feeOverride;
+    public BigDecimal getTradeFeeOverride() {
+        return tradeFeeOverride;
     }
 
-    public void setFeeOverride(BigDecimal feeOverride) {
-        this.feeOverride = feeOverride;
+    public void setTradeFeeOverride(BigDecimal tradeFeeOverride) {
+        this.tradeFeeOverride = tradeFeeOverride;
     }
 
     public Currency getHomeCurrency() {
@@ -190,11 +190,11 @@ public class ExchangeConfiguration {
         this.marginFee = marginFee;
     }
 
-    public BigDecimal getMarginFeeOverrride() {
-        return marginFeeOverrride;
+    public BigDecimal getMarginFeeOverride() {
+        return marginFeeOverride;
     }
 
-    public void setMarginFeeOverrride(BigDecimal marginFeeOverrride) {
-        this.marginFeeOverrride = marginFeeOverrride;
+    public void setMarginFeeOverride(BigDecimal marginFeeOverride) {
+        this.marginFeeOverride = marginFeeOverride;
     }
 }

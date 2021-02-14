@@ -40,14 +40,14 @@ public class ExchangeFeeCacheTest extends BaseTestCase {
 
     @Test
     public void testSetAndGet() {
-        exchangeFeeCache.setCachedFee(exchange, currencyPair, new ExchangeFee(null, new BigDecimal("0.0025")));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new ExchangeFee(new BigDecimal("0.0002"), new BigDecimal("0.0010")));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new ExchangeFee(new BigDecimal("0.0001"), new BigDecimal("0.0030")));
-        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BCC_USD, new ExchangeFee(null, new BigDecimal("0.0030")));
+        exchangeFeeCache.setCachedFee(exchange, currencyPair, new ExchangeFee(new BigDecimal("0.0025"), null));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BTC_USD, new ExchangeFee(new BigDecimal("0.0010"), new BigDecimal("0.0002")));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.ETH_USD, new ExchangeFee(new BigDecimal("0.0030"), new BigDecimal("0.0001")));
+        exchangeFeeCache.setCachedFee(exchange, CurrencyPair.BCC_USD, new ExchangeFee(new BigDecimal("0.0030"), null));
 
         assertTrue(exchangeFeeCache.getCachedFee(exchange, currencyPair).isPresent());
-        assertEquals(new BigDecimal("0.0025"), exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getLongFee());
-        assertFalse(exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getShortFee().isPresent());
+        assertEquals(new BigDecimal("0.0025"), exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getTradeFee());
+        assertFalse(exchangeFeeCache.getCachedFee(exchange, currencyPair).get().getMarginFee().isPresent());
     }
 
     @Test

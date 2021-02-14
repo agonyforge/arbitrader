@@ -157,19 +157,19 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         final ExchangeConfiguration exchangeConfiguration = exchangeService.getExchangeMetadata(exchange);
 
         // If leverage is empty it means it is a long order. If it is NOT empty then it is a short order
-        if (order.getLeverage() != null && !order.getLeverage().isEmpty() && !exchangeFee.getShortFee().isPresent()) {
-            LOGGER.error("exchange:{}|missing short fee configuration. Go to application.yml and set a shot fee for this exchange", exchangeName);
-            throw new RuntimeException("Missing short fee configuration for exchange " + exchangeName);
+        if (order.getLeverage() != null && !order.getLeverage().isEmpty() && !exchangeFee.getMarginFee().isPresent()) {
+            LOGGER.error("exchange:{}|error while filling the order, missing short fee configuration. Go to application.yml and set a marginFee for this exchange", exchangeName);
+            throw new RuntimeException("Missing marginFee configuration for exchange " + exchangeName);
         }
 
         final BigDecimal fee;
         if (order.getLeverage() == null) {
-            fee = exchangeFee.getLongFee();
-            LOGGER.info("exchange:{}|marginExchange:{}|short order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
+            fee = exchangeFee.getTradeFee();
+            LOGGER.info("exchange:{}|marginExchange:{}|long order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
         }
         else {
-            fee = exchangeFee.getShortFee().get();
-            LOGGER.info("exchange:{}|marginExchange:{}|long order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
+            fee = exchangeFee.getMarginFee().get();
+            LOGGER.info("exchange:{}|marginExchange:{}|short order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
         }
 
         order.setOrderStatus(Order.OrderStatus.FILLED);

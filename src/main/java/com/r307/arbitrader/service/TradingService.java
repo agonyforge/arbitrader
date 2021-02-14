@@ -180,8 +180,10 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
-        LOGGER.debug("Long fee percent: {}", longExchangeFee.getLongFee());
-        LOGGER.debug("Short fee percent: {}", shortExchangeFee.getShortFee().orElse(null));
+        LOGGER.debug("Long fee percent: {}", longExchangeFee.getTradeFee());
+        if (shortExchangeFee.getMarginFee().isPresent()) {
+            LOGGER.debug("Short fee percent: {}", shortExchangeFee.getMarginFee().get());
+        }
 
         // figure out how much we want to trade
         BigDecimal longVolume = getVolumeForEntryPosition(maxExposure, spread.getLongTicker().getAsk(), longScale);
@@ -473,15 +475,15 @@ public class TradingService {
         if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
             final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, currencyPair, true);
 
-            if (isShortFee && !exchangeFee.getShortFee().isPresent()) {
-                LOGGER.error("exchange:{}|missing margin fee for this exchang. Go to your application.yml and set a margin fee for this exchange",
+            if (isShortFee && !exchangeFee.getMarginFee().isPresent()) {
+                LOGGER.error("exchange:{}|error while adding fees. Reason: missing margin fee for this exchange. Go to your application.yml and set a margin fee for this exchange",
                     exchange.getExchangeSpecification().getExchangeName());
                 // Crash the bot
                 throw new RuntimeException("Missing margin fee configuration for exchange: " + exchange.getExchangeSpecification().getExchangeName());
             }
 
             BigDecimal fee = volume
-                .multiply(isShortFee ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee())
+                .multiply(isShortFee ? exchangeFee.getMarginFee().get() : exchangeFee.getTradeFee())
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
             final BigDecimal adjustedVolume = volume.add(fee);
@@ -503,15 +505,15 @@ public class TradingService {
         if (exchangeService.getExchangeMetadata(exchange).getFeeComputation().equals(FeeComputation.CLIENT)) {
             final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, currencyPair, true);
 
-            if (isShortFee && !exchangeFee.getShortFee().isPresent()) {
-                LOGGER.error("exchange:{}|missing margin fee for this exchang. Go to your application.yml and set a margin fee for this exchange",
+            if (isShortFee && !exchangeFee.getMarginFee().isPresent()) {
+                LOGGER.error("exchange:{}|error while subtracting fees. Reason: missing margin fee for this exchange. Go to your application.yml and set a margin fee for this exchange",
                     exchange.getExchangeSpecification().getExchangeName());
                 // Crash the bot
                 throw new RuntimeException("Missing margin fee configuration for exchange: " + exchange.getExchangeSpecification().getExchangeName());
             }
 
             BigDecimal fee = volume
-                .multiply(isShortFee ? exchangeFee.getShortFee().get() : exchangeFee.getLongFee())
+                .multiply(isShortFee ? exchangeFee.getMarginFee().get() : exchangeFee.getTradeFee())
                 .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
 
             final BigDecimal adjustedVolume = volume.subtract(fee);
