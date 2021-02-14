@@ -6,6 +6,7 @@ import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.model.ExchangeFee;
 import org.knowm.xchange.currency.Currency;
+import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.marketdata.Trades;
@@ -69,7 +70,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         LOGGER.info("{} paper exchange: order {} for currency pair {} placed with limit {} and amount {}",
             exchange.getExchangeSpecification().getExchangeName(),
             limit.getId(),
-            limit.getCurrencyPair(),
+            limit.getInstrument(),
             limit.getLimitPrice(),
             limit.getOriginalAmount()
         );
@@ -136,7 +137,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     fillOrder(order);
                 } else {
                     Order.OrderType type = order.getType();
-                    Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
+                    Ticker ticker = tickerService.getTicker(exchange, (CurrencyPair) order.getInstrument());
 
                     LOGGER.debug("Ticker fetch for paper trading: {}/{}", ticker.getBid(), ticker.getAsk());
 
@@ -180,7 +181,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             exchangeName,
             order.getId(),
             order.getCumulativeCounterAmount(),
-            order.getCurrencyPair().counter,
+            ((CurrencyPair)order.getInstrument()).counter,
             order.getFee());
 
         if(order.getType()== Order.OrderType.ASK) {
