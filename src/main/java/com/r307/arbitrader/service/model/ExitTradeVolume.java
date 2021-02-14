@@ -27,7 +27,7 @@ public class ExitTradeVolume extends TradeVolume {
         //We need to add fees for exchanges where feeComputation is set to CLIENT
         // The order volumes will be used to pass the orders after step size and rounding
         this.longOrderVolume = subtractFees(longFeeComputation, longVolume, longFee);
-        this.shortOrderVolume = subtractFees(shortFeeComputation, shortVolume, shortFee);
+        this.shortOrderVolume = addFees(shortFeeComputation, shortVolume, shortFee);
         if(longFeeComputation == FeeComputation.CLIENT) {
             LOGGER.info("{} fees are computed in the client: {} - {} = {}",
                 longExchangeName,
@@ -46,14 +46,18 @@ public class ExitTradeVolume extends TradeVolume {
 
         this.longOrderVolume = roundByStep (longOrderVolume, longAmountStepSize);
         this.shortOrderVolume = roundByStep (shortOrderVolume, shortAmountStepSize);
-        this.longVolume = subtractFees(longFeeComputation, longOrderVolume, longFee);
-        this.shortVolume = addFees(shortFeeComputation, shortOrderVolume, shortFee);
+        //TODO we are trying to retrieve the longVolume such as longOrderVolume = subtractFees(longVolume)
+        this.longVolume = addFees(longFeeComputation, longOrderVolume, longFee);
+        //TODO we are trying to retrieve the shortVolume such as shortOrderVolume = addFees(shortVolume)
+        this.shortVolume = subtractFees(shortFeeComputation, shortOrderVolume, shortFee);
 
         // Round the volumes so they are compatible with the exchanges' scales
         longOrderVolume = longOrderVolume.setScale(longScale, RoundingMode.HALF_EVEN);
         shortOrderVolume = shortOrderVolume.setScale(shortScale,RoundingMode.HALF_EVEN);
+        //TODO we are trying to retrieve the longVolume such as longOrderVolume = subtractFees(longVolume)
         longVolume = addFees(longFeeComputation, longOrderVolume, longFee);
-        shortVolume = addFees(shortFeeComputation, shortOrderVolume, shortFee);
+        //TODO we are trying to retrieve the shortVolume such as shortOrderVolume = addFees(shortVolume)
+        shortVolume = subtractFees(shortFeeComputation, shortOrderVolume, shortFee);
 
         if(!tempLongVolume.equals(longOrderVolume)) {
             LOGGER.info("{} entry trade volumes adjusted: {} -> {} (order volume: {}) ",

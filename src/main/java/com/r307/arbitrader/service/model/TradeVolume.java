@@ -26,8 +26,10 @@ public abstract class TradeVolume {
 
     BigDecimal shortVolume;
 
+    // The order volumes will be used to pass the orders after step size and rounding
     BigDecimal longOrderVolume;
 
+    // The order volumes will be used to pass the orders after step size and rounding
     BigDecimal shortOrderVolume;
 
     /**
