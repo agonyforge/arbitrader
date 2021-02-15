@@ -27,23 +27,23 @@ phases:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
       - |
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
-          docker tag agonyforge/arbitrader:latest scionaltera/arbitrader:latest
-          docker tag agonyforge/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:latest
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${PROJECT_VERSION}
           docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:latest
           docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${PROJECT_VERSION}
-          docker push scionaltera/arbitrader:latest
-          docker push scionaltera/arbitrader:${PROJECT_VERSION}
+          docker push agonyforge/arbitrader:latest
+          docker push agonyforge/arbitrader:${PROJECT_VERSION}
           docker push ghcr.io/agonyforge/arbitrader:latest
           docker push ghcr.io/agonyforge/arbitrader:${PROJECT_VERSION}
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
-          docker tag agonyforge/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${BRANCH_TAG}
           docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker push agonyforge/arbitrader:${BRANCH_TAG}
           docker push ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
         else
-          docker tag agonyforge/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${BRANCH_TAG}
           docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
+          docker push agonyforge/arbitrader:${BRANCH_TAG}
           docker push ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
         fi
       - printf '[{"name":"arbitrader","imageUri":"%s"}]' agonyforge/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
