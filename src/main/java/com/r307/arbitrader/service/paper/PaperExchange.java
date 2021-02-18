@@ -27,7 +27,11 @@ public class PaperExchange implements Exchange {
     public PaperExchange(Exchange exchange, Currency homeCurrency, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paper) {
         this.realExchange =exchange;
         this.tradeService=new PaperTradeService(this, exchange.getTradeService(), tickerService, exchangeService, paper);
-        this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency, new BigDecimal(100));
+        this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency, paper);
+    }
+
+    PaperTradeService getPaperTradeService() {
+        return tradeService;
     }
 
     PaperAccountService getPaperAccountService() {
