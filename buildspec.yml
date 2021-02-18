@@ -21,30 +21,31 @@ phases:
     commands:
       - docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
       - docker login -u ${GITHUB_USERNAME} -p ${GITHUB_TOKEN} https://ghcr.io
-      - docker build -t scionaltera/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
+      - docker build -t agonyforge/arbitrader:latest -f src/main/docker/codebuild/Dockerfile .
   post_build:
     commands:
       - echo "CodeBuild Initiator is ${CODEBUILD_INITIATOR}"
       - |
         if expr "${CODEBUILD_INITIATOR}" : "codepipeline*" >/dev/null; then
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${PROJECT_VERSION}
-          docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
-          docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:latest
-          docker push scionaltera/arbitrader:${PROJECT_VERSION}
-          docker push ghcr.io/scionaltera/arbitrader:${PROJECT_VERSION}
-          docker push scionaltera/arbitrader:latest
-          docker push ghcr.io/scionaltera/arbitrader:latest
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:latest
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${PROJECT_VERSION}
+          docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:latest
+          docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${PROJECT_VERSION}
+          docker push agonyforge/arbitrader:latest
+          docker push agonyforge/arbitrader:${PROJECT_VERSION}
+          docker push ghcr.io/agonyforge/arbitrader:latest
+          docker push ghcr.io/agonyforge/arbitrader:${PROJECT_VERSION}
         elif expr "${CODEBUILD_INITIATOR}" : "GitHub*" >/dev/null; then
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
-          docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
-          docker push ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
+          docker push agonyforge/arbitrader:${BRANCH_TAG}
+          docker push ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
         else
-          docker tag scionaltera/arbitrader:latest scionaltera/arbitrader:${BRANCH_TAG}
-          docker tag scionaltera/arbitrader:latest ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
-          docker push scionaltera/arbitrader:${BRANCH_TAG}
-          docker push ghcr.io/scionaltera/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest agonyforge/arbitrader:${BRANCH_TAG}
+          docker tag agonyforge/arbitrader:latest ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
+          docker push agonyforge/arbitrader:${BRANCH_TAG}
+          docker push ghcr.io/agonyforge/arbitrader:${BRANCH_TAG}
         fi
-      - printf '[{"name":"arbitrader","imageUri":"%s"}]' scionaltera/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
+      - printf '[{"name":"arbitrader","imageUri":"%s"}]' agonyforge/arbitrader:${PROJECT_VERSION} > imagedefinitions.json
 artifacts:
   files: imagedefinitions.json

@@ -7,6 +7,8 @@ import com.r307.arbitrader.service.model.ActivePosition;
 import com.r307.arbitrader.service.paper.PaperExchange;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
+import com.r307.arbitrader.service.paper.PaperStreamExchange;
+import info.bitrich.xchangestream.core.StreamingExchange;
 import info.bitrich.xchangestream.core.StreamingExchangeFactory;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
@@ -77,7 +79,7 @@ public class TradingScheduler {
                 return;
             }
 
-            Class<Exchange> exchangeClass;
+            Class<? extends Exchange> exchangeClass;
 
             try {
                 // try to load the exchange class
@@ -135,8 +137,16 @@ public class TradingScheduler {
             } else {
                 exchange = ExchangeFactory.INSTANCE.createExchange(specification);
             }
+
+            // If paper trading is enabled then wrap the current exchange config into a PaperExchange or PaperStreamingExchange
             if(tradingConfiguration.getPaper() != null && tradingConfiguration.getPaper().isActive()) {
-                exchange=new PaperExchange(exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService, tradingConfiguration.getPaper());
+                if(specification.getExchangeClass().getSimpleName().contains("Streaming")) {
+                    exchange = new PaperStreamExchange((StreamingExchange) exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService,
+                        tradingConfiguration.getPaper()
+                    );
+                } else {
+                    exchange = new PaperExchange(exchange, exchangeMetadata.getHomeCurrency(), tickerService, exchangeService, tradingConfiguration.getPaper());
+                }
             }
             exchanges.add(exchange);
         });

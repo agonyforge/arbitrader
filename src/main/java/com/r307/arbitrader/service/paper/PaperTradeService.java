@@ -143,7 +143,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     fillOrder(order, order.getLimitPrice());
                 } else {
                     Order.OrderType type = order.getType();
-                    Ticker ticker = tickerService.getTicker(exchange, (CurrencyPair) order.getInstrument());
+                    Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
 
                     LOGGER.debug("Ticker fetch for paper trading: {}/{}", ticker.getBid(), ticker.getAsk());
 
@@ -177,7 +177,6 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         BigDecimal feeFactor = order.getType() == ASK ? BigDecimal.ONE.subtract(feePercentage) : BigDecimal.ONE.add(feePercentage);
         BigDecimal baseFee = feeComputation == SERVER ? BigDecimal.ZERO : order.getCumulativeAmount().multiply(feePercentage).divide(feeFactor, BTC_SCALE, RoundingMode.HALF_EVEN);
 
-
         LOGGER.info("{} paper exchange: filled {}",
             exchange.getExchangeSpecification().getExchangeName(),
             order.toString());
@@ -199,9 +198,11 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             exchange.getPaperAccountService().getAccountInfo().toString());
 
         //Populate trade history
-        userTrades.getUserTrades().add(new UserTrade(order.getType(), order.getOriginalAmount(),
+        userTrades.getUserTrades().add(new UserTrade(order.getType(), 
+            order.getOriginalAmount(),
             order.getInstrument(),
-            order.getLimitPrice(), order.getTimestamp(),
+            order.getLimitPrice(), 
+            order.getTimestamp(),
             order.getId(),
             order.getId(),
             order.getFee(),
