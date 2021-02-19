@@ -32,7 +32,7 @@ public class PaperStreamExchange extends PaperExchange implements StreamingExcha
         this.realExchange = realExchange;
 
         this.tradeService = new PaperTradeService(this, realExchange.getTradeService(), tickerService, exchangeService, paperConfiguration);
-        this.accountService = new PaperAccountService(realExchange.getAccountService(), homeCurrency, new BigDecimal(100));
+        this.accountService = new PaperAccountService(realExchange.getAccountService(), homeCurrency, paperConfiguration);
 
         this.marketDataService = realExchange.getMarketDataService();
 
