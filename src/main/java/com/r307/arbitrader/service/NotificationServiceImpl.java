@@ -15,7 +15,8 @@ import javax.inject.Inject;
 import java.math.BigDecimal;
 
 /**
- * Send email notifications.
+ * Send notifications.
+ * This class should be a central point where all outbound notifications and created and processed.
  */
 @Service
 @Async
@@ -36,7 +37,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Formats and sends an email when a trade is entered.
+     * Formats and sends a notification when we trade an entry position.
      *
      * @param spread The Spread.
      * @param exitTarget The exit target.
@@ -44,6 +45,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param longLimitPrice The long exchange limit price.
      * @param shortVolume The short exchange volume.
      * @param shortLimitPrice The short exchange limit price.
+     * @param isForceEntryPosition Flag to indicate if this entry trade is forced or not.
      */
     @Override
     public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, BigDecimal longVolume, BigDecimal longLimitPrice,
@@ -81,7 +83,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Format and send an email when a trade exits.
+     * Format and send a notification when a trade exits.
      *
      * @param spread The Spread.
      * @param longVolume The long exchange volume.
@@ -90,6 +92,9 @@ public class NotificationServiceImpl implements NotificationService {
      * @param shortLimitPrice The short exchange limit price.
      * @param entryBalance The combined account balances when the trades were first entered.
      * @param updatedBalance The new account balances after exiting the trades.
+     * @param exitTarget The spread exit target.
+     * @param isForceExitPosition Flag to indicate if this exit trade is forced or not.
+     * @param isActivePositionExpired Flag to indicate if this exit trade is due to a timeout (position time expired).
      */
     @Override
     public void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume,
@@ -133,6 +138,11 @@ public class NotificationServiceImpl implements NotificationService {
         sendNotification(EMAIL_SUBJECT_NEW_EXIT, message);
     }
 
+    /**
+     * Send the notification via email and/or Telegram.
+     * @param subject the notification title (in case of email)
+     * @param message the notification body/message
+     */
     @Override
     public void sendNotification(String subject, String message) {
         sendInstantMessage(message);
