@@ -11,6 +11,8 @@ import org.knowm.xchange.dto.account.AccountInfo;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.marketdata.Trades;
 import org.knowm.xchange.dto.trade.*;
+import org.knowm.xchange.exceptions.FundsExceededException;
+import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.BaseExchangeService;
 import org.knowm.xchange.service.trade.TradeService;
 import org.knowm.xchange.service.trade.params.TradeHistoryParams;
@@ -28,15 +30,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.config.FeeComputation.CLIENT;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 import static org.knowm.xchange.dto.Order.OrderType.ASK;
 
 public class PaperTradeService extends BaseExchangeService<PaperExchange> implements TradeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(PaperTradeService.class);
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     private final boolean autoFill;
+
     private final TickerService tickerService;
     private final ExchangeService exchangeService;
     private final TradeService tradeService;
@@ -49,11 +51,15 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         this.autoFill = paper.isAutoFill();
         this.tickerService=tickerService;
         this.exchangeService=exchangeService;
-        PaperTradeService.scheduler.schedule(this::updateOrders,10, TimeUnit.SECONDS);
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                PaperTradeService.this.updateOrders();
+            }
+        }, 0, 2000);
     }
 
     public OpenOrders getOpenOrders() {
-        updateOrders();
         return new OpenOrders(orders.stream().filter(order -> order.getStatus().isOpen()).collect(Collectors.toList()));
     }
 
@@ -62,12 +68,12 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     public String placeLimitOrder(LimitOrder limitOrder) {
-        updateOrders();
-        LimitOrder limit = new LimitOrder.Builder(limitOrder.getType(), limitOrder.getInstrument())
+        //Check if the order would keep our balance positive (for non margin accounts)
+        checkBalance(limitOrder);
+
+        LimitOrder limit = LimitOrder.Builder.from(limitOrder)
             .id(UUID.randomUUID().toString())
-            .originalAmount(limitOrder.getOriginalAmount())
             .timestamp(new Date())
-            .limitPrice(limitOrder.getLimitPrice())
             .orderStatus(Order.OrderStatus.NEW)
             .build();
 
@@ -84,7 +90,6 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     public boolean cancelOrder(String orderId) {
-        updateOrders();
         Optional<Order> optionalOrder = getOrder(orderId).stream().findFirst();
         if(!optionalOrder.isPresent()) {
             LOGGER.warn("{} paper exchange: order {} to cancel not found.",
@@ -115,15 +120,14 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     public void verifyOrder(LimitOrder limitOrder) {
-        //DO NOTHING
+        //TODO implement minimum amount and stepSize verification
     }
 
     public void verifyOrder(MarketOrder marketOrder) {
-        //DO NOTHING
+        throw new NotYetImplementedForExchangeException("Market orders are not supported by paper trading exchanges.");
     }
 
     public Collection<Order> getOrder(String... orderIds) {
-        updateOrders();
         if(orderIds == null || orderIds.length==0)
             return new ArrayList<>();
         return orders.stream().filter(order -> Arrays.asList(orderIds).contains(order.getId())).collect(Collectors.toList());
@@ -135,7 +139,9 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         return getOrder(orderIds.toArray(orderIdsArray));
     }
 
-
+    /**
+     * Update all the open orders according to real market data
+     */
     private void updateOrders() {
         for(LimitOrder order: orders) {
             if(order.getStatus().isOpen()) {
@@ -158,36 +164,31 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         }
     }
 
-
+    /**
+     * Fill an order at an averagePrice
+     * @param order the order to fill
+     * @param averagePrice the average price to fill the order at
+     */
     void fillOrder(LimitOrder order, BigDecimal averagePrice) {
-        FeeComputation feeComputation = exchangeService.getExchangeMetadata(exchange).getFeeComputation();
+        checkBalance(order, averagePrice);
 
         //Fill the order at the average price
         order.setOrderStatus(Order.OrderStatus.FILLED);
         order.setAveragePrice(averagePrice);
         order.setCumulativeAmount(order.getOriginalAmount());
 
-        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
-        //Calculate fees in fiat currency
-        BigDecimal counterFee = feeComputation == SERVER ? order.getCumulativeCounterAmount().multiply(feePercentage) : BigDecimal.ZERO;
         //LimitOrder object cannot store the fees in crypto, only the fees in fiat
-        order.setFee(counterFee);
+        order.setFee(getCounterFee(order));
 
-        //Calculate fees in crypto currency
-        BigDecimal feeFactor = order.getType() == ASK ? BigDecimal.ONE.subtract(feePercentage) : BigDecimal.ONE.add(feePercentage);
-        BigDecimal baseFee = feeComputation == SERVER ? BigDecimal.ZERO : order.getCumulativeAmount().multiply(feePercentage).divide(feeFactor, BTC_SCALE, RoundingMode.HALF_EVEN);
+        //Find the total cost of the order
+        BigDecimal counterDelta = getCounterDelta(order);
+
+        //Find the total volume of the order
+        BigDecimal baseDelta = getBaseDelta(order);
 
         LOGGER.info("{} paper exchange: filled {}",
             exchange.getExchangeSpecification().getExchangeName(),
             order.toString());
-
-        //Find the total cost of the order
-        BigDecimal counterDelta = order.getType()== ASK ? order.getCumulativeCounterAmount(): order.getCumulativeCounterAmount().negate();
-        counterDelta = counterDelta.subtract(counterFee);
-
-        //Find the total volume of the order
-        BigDecimal baseDelta = order.getType()== ASK ? order.getCumulativeAmount().negate(): order.getCumulativeAmount();
-        baseDelta = baseDelta.subtract(baseFee);
 
         //Update balances
         exchange.getPaperAccountService().putCoin(order.getCurrencyPair().counter, counterDelta);
@@ -210,4 +211,75 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             order.getUserReference()));
     }
 
+    /**
+     * Check if the account as enough fund to pass the order if filled with this averagePrice.
+     * @see #checkBalance(LimitOrder) 
+     * @param order the order to check against the funds
+     * @param averagePrice the price to fill the order at      
+     */
+    private void checkBalance(LimitOrder order, BigDecimal averagePrice) {
+        checkBalance(LimitOrder.Builder.from(order).averagePrice(averagePrice).build());
+    }
+
+    /**
+     * Check if the account as enough fund to pass the order.
+     * Throw a FundsExceededException if the funds are not sufficient
+     */
+    private void checkBalance(LimitOrder order) {
+        if(exchangeService.getExchangeMetadata(exchange).getMargin())
+            return;
+
+        BigDecimal counterDelta = getCounterDelta(order);
+        BigDecimal baseDelta = getBaseDelta(order);
+        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
+            throw new FundsExceededException();
+        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
+            throw new FundsExceededException();
+    }
+
+    /**
+     * Get the amount of currency.counter (ie. fiat) that will be added/subtracted to the fiat balance
+     * If available, this use the order average price; if not available this uses the limit price instead (for new orders)
+     * @param order the order
+     * @return the currency.base delta
+     */
+    private BigDecimal getCounterDelta(LimitOrder order) {
+        BigDecimal cumulativeCounterAmount = order.getAveragePrice() != null ? order.getOriginalAmount().multiply(order.getAveragePrice()) : order.getOriginalAmount().multiply(order.getLimitPrice());
+
+        //Calculate fees in fiat currency
+        BigDecimal counterFee = getCounterFee(order);
+
+        //Find the total cost of the order
+        BigDecimal counterDelta = order.getType()== ASK ? cumulativeCounterAmount: cumulativeCounterAmount.negate();
+        counterDelta = counterDelta.subtract(counterFee).setScale(USD_SCALE, RoundingMode.FLOOR);
+        return counterDelta;
+    }
+
+    /**
+     * Get the amount of currency.base (ie. crypto) that will be added/subtracted to the balance
+     * @param order the order
+     * @return the currency.base delta
+     */
+    private BigDecimal getBaseDelta(LimitOrder order) {
+        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
+
+        //Calculate fees in crypto currency
+        BigDecimal baseFee = exchangeService.getExchangeMetadata(exchange).getFeeComputation() == SERVER ? BigDecimal.ZERO : order.getOriginalAmount().multiply(feePercentage).setScale(BTC_SCALE,RoundingMode.HALF_EVEN);
+
+        //Find the total volume of the order
+        BigDecimal baseDelta = order.getType()== ASK ? order.getOriginalAmount().negate(): order.getOriginalAmount();
+        baseDelta = baseDelta.subtract(baseFee);
+        return baseDelta;
+    }
+
+    /**
+     * Get the fiat fees for the order
+     * @param order the order
+     * @return the fees in the counter currency
+     */
+    private BigDecimal getCounterFee(LimitOrder order) {
+        BigDecimal cumulativeCounterAmount = order.getAveragePrice() != null ? order.getOriginalAmount().multiply(order.getAveragePrice()) : order.getOriginalAmount().multiply(order.getLimitPrice());
+        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
+        return exchangeService.getExchangeMetadata(exchange).getFeeComputation() == SERVER ? cumulativeCounterAmount.multiply(feePercentage) : BigDecimal.ZERO;
+    }
 }

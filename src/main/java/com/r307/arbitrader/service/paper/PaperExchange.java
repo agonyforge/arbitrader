@@ -15,7 +15,6 @@ import org.knowm.xchange.service.trade.TradeService;
 import si.mazi.rescu.SynchronizedValueFactory;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.List;
 
 public class PaperExchange implements Exchange {
@@ -27,14 +26,14 @@ public class PaperExchange implements Exchange {
     public PaperExchange(Exchange exchange, Currency homeCurrency, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paper) {
         this.realExchange =exchange;
         this.tradeService=new PaperTradeService(this, exchange.getTradeService(), tickerService, exchangeService, paper);
-        this.accountService=new PaperAccountService(exchange.getAccountService(),homeCurrency, paper);
+        this.accountService=new PaperAccountService(this, exchange.getAccountService(),homeCurrency, exchangeService, paper);
     }
 
-    PaperTradeService getPaperTradeService() {
+    public PaperTradeService getPaperTradeService() {
         return tradeService;
     }
 
-    PaperAccountService getPaperAccountService() {
+    public PaperAccountService getPaperAccountService() {
         return accountService;
     }
 

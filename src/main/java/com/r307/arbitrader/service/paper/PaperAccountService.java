@@ -1,17 +1,13 @@
 package com.r307.arbitrader.service.paper;
 
 import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.service.ExchangeService;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.account.*;
-import org.knowm.xchange.exceptions.ExchangeException;
-import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
-import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
+import org.knowm.xchange.exceptions.FundsExceededException;
 import org.knowm.xchange.instrument.Instrument;
 import org.knowm.xchange.service.account.AccountService;
-import org.knowm.xchange.service.trade.params.DefaultWithdrawFundsParams;
-import org.knowm.xchange.service.trade.params.TradeHistoryParams;
-import org.knowm.xchange.service.trade.params.WithdrawFundsParams;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -20,15 +16,17 @@ import java.util.stream.Collectors;
 
 public class PaperAccountService implements AccountService {
 
+    private PaperExchange paperExchange;
     private final AccountService accountService;
-    private final Currency homeCurrency;
-
+    private final ExchangeService exchangeService;
     private Map<Currency, BigDecimal> balances;
 
-    public PaperAccountService (AccountService accountService, Currency homeCurrency, PaperConfiguration paper) {
+
+    public PaperAccountService (PaperExchange paperExchange, AccountService accountService, Currency homeCurrency, ExchangeService exchangeService, PaperConfiguration paper) {
+        this.paperExchange = paperExchange;
         this.accountService=accountService;
-        this.homeCurrency=homeCurrency;
         this.balances=new HashMap<>();
+        this.exchangeService=exchangeService;
         BigDecimal initialBalance = paper.getInitialBalance() != null ? paper.getInitialBalance() : new BigDecimal("100");
         putCoin(homeCurrency,initialBalance);
     }
@@ -48,10 +46,12 @@ public class PaperAccountService implements AccountService {
             //DO NOTHING
         } if(!balances.containsKey(currency)) {
             balances.put(currency, amount);
-        } else if (getBalance(currency).compareTo(BigDecimal.ZERO) != 0){
-            balances.put(currency,getBalance(currency).add(amount));
-        } else {
+        } else if (!exchangeService.getExchangeMetadata(paperExchange).getMargin() && getBalance(currency).add(amount).compareTo(BigDecimal.ZERO) < 0){
+            throw new FundsExceededException();
+        } else if (getBalance(currency).add(amount).compareTo(BigDecimal.ZERO) == 0){
             balances.remove(currency);
+        } else {
+            balances.put(currency,getBalance(currency).add(amount));
         }
     }
 
