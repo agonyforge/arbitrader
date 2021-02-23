@@ -1,5 +1,6 @@
 package com.r307.arbitrader.config;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,6 +14,7 @@ public class NotificationConfiguration {
     private Logs logs = new Logs();
     private Mail mail = new Mail();
     private Discord discord = new Discord();
+    private Telegram telegram = new Telegram();
 
     public Slack getSlack() {
         return slack;
@@ -44,6 +46,14 @@ public class NotificationConfiguration {
 
     public void setDiscord(Discord discord) {
         this.discord = discord;
+    }
+
+    public Telegram getTelegram() {
+        return telegram;
+    }
+
+    public void setTelegram(Telegram telegram) {
+        this.telegram = telegram;
     }
 
     public class Slack {
@@ -136,6 +146,36 @@ public class NotificationConfiguration {
 
         public void setWebhookToken(String webhookToken) {
             this.webhookToken = webhookToken;
+        }
+    }
+
+    public class Telegram {
+        private Boolean active;
+        private String groupId;
+        private String token;
+
+        public Boolean getActive() {
+            return active;
+        }
+
+        public void setActive(Boolean active) {
+            this.active = active;
+        }
+
+        public String getGroupId() {
+            return groupId;
+        }
+
+        public void setGroupId(String groupId) {
+            this.groupId = groupId;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
         }
     }
 }

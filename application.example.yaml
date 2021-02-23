@@ -51,6 +51,14 @@ notifications:
     from: x@x.x
     # The email address to send mail TO
     to: x@x.x
+  # Receive instant messages via Telegram whenever there is a trade
+  telegram:
+    # Set to true to enable telegram notifications
+    active: false
+    # Your chat group numeric id with your Telegram bot. Check the wiki page for more information
+    groupId: 123456789
+    # The token to your telegram bot
+    token: x
 
 trading:
   # The percentage difference between the "long" and "short" exchanges before we will open our positions.

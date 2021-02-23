@@ -3,6 +3,7 @@ package com.r307.arbitrader.config;
 import com.r307.arbitrader.service.NotificationService;
 import com.r307.arbitrader.service.NotificationServiceImpl;
 import com.r307.arbitrader.service.model.Spread;
+import com.r307.arbitrader.service.telegram.TelegramClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -21,8 +22,8 @@ public class MailConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "spring", value = "mail")
-    public NotificationService notificationService(JavaMailSender javaMailSender, NotificationConfiguration config) {
-        return new NotificationServiceImpl(javaMailSender, config);
+    public NotificationService notificationService(JavaMailSender javaMailSender, NotificationConfiguration config, TelegramClient telegramClient) {
+        return new NotificationServiceImpl(javaMailSender, config, telegramClient);
     }
 
     @Bean
@@ -30,15 +31,15 @@ public class MailConfiguration {
     public NotificationService notificationService() {
         return new NotificationService() {
             @Override
-            public void sendEmailNotification(String subject, String body) {
+            public void sendNotification(String subject, String message) {
             }
 
             @Override
-            public void sendEmailNotificationBodyForEntryTrade(Spread spread, BigDecimal exitTarget, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice) {
+            public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice, boolean isForceEntryPosition) {
             }
 
             @Override
-            public void sendEmailNotificationBodyForExitTrade(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance) {
+            public void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget, boolean isForceCloseCondition, boolean isActivePositionExpired) {
             }
         };
     }
