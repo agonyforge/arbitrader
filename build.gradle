@@ -54,7 +54,7 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.4'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.4'
     compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.4'
+    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.6'
     compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.4'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
