@@ -12,30 +12,17 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.meta.ExchangeMetaData;
 import org.knowm.xchange.exceptions.ExchangeException;
-import org.knowm.xchange.service.account.AccountService;
-import org.knowm.xchange.service.marketdata.MarketDataService;
-import org.knowm.xchange.service.trade.TradeService;
 import si.mazi.rescu.SynchronizedValueFactory;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.List;
 
 public class PaperStreamExchange extends PaperExchange implements StreamingExchange {
     private final StreamingExchange realExchange;
-    private final PaperTradeService tradeService;
-    private final PaperAccountService accountService;
-    private final MarketDataService marketDataService;
 
     public PaperStreamExchange(StreamingExchange realExchange, Currency homeCurrency, TickerService tickerService, ExchangeService exchangeService, PaperConfiguration paperConfiguration) {
         super(realExchange, homeCurrency, tickerService, exchangeService, paperConfiguration);
         this.realExchange = realExchange;
-
-        this.tradeService = new PaperTradeService(this, realExchange.getTradeService(), tickerService, exchangeService, paperConfiguration);
-        this.accountService = new PaperAccountService(realExchange.getAccountService(), homeCurrency, new BigDecimal(100));
-
-        this.marketDataService = realExchange.getMarketDataService();
-
     }
 
     @Override
@@ -91,21 +78,6 @@ public class PaperStreamExchange extends PaperExchange implements StreamingExcha
     @Override
     public void applySpecification(ExchangeSpecification exchangeSpecification) {
         realExchange.applySpecification(exchangeSpecification);
-    }
-
-    @Override
-    public MarketDataService getMarketDataService() {
-        return marketDataService;
-    }
-
-    @Override
-    public TradeService getTradeService() {
-        return tradeService;
-    }
-
-    @Override
-    public AccountService getAccountService() {
-        return accountService;
     }
 
     @Override
