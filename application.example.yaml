@@ -55,8 +55,8 @@ notifications:
   telegram:
     # Set to true to enable telegram notifications
     active: false
-    # Your chat group numeric id with your Telegram bot. Check the wiki page for more information
-    groupId: 123456789
+    # Your chat group id, with your Telegram bot, starting with the letter g. For more information please check our wiki page here: https://github.com/agonyforge/arbitrader/wiki/Arbitrade-Configurations#telegram
+    groupId: g123456789
     # The token to your telegram bot
     token: x
 

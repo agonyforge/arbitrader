@@ -181,18 +181,9 @@ public class NotificationServiceImpl implements NotificationService {
      * Send an instant message notification. Currently only supports instant messages via Telegram.
      * Check the wiki page for more details on how to receive instant messages via Telegram.
      * @param message the message to send
+     * @see <a href="https://github.com/agonyforge/arbitrader/wiki/Arbitrade-Configurations#telegram">Wiki Page</a>
      */
     private void sendInstantMessage(String message) {
-        /*
-        TODO: Put this info in the wiki page right before merging this branch
-        1- Create the bot following the instructions here: https://core.telegram.org/bots#6-botfather
-        2- Create a group chat with yourself and the bot
-        3- Copy the group chat id - easiest way is to to go Telegram web (https://web.telegram.org) click on your group and
-                then the url in the browser should be something like: https://web.telegram.org/#/im?p=g123456789
-        5- Copy the numeric ID after: im?p=g
-            Attention: do not copy the letter 'g'!
-         */
-
         if (notificationConfiguration.getTelegram() == null || notificationConfiguration.getTelegram().getActive() == null ||
             !notificationConfiguration.getTelegram().getActive()) {
 
