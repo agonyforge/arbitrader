@@ -6,6 +6,7 @@ import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.PaperConfiguration;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -53,6 +54,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
         paperConfiguration.setActive(true);
         paperConfiguration.setInitialBalance(new BigDecimal("100"));
         exchangeConfiguration = new ExchangeConfiguration();
+        final ExchangeFee exchangeFee = new ExchangeFee(new BigDecimal("0.002"), new BigDecimal("0.001"));
 
         paperExchange = new PaperExchange(exchange, Currency.USD,tickerService, exchangeService, paperConfiguration);
         paperTradeService = paperExchange.getPaperTradeService();
@@ -60,7 +62,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
 
         when(exchange.getExchangeSpecification()).thenReturn(new ExchangeSpecification(PaperExchange.class));
         when(exchangeService.getExchangeMetadata(any(Exchange.class))).thenReturn(exchangeConfiguration);
-        when(exchangeService.getExchangeFee(any(Exchange.class),any(CurrencyPair.class),anyBoolean())).thenReturn(new BigDecimal("0.002"));
+        when(exchangeService.getExchangeFee(any(Exchange.class),any(CurrencyPair.class),anyBoolean())).thenReturn(exchangeFee);
     }
 
 
