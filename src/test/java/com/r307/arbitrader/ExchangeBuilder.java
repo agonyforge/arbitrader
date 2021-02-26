@@ -34,8 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.r307.arbitrader.Constants.BTC_SCALE;
-import static com.r307.arbitrader.Constants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.service.TradingScheduler.METADATA_KEY;
 import static com.r307.arbitrader.service.TradingScheduler.TICKER_STRATEGY_KEY;
 import static org.mockito.ArgumentMatchers.any;

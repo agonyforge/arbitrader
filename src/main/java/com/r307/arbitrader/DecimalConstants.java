@@ -1,11 +1,10 @@
 package com.r307.arbitrader;
 
-public final class Constants {
+public final class DecimalConstants {
     public static final int USD_SCALE = 2;
     public static final int BTC_SCALE = 8;
-    public static final String EXCHANGE_MARGIN_ENABLED_KEY = "EXCHANGE_MARGIN_ENABLED_KEY";
 
-    private Constants() {
+    private DecimalConstants() {
         // this method intentionally left blank
     }
 }

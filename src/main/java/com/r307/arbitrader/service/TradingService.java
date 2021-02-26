@@ -1,7 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.r307.arbitrader.Constants;
+import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.Constants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 
 /**
  * Trade analysis and execution.
@@ -878,7 +878,7 @@ public class TradingService {
 
             BigDecimal exposure = smallestBalance
                 .multiply(TRADE_PORTION)
-                .setScale(Constants.USD_SCALE, RoundingMode.HALF_EVEN);
+                .setScale(DecimalConstants.USD_SCALE, RoundingMode.HALF_EVEN);
 
             LOGGER.debug("Maximum exposure for {}: {}", exchanges, exposure);
 

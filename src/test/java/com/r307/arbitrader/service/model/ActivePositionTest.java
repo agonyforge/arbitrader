@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-import static com.r307.arbitrader.Constants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static org.junit.Assert.assertEquals;
 
 public class ActivePositionTest {

@@ -8,7 +8,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.r307.arbitrader.Constants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 /**
  * Configuration that governs the application's trading but isn't specific to one exchange. These settings can

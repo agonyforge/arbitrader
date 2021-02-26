@@ -27,8 +27,8 @@ import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.Constants.BTC_SCALE;
-import static com.r307.arbitrader.Constants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 import static org.knowm.xchange.dto.Order.OrderType.ASK;
 
