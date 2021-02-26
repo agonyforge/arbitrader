@@ -7,4 +7,9 @@ public final class DecimalConstants {
     private DecimalConstants() {
         // this method intentionally left blank
     }
+
+    //An intermediate scale is necessary to limit rounding errors when queueing BigDecimal.divide calls
+    public static int getIntermediateScale(int scale) {
+        return scale+4;
+    }
 }

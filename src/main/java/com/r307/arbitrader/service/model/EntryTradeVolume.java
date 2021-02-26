@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service.model;
 
+import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.FeeComputation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,12 +14,13 @@ public class EntryTradeVolume extends TradeVolume{
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
-    //An intermediate scale is necessary to limit rounding errors when queueing BigDecimal.divide calls
-    private static final int intermediateScale = BTC_SCALE+4;
-
-     EntryTradeVolume(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
-        this.longVolume = getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee);
-        this.shortVolume = getShortVolumeFromLong(longVolume, shortFee, longFee);
+     EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
+        this.longFeeComputation=longFeeComputation;
+        this.shortFeeComputation=shortFeeComputation;
+        this.longFee=getFeeAdjustedForBuy(longFeeComputation, longFee);
+        this.shortFee=getFeeAdjustedForSell(shortFeeComputation, shortFee);
+        this.longVolume = getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee);
+        this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee);
         this.longOrderVolume=longVolume;
         this.shortOrderVolume=shortVolume;
     }
@@ -45,7 +47,8 @@ public class EntryTradeVolume extends TradeVolume{
      * @see #getLongVolumeFromShort and #getFeeFactor
      */
     static BigDecimal getShortVolumeFromLong(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee) {
-        return longVolume.divide(getShortToLongVolumeTargetRatio(longFee, shortFee), intermediateScale, RoundingMode.HALF_EVEN);
+        BigDecimal targetRatio =getShortToLongVolumeTargetRatio(longFee, shortFee);
+        return longVolume.divide(targetRatio, intermediateScale, RoundingMode.HALF_EVEN);
     }
 
     /**
@@ -69,9 +72,9 @@ public class EntryTradeVolume extends TradeVolume{
      * Check if the trade is still market neutral enough
      * @return true if the market neutrality rating is between 0 and 2.
      */
-    public boolean isMarketNeutral(BigDecimal longFee, BigDecimal shortFee) {
+    public boolean isMarketNeutral() {
         BigDecimal threshold = BigDecimal.ONE;
-        return getMarketNeutralityRating(longFee, shortFee).subtract(BigDecimal.ONE).abs().compareTo(threshold)<=0;
+        return getMarketNeutralityRating().subtract(BigDecimal.ONE).abs().compareTo(threshold)<=0;
     }
 
     /**
@@ -81,22 +84,24 @@ public class EntryTradeVolume extends TradeVolume{
      * 2 means the fees are compensated twice
      * @return the market neutrality rating
      */
-    public BigDecimal getMarketNeutralityRating(BigDecimal longFee, BigDecimal shortFee) {
+    public BigDecimal getMarketNeutralityRating() {
         BigDecimal shortToLongVolumeActualRatio = longVolume.divide(shortVolume, intermediateScale, RoundingMode.HALF_EVEN);
         return (shortToLongVolumeActualRatio.subtract(BigDecimal.ONE)).divide(getShortToLongVolumeTargetRatio(longFee, shortFee).subtract(BigDecimal.ONE), intermediateScale, RoundingMode.HALF_EVEN);
     }
 
-    //TODO test FeeComputation.CLIENT flow
     @Override
-    public void adjustOrderVolume(String longExchangeName, String shortExchangeName, FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longFee, BigDecimal shortFee, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale) {
+    public void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale) {
         BigDecimal tempLongVolume = this.longVolume;
         BigDecimal tempShortVolume = this.shortVolume;
+
+        //First adjust make sure the base volume is market neutral
+        this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee);
 
         //For exchanges where feeComputation is set to CLIENT:
         //We need to increase the volume of BUY orders and decrease the volume of SELL orders
         //Because the exchange will buy slightly less volume and sell slightly more as a way to pay the fees
-        this.longOrderVolume = addFees(longFeeComputation, longVolume, longFee);
-        this.shortOrderVolume = subtractFees(shortFeeComputation, shortVolume, shortFee);
+        this.longOrderVolume = addBaseFees(longFeeComputation, longVolume, longFee);
+        this.shortOrderVolume = subtractBaseFees(shortFeeComputation, shortVolume, shortFee);
 
         if(longFeeComputation == FeeComputation.CLIENT) {
             LOGGER.info("{} fees are computed in the client: {} + {} = {}",
@@ -120,10 +125,10 @@ public class EntryTradeVolume extends TradeVolume{
         if(longAmountStepSize != null && shortAmountStepSize != null) {
             //Unhappy scenario
             //It will be hard to find a volume that match the step sizes on both exchanges and the market neutrality
-            longOrderVolume = roundByStep(longOrderVolume, longAmountStepSize);
-            shortOrderVolume = roundByStep(shortOrderVolume, shortAmountStepSize);
-            LOGGER.info("Both exchanges have a step size requirements. Market neutrality rating is {}.",
-                getMarketNeutralityRating(longFee, shortFee).setScale(3,RoundingMode.HALF_EVEN));
+            longOrderVolume = roundByStep(longOrderVolume, longAmountStepSize).setScale(longScale, RoundingMode.HALF_EVEN);
+            shortOrderVolume = roundByStep(shortOrderVolume, shortAmountStepSize).setScale(shortScale, RoundingMode.HALF_EVEN);
+            LOGGER.info("Both exchanges have an amount step size requirements. Market neutrality rating is {}.",
+                getMarketNeutralityRating().setScale(3,RoundingMode.HALF_EVEN));
         } else if (longAmountStepSize != null) {
             //Long exchange has a step size, round the long volume
             BigDecimal roundedLongOrderVolume = roundByStep (longOrderVolume, longAmountStepSize);
@@ -131,12 +136,7 @@ public class EntryTradeVolume extends TradeVolume{
                 longOrderVolume,
                 longAmountStepSize,
                 roundedLongOrderVolume);
-            longOrderVolume = roundedLongOrderVolume;
-            //Adjust other volumes to respect market neutrality
-            //TODO we are trying to retrieve the longVolume such as longOrderVolume = addFees(longVolume)
-            longVolume = subtractFees(longFeeComputation, longOrderVolume, longFee);
-            shortVolume = getShortVolumeFromLong(longVolume, longFee, shortFee);
-            shortOrderVolume = subtractFees(shortFeeComputation, shortVolume, shortFee);
+            adjustShortFromLong(roundedLongOrderVolume, longScale, shortScale);
         } else if (shortAmountStepSize != null) {
             //Short exchange has a step size, round the short volume
             BigDecimal roundedShortOrderVolume = roundByStep (shortOrderVolume, shortAmountStepSize);
@@ -144,21 +144,18 @@ public class EntryTradeVolume extends TradeVolume{
                 shortOrderVolume,
                 shortAmountStepSize,
                 roundedShortOrderVolume);
-            shortOrderVolume = roundedShortOrderVolume;
-            //Adjust other volumes to respect market neutrality
-            //TODO we are trying to retrieve the shortVolume such as shortOrderVolume = subtractFees(shortVolume)
-            shortVolume = addFees(shortFeeComputation, shortOrderVolume, shortFee);
-            longVolume = getLongVolumeFromShort(shortVolume, longFee, shortFee);
-            longOrderVolume = addFees(longFeeComputation, longVolume, longFee);
+            adjustLongFromShort(roundedShortOrderVolume, longScale, shortScale);
+        } else if (longScale <= shortScale) {
+            adjustShortFromLong(longOrderVolume, longScale, shortScale);
+        } else {
+            adjustLongFromShort(shortOrderVolume, longScale, shortScale);
         }
 
-        // Round the volumes so they are compatible with the exchanges' scales
-        longOrderVolume = longOrderVolume.setScale(longScale, RoundingMode.HALF_EVEN);
-        shortOrderVolume = shortOrderVolume.setScale(shortScale,RoundingMode.HALF_EVEN);
-        //TODO we are trying to retrieve the longVolume such as longOrderVolume = addFees(longVolume), use reverseAddFees
-        longVolume = subtractFees(longFeeComputation, longOrderVolume, longFee);
-        //TODO we are trying to retrieve the shortVolume such as shortOrderVolume = subtractFees(shortVolume), use reverseSubtractFees
-        shortVolume = addFees(shortFeeComputation, shortOrderVolume, shortFee);
+
+        //we are trying to retrieve the volumes that will indeed be added/subtracted from our balance
+        //such as longOrderVolume = addBaseFees(longVolume) and shortVolume such as shortOrderVolume = subtractBaseFees(shortVolume)
+        longVolume = inverseAddBaseFees(longFeeComputation, longOrderVolume, longFee);
+        shortVolume = inverseSubtractBaseFees(shortFeeComputation, shortOrderVolume, shortFee);
 
         if(!tempLongVolume.equals(longOrderVolume)) {
             LOGGER.info("{} entry trade volumes adjusted: {} -> {} (order volume: {}) ",
@@ -176,5 +173,39 @@ public class EntryTradeVolume extends TradeVolume{
                 shortOrderVolume
             );
         }
+    }
+
+    /**
+     * Adjust the long order volume to the scale, and find the closest short order volume to market neutrality
+     *  respecting the short scale
+     * @param longOrderVolume the volume to trade on the long exchange
+     * @param longScale the scale of the volume on the long exchange
+     * @param shortScale the scale of the volume on the short exchange
+     */
+    private void adjustShortFromLong(BigDecimal longOrderVolume, int longScale, int shortScale) {
+        this.longOrderVolume = longOrderVolume.setScale(longScale, RoundingMode.HALF_EVEN);
+        //Adjust other volumes to respect market neutrality
+        //we are trying to retrieve the shortVolume such as longOrderVolume = addBaseFees(longVolume)
+        this.longVolume = inverseAddBaseFees(longFeeComputation, longOrderVolume, longFee);
+        //Recalculate short volume from long volume
+        this.shortVolume = getShortVolumeFromLong(longVolume, longFee, shortFee);
+        this.shortOrderVolume = subtractBaseFees(shortFeeComputation, shortVolume, shortFee).setScale(shortScale, RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * Adjust the short order volume to the scale, and find the closest long order volume to market neutrality
+     *  respecting the long scale
+     * @param shortOrderVolume the volume to trade on the short exchange
+     * @param longScale the scale of the volume on the long exchange
+     * @param shortScale the scale of the volume on the short exchange
+     */
+    private void adjustLongFromShort(BigDecimal shortOrderVolume, int longScale, int shortScale) {
+        this.shortOrderVolume = shortOrderVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
+        //Adjust other volumes to respect market neutrality
+        //we are trying to retrieve the shortVolume such as shortOrderVolume = subtractBaseFees(shortVolume)
+        this.shortVolume = inverseSubtractBaseFees(shortFeeComputation, shortOrderVolume, shortFee);
+        //Recalculate long volume from short volume
+        this.longVolume = getLongVolumeFromShort(shortVolume, longFee, shortFee);
+        this.longOrderVolume = addBaseFees(longFeeComputation, longVolume, longFee).setScale(longScale, RoundingMode.HALF_EVEN);
     }
 }

@@ -153,6 +153,8 @@ public class TradingService {
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
+        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
+        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
 
         // check whether we have enough money to trade (forcing it can't work if we can't afford it)
         if (!validateMaxExposure(maxExposure, spread, currencyPairLongExchange, currencyPairShortExchange)) {
@@ -182,7 +184,7 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent);
+        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -218,23 +220,23 @@ public class TradingService {
         }
 
         //Adjust the volume after slip so the trade stays market neutral
-        tradeVolume = TradeVolume.getEntryTradeVolume(maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
+        tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
 
-        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
-        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
+
         final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
         final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
-        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longFeeComputation, shortFeeComputation, longFeePercent, shortFeePercent, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
 
         //Scales or steps might have broken market neutrality, check that the entry is still as market neutral as possible
         //Otherwise it could mess with profit estimations!
         if (!conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)
-            && !tradeVolume.isMarketNeutral(longFeePercent, shortFeePercent)) {
-            LOGGER.info("Trade is not market neutral, profit estimates might be off, will not trade");
+            && !tradeVolume.isMarketNeutral()) {
+            LOGGER.info("Trade is not market neutral (market neutrality rating is {}), profit estimates might be off, will not trade.",
+                tradeVolume.getMarketNeutralityRating());
             return;
         }
 
@@ -313,22 +315,24 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
         final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
+        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
 
         // figure out how much to trade
         TradeVolume tradeVolume;
         try {
-            BigDecimal longVolume = getVolumeForOrder(
+            BigDecimal longEntryOrderVolume = getVolumeForOrder(
                 spread.getLongExchange(),
                 spread.getCurrencyPair(),
                 activePosition.getLongTrade().getOrderId(),
                 activePosition.getLongTrade().getVolume());
-            BigDecimal shortVolume = getVolumeForOrder(
+            BigDecimal shortEntryOrderVolume = getVolumeForOrder(
                 spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 activePosition.getShortTrade().getOrderId(),
                 activePosition.getShortTrade().getVolume());
 
-            tradeVolume = TradeVolume.getExitTradeVolume(longVolume, shortVolume);
+            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFeePercent, shortFeePercent);
         } catch (OrderNotFoundException e) {
             LOGGER.error(e.getMessage());
             return;
@@ -390,8 +394,7 @@ public class TradingService {
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
 
-        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
-        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
+
         final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
         final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
@@ -407,7 +410,7 @@ public class TradingService {
             .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
-        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longFeeComputation, shortFeeComputation, longFeePercent, shortFeePercent, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
 
         logExitTrade();
 

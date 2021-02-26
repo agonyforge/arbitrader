@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service.model;
 
+import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.service.TradingService;
 import org.jetbrains.annotations.NotNull;
@@ -22,6 +23,8 @@ public abstract class TradeVolume {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
+    static final int intermediateScale = DecimalConstants.getIntermediateScale(BTC_SCALE);
+
     BigDecimal longVolume;
 
     BigDecimal shortVolume;
@@ -32,28 +35,36 @@ public abstract class TradeVolume {
     // The order volumes will be used to pass the orders after step size and rounding
     BigDecimal shortOrderVolume;
 
+    BigDecimal longFee;
+
+    BigDecimal shortFee;
+
+    FeeComputation longFeeComputation;
+
+    FeeComputation shortFeeComputation;
+
     /**
      * Instantiate a new EntryTradeVolume
      * @param longMaxExposure the maximum $ to trade on the long exchange
      * @param shortMaxExposure the maxmimum $ to trade on the short exchange
      * @param longPrice the price on the long exchange
      * @param shortPrice the price on the short exchange
-     * @param longFee long exchange fee percentage
-     * @param shortFee short exchange fee percentage
+     * @param longFee the adjusted for FeeComputation long exchange fee percentage
+     * @param shortFee the adjusted for FeeComputation short exchange fee percentage
      * @return a new EntryTradeVolume
      */
-    public static EntryTradeVolume getEntryTradeVolume(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
-        return new EntryTradeVolume(longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee);
+    public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
+        return new EntryTradeVolume(longFeeComputation, shortFeeComputation, longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee);
     }
 
     /**
      * Instantiate a new ExitTradeVolume
-     * @param longVolume the volume to trade on the long exchange
-     * @param shortVolume the volumeto trade on the short exchange
+     * @param entryLongOrderVolume the volume to trade on the long exchange
+     * @param entryShortOrderVolume the volume to trade on the short exchange
      * @return a new ExitTradeVolume
      */
-    public static ExitTradeVolume getExitTradeVolume(BigDecimal longVolume, BigDecimal shortVolume) {
-        return new ExitTradeVolume(longVolume, shortVolume);
+    public static ExitTradeVolume getExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee) {
+        return new ExitTradeVolume(longFeeComputation, shortFeeComputation, entryLongOrderVolume, entryShortOrderVolume, longFee, shortFee);
     }
 
     /**
@@ -87,7 +98,7 @@ public abstract class TradeVolume {
     /**
      * Adjust the trade order volumes so they are inflated/deflated according to the exchanges FeeComputation mode, rounded up by step size and scales
      */
-    public abstract void adjustOrderVolume(String longExchangeName, String shortExchangeName, FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longFee, BigDecimal shortFee, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale);
+    public abstract void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale);
 
     /**
      * Get the multiple of "step" that is nearest to the original number.
@@ -117,36 +128,61 @@ public abstract class TradeVolume {
     }
 
     /**
-     * Increase the volume for FeeComputation.CLIENT exchanges so it compensates for the exchange fees
-     * @return the increased volume
+     * Reverse {@link #addBaseFees(FeeComputation, BigDecimal, BigDecimal)} to find retrieve the initial volume
+     * @return the initial volume
      */
-    static BigDecimal addFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if (feeComputation.equals(FeeComputation.CLIENT)) {
-            BigDecimal totalFee = volume
-                .multiply(fee)
-                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
-
-            return volume.add(totalFee);
-        }
-
-        return volume;
+    static BigDecimal inverseAddBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
+        if(feeComputation == FeeComputation.SERVER)
+            return volume;
+        return volume.divide (BigDecimal.ONE.add(fee), BTC_SCALE, RoundingMode.HALF_EVEN);
     }
-
 
     /**
-     * Decrease the volume for FeeComputation.CLIENT exchanges so it compensates for the exchange fees
-     * @return the decreased volume
+     * Return an increased volume such as, after deducting the fee, the result is the initial volume
+     * @param feeComputation the fee computation mode
+     * @param volume the initial volume
+     * @param fee the base fee in percentage
+     * @return the increased volume such as increasedVolume = volume * (1 + fee)
      */
-    static BigDecimal subtractFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if (feeComputation.equals(FeeComputation.CLIENT)) {
-            BigDecimal totalFee = volume
-                .multiply(fee)
-                .setScale(BTC_SCALE, RoundingMode.HALF_EVEN);
-
-            return volume.subtract(totalFee);
-        }
-
-        return volume;
+    static BigDecimal addBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
+        if(feeComputation == FeeComputation.SERVER)
+            return volume;
+        return volume.multiply(BigDecimal.ONE.add(fee));
     }
 
+    /**
+     * Reverse {@link #subtractBaseFees(FeeComputation, BigDecimal, BigDecimal)} to find retrieve the initial volume
+     * @return the initial volume
+     */
+    static BigDecimal inverseSubtractBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
+        if(feeComputation == FeeComputation.SERVER)
+            return volume;
+        return volume.divide (BigDecimal.ONE.subtract(fee), BTC_SCALE, RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * Return an decreased volume such as, after deducting the fee, the result is the initial volume
+     * @param feeComputation the fee computation mode
+     * @param volume the initial volume
+     * @param fee the base fee in percentage
+     * @return the decreased volume such as decreasedVolume = volume * (1 - fee)
+     */
+    static BigDecimal subtractBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
+        if(feeComputation == FeeComputation.SERVER)
+            return volume;
+        return volume.multiply(BigDecimal.ONE.subtract(fee));
+    }
+
+    static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal fee) {
+        if(feeComputation == FeeComputation.CLIENT)
+            fee = fee.divide(BigDecimal.ONE.add(fee), intermediateScale, RoundingMode.HALF_EVEN);
+        return fee;
+    }
+
+
+    static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal fee) {
+        if(feeComputation == FeeComputation.CLIENT)
+            fee = fee.divide(BigDecimal.ONE.subtract(fee), intermediateScale, RoundingMode.HALF_EVEN);
+        return fee;
+    }
 }
