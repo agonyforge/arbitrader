@@ -98,15 +98,19 @@ trading:
 
   # (Optional)
   # Enable paper trading. Orders will not be forwarded to the exchanges. Instead, a paper exchange will execute the
-  # order at the limit price. The paper exchange start with a cash balance of 100.
+  # order at the limit price.
   #
   # Set active to true to turn on paper trading (default) or false to trade real money.
-  #
-  # Enable the autoFill option to fill the trigger the order completion after 1s: useful to avoid waiting for the good
-  # market condition. If false, the paper exchange will wait for the limit price to be met by the real exchange.
+
   paper:
     active: true
+
+    # Enable the autoFill option to fill the trigger the order completion after 1s: useful to avoid waiting for the good
+    # market condition. If false, the paper exchange will wait for the limit price to be met by the real exchange.
     autoFill: true
+
+    #The default initial cash balance of the paper trading exchanges, default is 100
+    initialBalance: 100
 
   # Connection information for each exchange goes in this list.
   #

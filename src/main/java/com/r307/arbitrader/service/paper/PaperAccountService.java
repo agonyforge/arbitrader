@@ -1,55 +1,68 @@
 package com.r307.arbitrader.service.paper;
 
+import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.service.ExchangeService;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.account.*;
-import org.knowm.xchange.exceptions.ExchangeException;
-import org.knowm.xchange.exceptions.NotAvailableFromExchangeException;
-import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
+import org.knowm.xchange.exceptions.FundsExceededException;
 import org.knowm.xchange.instrument.Instrument;
 import org.knowm.xchange.service.account.AccountService;
-import org.knowm.xchange.service.trade.params.DefaultWithdrawFundsParams;
-import org.knowm.xchange.service.trade.params.TradeHistoryParams;
-import org.knowm.xchange.service.trade.params.WithdrawFundsParams;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class PaperAccountService implements AccountService {
 
+    private PaperExchange paperExchange;
     private final AccountService accountService;
-    private final Currency homeCurrency;
+    private final ExchangeService exchangeService;
+    private Map<Currency, BigDecimal> balances;
 
-    private BigDecimal balance;
 
-    public PaperAccountService (AccountService accountService, Currency homeCurrency, BigDecimal initialBalance) {
+    public PaperAccountService (PaperExchange paperExchange, AccountService accountService, Currency homeCurrency, ExchangeService exchangeService, PaperConfiguration paper) {
+        this.paperExchange = paperExchange;
         this.accountService=accountService;
-        this.homeCurrency=homeCurrency;
-        this.balance=initialBalance;
+        this.balances=new HashMap<>();
+        this.exchangeService=exchangeService;
+        BigDecimal initialBalance = paper.getInitialBalance() != null ? paper.getInitialBalance() : new BigDecimal("100");
+        putCoin(homeCurrency,initialBalance);
     }
 
-    BigDecimal getBalance() {
-        return balance;
+    public Map<Currency, BigDecimal> getBalances() {
+        return balances;
     }
 
-    void setBalance(BigDecimal value) {
-        balance = value;
+    public BigDecimal getBalance(Currency currency) {
+        if(balances.containsKey(currency))
+            return balances.get(currency);
+        return BigDecimal.ZERO;
+    }
+
+    public void putCoin(Currency currency, BigDecimal amount) {
+        if(amount.compareTo(BigDecimal.ZERO) == 0) {
+            //DO NOTHING
+        } if(!balances.containsKey(currency)) {
+            balances.put(currency, amount);
+        } else if (!exchangeService.getExchangeMetadata(paperExchange).getMargin() && getBalance(currency).add(amount).compareTo(BigDecimal.ZERO) < 0){
+            throw new FundsExceededException();
+        } else if (getBalance(currency).add(amount).compareTo(BigDecimal.ZERO) == 0){
+            balances.remove(currency);
+        } else {
+            balances.put(currency,getBalance(currency).add(amount));
+        }
     }
 
     public AccountInfo getAccountInfo() {
         List<Wallet> wallets = new ArrayList<>();
-        List<Balance> balances = new ArrayList<>();
-        balances.add(
-            new Balance(
-                this.homeCurrency,
-                this.balance,
-                this.balance,
-                new BigDecimal(0)));
-        wallets.add(Wallet.Builder.from(balances).id(UUID.randomUUID().toString()).build());
+        List<Balance> walletBalances = this.balances.entrySet().stream().map(entry -> new Balance(
+            entry.getKey(),
+            entry.getValue(),
+            entry.getValue(),
+            new BigDecimal(0))).collect(Collectors.toList());
+        wallets.add(Wallet.Builder.from(walletBalances).id(UUID.randomUUID().toString()).build());
         return new AccountInfo (wallets);
     }
 
