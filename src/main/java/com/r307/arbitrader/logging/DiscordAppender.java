@@ -46,7 +46,11 @@ public class DiscordAppender<T> extends AppenderBase<T> {
         // Send the log message asynchronously to Discord via webhook
         client.newCall(request).enqueue(new Callback() {
             @Override
-            public void onFailure(@NotNull Call call, @NotNull IOException e) {}
+            public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                // Cancel the connection in case it is still active. There is no problem calling cancel() on an
+                // already canceled connection
+                call.cancel();
+            }
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) {
                 // We need to close the response in order to avoid leaking it

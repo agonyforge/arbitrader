@@ -1,5 +1,6 @@
 package com.r307.arbitrader.config;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,6 +14,7 @@ public class NotificationConfiguration {
     private Logs logs = new Logs();
     private Mail mail = new Mail();
     private Discord discord = new Discord();
+    private Telegram telegram = new Telegram();
 
     public Slack getSlack() {
         return slack;
@@ -44,6 +46,14 @@ public class NotificationConfiguration {
 
     public void setDiscord(Discord discord) {
         this.discord = discord;
+    }
+
+    public Telegram getTelegram() {
+        return telegram;
+    }
+
+    public void setTelegram(Telegram telegram) {
+        this.telegram = telegram;
     }
 
     public class Slack {
@@ -136,6 +146,58 @@ public class NotificationConfiguration {
 
         public void setWebhookToken(String webhookToken) {
             this.webhookToken = webhookToken;
+        }
+    }
+
+    public class Telegram {
+        private Boolean active;
+        private String groupId;
+        private String token;
+
+        public Boolean getActive() {
+            return active;
+        }
+
+        public void setActive(Boolean active) {
+            this.active = active;
+        }
+
+        public String getGroupId() {
+            return groupId;
+        }
+
+        public void setGroupId(String groupId) {
+            // Due to telegram appending a 'g' to group chat ids but requiring replacing the 'g' with '-' when sending
+            // a message to this group, we replace the 'g' from the user config input and/or append the '-' to the start
+            // of the groupId string
+            if (!StringUtils.isBlank(groupId) && groupId.startsWith("g")) {
+                this.groupId = "-" + groupId.substring(1, groupId.length() - 1);
+                return;
+            }
+            if (!StringUtils.isBlank(groupId) && !groupId.startsWith("g")) {
+                this.groupId = "-" + groupId;
+                return;
+            }
+
+            if (StringUtils.isBlank(groupId) && active != null && !active) {
+                // The case when the user did not configure Telegram. E.g. it is not using telegram, we simply accept whatever groupId he added
+                this.groupId = groupId;
+                return;
+            }
+
+            if (active != null && active) {
+                throw new  RuntimeException("Missing groupId value in the Telegram configuration. Please set it in the application.yml file");
+            }
+
+            // Telegram is not active so we do not care what value is set for groupId
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
         }
     }
 }
