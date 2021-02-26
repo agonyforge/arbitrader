@@ -28,6 +28,9 @@ public class TradeVolumeTest {
 
         assertEquals(entryTradeVolume.getLongVolume(), exitTradeVolume.getLongVolume());
         assertEquals(entryTradeVolume.getShortVolume(), exitTradeVolume.getShortVolume());
+        //Test that we are not selling more than we bought
+        assertTrue(entryTradeVolume.getLongVolume().compareTo(exitTradeVolume.getLongVolume())>=0);
+        assertTrue(entryTradeVolume.getShortVolume().compareTo(exitTradeVolume.getShortVolume())<=0);
     }
 
     @Test
@@ -47,9 +50,13 @@ public class TradeVolumeTest {
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, longScale, shortScale);
 
-        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN), exitTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN));
-        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN), exitTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN));
+        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN), exitTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN));
+        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN), exitTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN));
+        //Test that we are not selling more than we bought
+        assertTrue(entryTradeVolume.getLongVolume().compareTo(exitTradeVolume.getLongVolume())>=0);
+        assertTrue(entryTradeVolume.getShortVolume().compareTo(exitTradeVolume.getShortVolume())<=0);
     }
+
     @Test
     public void enterAndExitSameVolumeCLIENTSERVER() {
         BigDecimal longMaxExposure = new BigDecimal("100");
@@ -68,8 +75,11 @@ public class TradeVolumeTest {
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, longScale, shortScale);
 
-        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN), exitTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN));
-        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN), exitTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN));
+        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN), exitTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN));
+        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN), exitTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN));
+        //Test that we are not selling more than we bought
+        assertTrue(entryTradeVolume.getLongVolume().compareTo(exitTradeVolume.getLongVolume())>=0);
+        assertTrue(entryTradeVolume.getShortVolume().compareTo(exitTradeVolume.getShortVolume())<=0);
     }
 
     @Test
@@ -89,8 +99,11 @@ public class TradeVolumeTest {
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, longScale, shortScale);
 
-        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN), exitTradeVolume.getLongVolume().setScale(longScale, RoundingMode.HALF_EVEN));
-        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN), exitTradeVolume.getShortVolume().setScale(shortScale, RoundingMode.HALF_EVEN));
+        assertEquals(entryTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN), exitTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN));
+        assertEquals(entryTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN), exitTradeVolume.getShortVolume().setScale(shortScale-1, RoundingMode.DOWN));
+        //Test that we are not selling more than we bought
+        assertTrue(entryTradeVolume.getLongVolume().compareTo(exitTradeVolume.getLongVolume())>=0);
+        assertTrue(entryTradeVolume.getShortVolume().compareTo(exitTradeVolume.getShortVolume())<=0);
     }
 
 

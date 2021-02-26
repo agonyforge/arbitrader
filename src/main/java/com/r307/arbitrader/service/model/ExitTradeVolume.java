@@ -51,8 +51,8 @@ public class ExitTradeVolume extends TradeVolume {
         }
 
         //Round by amount step size
-        this.longOrderVolume = roundByStep (longOrderVolume, longAmountStepSize).setScale(longScale, RoundingMode.HALF_EVEN);
-        this.shortOrderVolume = roundByStep (shortOrderVolume, shortAmountStepSize).setScale(shortScale,RoundingMode.HALF_EVEN);
+        this.longOrderVolume = roundByStep (longOrderVolume, longAmountStepSize).setScale(longScale, RoundingMode.DOWN);
+        this.shortOrderVolume = roundByStep (shortOrderVolume, shortAmountStepSize).setScale(shortScale,RoundingMode.UP);
         //we are trying to retrieve the volumes that will indeed be added/subtracted from our balance
         //such as longOrderVolume = subtractBaseFees(longVolume) and shortVolume such as shortOrderVolume = addBaseFees(shortVolume)
         this.longVolume = inverseSubtractBaseFees(longFeeComputation, longOrderVolume, longFee);
