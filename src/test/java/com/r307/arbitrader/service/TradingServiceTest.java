@@ -27,8 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.Constants.BTC_SCALE;
+import static com.r307.arbitrader.Constants.USD_SCALE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;

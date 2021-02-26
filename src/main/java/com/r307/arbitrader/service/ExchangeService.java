@@ -27,7 +27,7 @@ import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.Constants.USD_SCALE;
 
 /**
  * Services related to exchanges.

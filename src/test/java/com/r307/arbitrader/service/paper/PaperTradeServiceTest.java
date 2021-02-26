@@ -4,6 +4,7 @@ import com.r307.arbitrader.BaseTestCase;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.exception.MarginNotSupportedException;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.model.ExchangeFee;
@@ -14,7 +15,6 @@ import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
-import org.knowm.xchange.dto.meta.*;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.exceptions.FundsExceededException;
 
@@ -24,8 +24,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.Constants.BTC_SCALE;
+import static com.r307.arbitrader.Constants.USD_SCALE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -96,7 +96,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
             .orderStatus(Order.OrderStatus.NEW)
             .build();
 
-        assertThrows(FundsExceededException.class, () -> paperTradeService.placeLimitOrder(order));
+        assertThrows(MarginNotSupportedException.class, () -> paperTradeService.placeLimitOrder(order));
     }
 
     @Test
@@ -111,7 +111,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
             .orderStatus(Order.OrderStatus.NEW)
             .build();
 
-        paperTradeService.placeLimitOrder(order);
+        assertThrows(FundsExceededException.class, () -> paperTradeService.placeLimitOrder(order));
     }
 
     @Test

@@ -1,15 +1,14 @@
 package com.r307.arbitrader.service.paper;
 
-import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.exception.MarginNotSupportedException;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import com.r307.arbitrader.service.model.ExchangeFee;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
-import org.knowm.xchange.dto.account.AccountInfo;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.marketdata.Trades;
 import org.knowm.xchange.dto.trade.*;
@@ -26,13 +25,10 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.Constants.BTC_SCALE;
+import static com.r307.arbitrader.Constants.USD_SCALE;
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 import static org.knowm.xchange.dto.Order.OrderType.ASK;
 
@@ -70,6 +66,11 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     public String placeLimitOrder(LimitOrder limitOrder) {
+        // Check if the order is a margin order and the exchange has margin enabled
+        if(isMarginRequired(limitOrder) && !exchangeService.getExchangeMetadata(exchange).getMargin()) {
+            throw new MarginNotSupportedException(exchange.getExchangeSpecification().getExchangeName());
+        }
+
         //Check if the order would keep our balance positive (for non margin accounts)
         checkBalance(limitOrder);
 
@@ -228,15 +229,21 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
      * Throw a FundsExceededException if the funds are not sufficient
      */
     private void checkBalance(LimitOrder order) {
-        if(exchangeService.getExchangeMetadata(exchange).getMargin())
-            return;
+        if(!useMargin(order)) {
+            BigDecimal counterDelta = getCounterDelta(order);
+            BigDecimal baseDelta = getBaseDelta(order);
 
-        BigDecimal counterDelta = getCounterDelta(order);
-        BigDecimal baseDelta = getBaseDelta(order);
-        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
-            throw new FundsExceededException();
-        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
-            throw new FundsExceededException();
+            //we don't have enough cash
+            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
+                throw new FundsExceededException();
+
+            //we don't have enough crypto
+            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
+                throw new FundsExceededException();
+        } else {
+            // TODO after implementing leverage in the paper exchange, we should check here if we have sufficient funds to cover the leverage
+            // For now we can consider that we have unlimited funds for margin orders
+        }
     }
 
     /**
@@ -290,16 +297,35 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         final ExchangeFee exchangeFee = exchangeService.getExchangeFee(exchange, (CurrencyPair) order.getInstrument(), false);
         final ExchangeConfiguration exchangeConfiguration = exchangeService.getExchangeMetadata(exchange);
 
-        final BigDecimal fee;
-        if (order.getLeverage() == null) {
-            fee = exchangeFee.getTradeFee();
-            LOGGER.info("exchange:{}|exchange:{}|long order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
-        }
-        else {
-            fee = exchangeFee.getMarginFee().get();
-            LOGGER.info("exchange:{}|exchange:{}|short order using {} fee", exchangeName, exchangeConfiguration.getMargin(), fee);
-        }
+        BigDecimal fee = useMargin(order)  && exchangeFee.getMarginFee().isPresent() ?
+            exchangeFee.getMarginFee().get().add(exchangeFee.getTradeFee()) : exchangeFee.getTradeFee();
+        LOGGER.info("{} paper exchange: margin enabled:{}|margin required:{}| order using {} fee",
+            exchangeName, exchangeConfiguration.getMargin(), useMargin(order), fee);
 
         return fee;
+    }
+
+    private boolean isMarginRequired (LimitOrder order) {
+        BigDecimal counterDelta = getCounterDelta(order);
+        BigDecimal baseDelta = getBaseDelta(order);
+
+        // Margin required because we don't have enough cash
+        if (exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) < 0)
+            return true;
+
+        // Margin required because we don't have enough crypto
+        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) < 0)
+            return true;
+
+        // Margin required because the leverage was set
+        // This can bit omitted, or moved the the checkBalance method, if we decide setting the order leverage does not automatically means we want to do a margin trade
+        if (order.getLeverage() != null)
+            return true;
+
+        return false;
+    }
+
+    private boolean useMargin(LimitOrder order) {
+        return order.getLeverage() != null && exchangeService.getExchangeMetadata(exchange).getMargin();
     }
 }

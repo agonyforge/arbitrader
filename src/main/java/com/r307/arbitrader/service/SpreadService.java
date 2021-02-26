@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.Constants.BTC_SCALE;
 
 /**
  * Services related to computing spreads. A spread is a representation of the amount of difference between two prices.

@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.r307.arbitrader.Constants;
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ActivePosition;
@@ -100,6 +101,11 @@ public class TradingScheduler {
             specification.setUserName(exchangeMetadata.getUserName());
             specification.setApiKey(exchangeMetadata.getApiKey());
             specification.setSecretKey(exchangeMetadata.getSecretKey());
+
+            // Set if this exchange has margin enabled. This is needed when using a paper exchange
+            if (exchangeMetadata.getMargin() != null) {
+                specification.getExchangeSpecificParameters().put(Constants.EXCHANGE_MARGIN_ENABLED_KEY, exchangeMetadata.getMargin());
+            }
 
             if (exchangeMetadata.getSslUri() != null) {
                 specification.setSslUri(exchangeMetadata.getSslUri());

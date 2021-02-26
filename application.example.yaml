@@ -178,7 +178,7 @@ trading:
         - REP/USD
         - ZEC/USD
 
-      # The amount of fees Kraken charges for long trades. If an exchange's API supports requesting fees at runtime, the bot
+      # The amount of fees Kraken charges for each trade. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
       tradeFee: 0.0026
       # The amount of additional fees Kraken charges for margin trades. This fee is only needed if this exchange has margin set to true
