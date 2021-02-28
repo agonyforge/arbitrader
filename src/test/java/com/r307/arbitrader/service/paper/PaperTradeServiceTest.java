@@ -96,7 +96,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
             .orderStatus(Order.OrderStatus.NEW)
             .build();
 
-        assertThrows(MarginNotSupportedException.class, () -> paperTradeService.placeLimitOrder(order));
+        assertThrows(FundsExceededException.class, () -> paperTradeService.placeLimitOrder(order));
     }
 
     @Test
