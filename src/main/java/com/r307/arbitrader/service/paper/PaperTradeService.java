@@ -66,13 +66,8 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     public String placeLimitOrder(LimitOrder limitOrder) {
-        // Check if the order is a margin order and the exchange has margin enabled
-        if(isMarginRequired(limitOrder) && !exchangeService.getExchangeMetadata(exchange).getMargin()) {
-            throw new MarginNotSupportedException(exchange.getExchangeSpecification().getExchangeName());
-        }
-
         //Check if the order would keep our balance positive (for non margin accounts)
-        checkBalance(limitOrder);
+        verifyOrder(limitOrder);
 
         LimitOrder limit = LimitOrder.Builder.from(limitOrder)
             .id(UUID.randomUUID().toString())
@@ -122,8 +117,36 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         return tradeService.createOpenOrdersParams();
     }
 
-    public void verifyOrder(LimitOrder limitOrder) {
-        //TODO implement minimum amount and stepSize verification
+    /**
+     * Check if the account as enough fund to pass the order if filled with this averagePrice.
+     * @see #verifyOrder(LimitOrder)
+     * @param order the order to check against the funds
+     * @param averagePrice the price to fill the order at
+     */
+    private void verifyOrder(LimitOrder order, BigDecimal averagePrice) {
+        verifyOrder(LimitOrder.Builder.from(order).averagePrice(averagePrice).build());
+    }
+
+    /**
+     * Check if the account as enough fund to pass the order.
+     * Throw a FundsExceededException if the funds are not sufficient
+     */
+    public void verifyOrder(LimitOrder order) {
+        if(!useMargin(order)) {
+            BigDecimal counterDelta = getCounterDelta(order);
+            BigDecimal baseDelta = getBaseDelta(order);
+
+            //we don't have enough cash
+            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
+                throw new FundsExceededException();
+
+            //we don't have enough crypto
+            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
+                throw new FundsExceededException();
+        } else {
+            // TODO after implementing leverage in the paper exchange, we should check here if we have sufficient funds to cover the leverage
+            // For now we can consider that we have unlimited funds for margin orders
+        }
     }
 
     public void verifyOrder(MarketOrder marketOrder) {
@@ -173,7 +196,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
      * @param averagePrice the average price to fill the order at
      */
     void fillOrder(LimitOrder order, BigDecimal averagePrice) {
-        checkBalance(order, averagePrice);
+        verifyOrder(order, averagePrice);
 
         //Fill the order at the average price
         order.setOrderStatus(Order.OrderStatus.FILLED);
@@ -215,35 +238,18 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
     }
 
     /**
-     * Check if the account as enough fund to pass the order if filled with this averagePrice.
-     * @see #checkBalance(LimitOrder)
-     * @param order the order to check against the funds
-     * @param averagePrice the price to fill the order at
+     * Check if this order requires margin. This means, check if the exchange need to borrow money/crypto in order to
+     * fulfil this order. This method throws a {@link MarginNotSupportedException} if the order requires margin
+     * but the exchange does not support margin trades.
+     * @param order the order to check
+     * @return true if this order requires margin and the exchange has margin enabled. False otherwise
      */
-    private void checkBalance(LimitOrder order, BigDecimal averagePrice) {
-        checkBalance(LimitOrder.Builder.from(order).averagePrice(averagePrice).build());
-    }
-
-    /**
-     * Check if the account as enough fund to pass the order.
-     * Throw a FundsExceededException if the funds are not sufficient
-     */
-    private void checkBalance(LimitOrder order) {
-        if(!useMargin(order)) {
-            BigDecimal counterDelta = getCounterDelta(order);
-            BigDecimal baseDelta = getBaseDelta(order);
-
-            //we don't have enough cash
-            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
-                throw new FundsExceededException();
-
-            //we don't have enough crypto
-            if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
-                throw new FundsExceededException();
-        } else {
-            // TODO after implementing leverage in the paper exchange, we should check here if we have sufficient funds to cover the leverage
-            // For now we can consider that we have unlimited funds for margin orders
+    private boolean useMargin(LimitOrder order) {
+        if(order.getLeverage() != null && !exchangeService.getExchangeMetadata(exchange).getMargin()) {
+            throw new MarginNotSupportedException(exchange.getExchangeSpecification().getExchangeName());
         }
+
+        return order.getLeverage() != null && exchangeService.getExchangeMetadata(exchange).getMargin();
     }
 
     /**
@@ -303,29 +309,5 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             exchangeName, exchangeConfiguration.getMargin(), useMargin(order), fee);
 
         return fee;
-    }
-
-    private boolean isMarginRequired (LimitOrder order) {
-        BigDecimal counterDelta = getCounterDelta(order);
-        BigDecimal baseDelta = getBaseDelta(order);
-
-        // Margin required because we don't have enough cash
-        if (exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) < 0)
-            return true;
-
-        // Margin required because we don't have enough crypto
-        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) < 0)
-            return true;
-
-        // Margin required because the leverage was set
-        // This can bit omitted, or moved the the checkBalance method, if we decide setting the order leverage does not automatically means we want to do a margin trade
-        if (order.getLeverage() != null)
-            return true;
-
-        return false;
-    }
-
-    private boolean useMargin(LimitOrder order) {
-        return order.getLeverage() != null && exchangeService.getExchangeMetadata(exchange).getMargin();
     }
 }
