@@ -171,7 +171,7 @@ public class NotificationConfiguration {
             // a message to this group, we replace the 'g' from the user config input and/or append the '-' to the start
             // of the groupId string
             if (!StringUtils.isBlank(groupId) && groupId.startsWith("g")) {
-                this.groupId = "-" + groupId.substring(1, groupId.length() - 1);
+                this.groupId = "-" + groupId.substring(1);
                 return;
             }
             if (!StringUtils.isBlank(groupId) && !groupId.startsWith("g")) {
