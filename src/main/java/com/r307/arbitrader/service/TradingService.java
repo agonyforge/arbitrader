@@ -220,8 +220,12 @@ public class TradingService {
         }
 
         //Adjust the volume after slip so the trade stays market neutral
-        tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
-
+        try {
+            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
+        } catch(IllegalArgumentException e) {
+            LOGGER.error("Cannot adjust order volumes, exiting trade.");
+            return;
+        }
 
         final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
@@ -229,7 +233,12 @@ public class TradingService {
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
-        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        try{
+            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        } catch(IllegalArgumentException e) {
+            LOGGER.error("Cannot adjust order volumes, exiting trade.");
+            return;
+        }
 
         //Scales or steps might have broken market neutrality, check that the entry is still as market neutral as possible
         //Otherwise it could mess with profit estimations!
@@ -410,7 +419,12 @@ public class TradingService {
             .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
-        tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        try {
+            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+        } catch(IllegalArgumentException e) {
+            LOGGER.error("Cannot adjust order volumes, exiting trade.");
+            return;
+        }
 
         logExitTrade();
 
