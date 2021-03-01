@@ -39,6 +39,10 @@ public abstract class TradeVolume {
 
     BigDecimal shortFee;
 
+    BigDecimal longBaseFee;
+
+    BigDecimal shortBaseFee;
+
     FeeComputation longFeeComputation;
 
     FeeComputation shortFeeComputation;
@@ -128,61 +132,111 @@ public abstract class TradeVolume {
     }
 
     /**
-     * Reverse {@link #addBaseFees(FeeComputation, BigDecimal, BigDecimal)} to find retrieve the initial volume
-     * @return the initial volume
+     * Get a buy order base fees for a volume and a FeeComputation
+     * @param feeComputation the FeeComputation
+     * @param volume the volume
+     * @param baseFee the fee percentage to apply on an order volume
+     * @param orderVolume true if the volume is an order volume, false if it is an underlying volume
+     * @return the fees in crypto
      */
-    static BigDecimal inverseAddBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if(feeComputation == FeeComputation.SERVER)
-            return volume;
-        return volume.divide (BigDecimal.ONE.add(fee), BTC_SCALE, RoundingMode.HALF_EVEN);
+    static BigDecimal getBuyBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal baseFee, boolean orderVolume) {
+        BigDecimal result = BigDecimal.ZERO.setScale(volume.scale(), RoundingMode.HALF_EVEN);
+        if(feeComputation == FeeComputation.CLIENT) {
+            verifyFeeComputationClientFees(baseFee);
+            if (orderVolume) {
+                result =  volume.multiply(baseFee).setScale(volume.scale(), RoundingMode.HALF_EVEN);
+                LOGGER.debug("Calculate buy order base fees from underlying volume {}, with fee percentage {}%: {}",
+                    volume,
+                    baseFee,
+                    result);
+            } else {
+                result = volume.multiply(baseFee).divide(BigDecimal.ONE.subtract(baseFee), volume.scale(), RoundingMode.HALF_EVEN);
+                LOGGER.debug("Calculate buy order base fees from order volume {}, with fee percentage {}%: {}",
+                    volume,
+                    baseFee,
+                    result);
+            }
+        }
+        return result;
     }
 
     /**
-     * Return an increased volume such as, after deducting the fee, the result is the initial volume
-     * @param feeComputation the fee computation mode
-     * @param volume the initial volume
-     * @param fee the base fee in percentage
-     * @return the increased volume such as increasedVolume = volume * (1 + fee)
+     * Get a sell order base fees for a volume and a FeeComputation
+     * @param feeComputation the FeeComputation
+     * @param volume the volume
+     * @param baseFee the fee percentage to apply on an order volume
+     * @param orderVolume true if the volume is an order volume, false if it is an underlying volume
+     * @return the fees in crypto
      */
-    static BigDecimal addBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if(feeComputation == FeeComputation.SERVER)
-            return volume;
-        return volume.multiply(BigDecimal.ONE.add(fee));
+    static BigDecimal getSellBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal baseFee, boolean orderVolume) {
+        BigDecimal result = BigDecimal.ZERO.setScale(volume.scale(), RoundingMode.HALF_EVEN);
+        if(feeComputation == FeeComputation.CLIENT) {
+            verifyFeeComputationClientFees(baseFee);
+            if (orderVolume) {
+                result =  volume.multiply(baseFee).setScale(volume.scale(), RoundingMode.HALF_EVEN);
+                LOGGER.debug("Calculate sell order base fees from underlying volume {}, with fee percentage {}%: {}",
+                    volume,
+                    baseFee,
+                    result);
+            } else {
+                result = volume.multiply(baseFee).divide(BigDecimal.ONE.add(baseFee), volume.scale(), RoundingMode.HALF_EVEN);
+                LOGGER.debug("Calculate sell order base fees from order volume {}, with fee percentage {}%: {}",
+                    volume,
+                    baseFee,
+                    result);
+            }
+        }
+        return result;
     }
 
     /**
-     * Reverse {@link #subtractBaseFees(FeeComputation, BigDecimal, BigDecimal)} to find retrieve the initial volume
-     * @return the initial volume
+     * Throws an IllegalArgumentException if the feePercentage could trigger rounding issues when calculating the base fees
+     * The error margin when calculating a volume order from an underlying volume is maximum scale/2
+     * It means an error margin on the base fees of `scale/2 * fee`
+     * We want to make sure that this error cannot cause rounding issues: error margin <scale/2 *0.01
+     * ie fee < 0.01
+     * @param feePercentage the crypto fee percentage
      */
-    static BigDecimal inverseSubtractBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if(feeComputation == FeeComputation.SERVER)
-            return volume;
-        return volume.divide (BigDecimal.ONE.subtract(fee), BTC_SCALE, RoundingMode.HALF_EVEN);
+    static private void verifyFeeComputationClientFees(BigDecimal feePercentage) {
+        //If a FeeComputation.CLIENT has fees higher than 1%, the base fee scaling could cause issues
+        //The error margin when calculating a volume order from an underlying volume is maximum scale/2
+        //It means an error margin on the base fees of `scale/2 * fee`
+        //We want to make sure that this error cannot cause rounding issues: error margin <scale/2 *0.01
+        //ie fee < 0.01
+        if(feePercentage.compareTo(new BigDecimal("0.01"))>=0) {
+            LOGGER.error("FeeComputation.CLIENT fee percentage too high: {}",
+                feePercentage);
+            throw new IllegalArgumentException();
+        }
     }
 
     /**
-     * Return an decreased volume such as, after deducting the fee, the result is the initial volume
-     * @param feeComputation the fee computation mode
-     * @param volume the initial volume
-     * @param fee the base fee in percentage
-     * @return the decreased volume such as decreasedVolume = volume * (1 - fee)
+     * Retrieve a feePercentage equivalent to a FeeComputation.SERVER fee percentage for a Sell order.
+     * This is only used to facilitate the TradeVolume market neutrality rating calculation.
+     *
+     * @param feeComputation the FeeComputation type
+     * @param baseFee the crypto fee percentage
+     * @return the FeeComputaiton.SERVER equivalent fee percentage
      */
-    static BigDecimal subtractBaseFees(FeeComputation feeComputation, BigDecimal volume, BigDecimal fee) {
-        if(feeComputation == FeeComputation.SERVER)
-            return volume;
-        return volume.multiply(BigDecimal.ONE.subtract(fee));
-    }
-
-    static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal fee) {
+    static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal baseFee) {
+        BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            fee = fee.divide(BigDecimal.ONE.add(fee), intermediateScale, RoundingMode.HALF_EVEN);
-        return fee;
+            result = baseFee.divide(BigDecimal.ONE.add(baseFee), intermediateScale, RoundingMode.HALF_EVEN);
+        return result;
     }
 
-
-    static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal fee) {
+    /**
+     * Retrieve a feePercentage equivalent to a FeeComputation.SERVER fee percentage for a buy order.
+     * This is only used to facilitate the TradeVolume market neutrality rating calculation.
+     *
+     * @param feeComputation the FeeComputation type
+     * @param baseFee the crypto fee percentage
+     * @return he FeeComputaiton.SERVER equivalent fee percentage
+     */
+    static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal baseFee) {
+        BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            fee = fee.divide(BigDecimal.ONE.subtract(fee), intermediateScale, RoundingMode.HALF_EVEN);
-        return fee;
+            result = baseFee.divide(BigDecimal.ONE.subtract(baseFee), intermediateScale, RoundingMode.HALF_EVEN);
+        return result;
     }
 }

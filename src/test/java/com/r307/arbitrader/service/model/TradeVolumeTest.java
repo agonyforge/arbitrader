@@ -88,15 +88,15 @@ public class TradeVolumeTest {
         BigDecimal shortMaxExposure = new BigDecimal("100");
         BigDecimal longPrice = new BigDecimal("950");
         BigDecimal shortPrice = new BigDecimal("1050");
-        BigDecimal longFee = new BigDecimal("0.001");
-        BigDecimal shortFee = new BigDecimal("0.001");
+        BigDecimal longBaseFee = new BigDecimal("0.001");
+        BigDecimal shortBaseFee = new BigDecimal("0.001");
 
         int longScale = 6;
         int shortScale = 6;
 
-        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee);
+        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longBaseFee, shortBaseFee);
         entryTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, longScale, shortScale);
-        ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee);
+        ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longBaseFee, shortBaseFee);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, longScale, shortScale);
 
         assertEquals(entryTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN), exitTradeVolume.getLongVolume().setScale(longScale-1, RoundingMode.DOWN));
@@ -112,8 +112,8 @@ public class TradeVolumeTest {
     @Test
     public void exitAdjustVolumeScaleSERVER56() {
         ExitTradeVolume tradeVolume = TradeVolume.getExitTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO);
-        tradeVolume.shortVolume=new BigDecimal("100");
-        tradeVolume.longVolume=new BigDecimal("100");
+        tradeVolume.longVolume=new BigDecimal("100").setScale(5);
+        tradeVolume.shortVolume=new BigDecimal("100").setScale(6);
         tradeVolume.longFee=new BigDecimal("0.05");
         tradeVolume.shortFee=new BigDecimal("0.01");
 
@@ -124,50 +124,17 @@ public class TradeVolumeTest {
     }
 
     @Test
-    public void exitAdjustVolumeScale56CLIENT() {
-        ExitTradeVolume tradeVolume = TradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO);
-        tradeVolume.shortVolume=new BigDecimal("100");
-        tradeVolume.longVolume=new BigDecimal("100");
-        tradeVolume.longFee=new BigDecimal("0.05");
-        tradeVolume.shortFee=new BigDecimal("0.01");
-
-        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, 5, 6);
-
-        assertEquals(5, tradeVolume.getLongOrderVolume().scale());
-        assertEquals(6, tradeVolume.getShortOrderVolume().scale());
-    }
-
-    @Test
-    public void exitAdjustVolumeStepSize31Scale53SERVER() {
+    public void exitAdjustVolumeScaleThrows() {
         ExitTradeVolume tradeVolume = TradeVolume.getExitTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO);
-        tradeVolume.shortVolume=new BigDecimal("100");
-        tradeVolume.longVolume=new BigDecimal("100");
+        tradeVolume.longVolume=new BigDecimal("100").setScale(3);
+        tradeVolume.shortVolume=new BigDecimal("100").setScale(7);
         tradeVolume.longFee=new BigDecimal("0.05");
         tradeVolume.shortFee=new BigDecimal("0.01");
 
-        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", new BigDecimal("3"), new BigDecimal("1"), 5, 3);
+        assertThrows(IllegalArgumentException.class, ()->tradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null, 5, 6));
 
-        assertEquals(0, tradeVolume.getLongOrderVolume().remainder(new BigDecimal("3")).compareTo(BigDecimal.ZERO));
-        assertEquals(0, tradeVolume.getShortOrderVolume().remainder(new BigDecimal("1")).compareTo(BigDecimal.ZERO));
-        assertEquals(5, tradeVolume.getLongOrderVolume().scale());
-        assertEquals(3, tradeVolume.getShortOrderVolume().scale());
     }
 
-    @Test
-    public void exitAdjustVolumeStepSize31Scale53CLIENT() {
-        ExitTradeVolume tradeVolume = TradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO);
-        tradeVolume.shortVolume=new BigDecimal("100");
-        tradeVolume.longVolume=new BigDecimal("100");
-        tradeVolume.longFee=new BigDecimal("0.05");
-        tradeVolume.shortFee=new BigDecimal("0.01");
-
-        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", new BigDecimal("3"), new BigDecimal("1"), 5, 3);
-
-        assertEquals(0, tradeVolume.getLongOrderVolume().remainder(new BigDecimal("3")).compareTo(BigDecimal.ZERO));
-        assertEquals(0, tradeVolume.getShortOrderVolume().remainder(new BigDecimal("1")).compareTo(BigDecimal.ZERO));
-        assertEquals(5, tradeVolume.getLongOrderVolume().scale());
-        assertEquals(3, tradeVolume.getShortOrderVolume().scale());
-    }
 
     @Test
     public void entryAdjustVolumeScaleSERVER8() {
@@ -250,23 +217,6 @@ public class TradeVolumeTest {
         assertEquals(6, tradeVolume.getShortOrderVolume().scale());
     }
 
-    @Test
-    public void entryAdjustVolumeStepSizeCLIENT23() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO);
-        tradeVolume.shortVolume=new BigDecimal("100");
-        tradeVolume.longVolume=new BigDecimal("100");
-        tradeVolume.longFee=new BigDecimal("0.05");
-        tradeVolume.shortFee=new BigDecimal("0.01");
-
-        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", new BigDecimal("2"), new BigDecimal("3"), 5, 2);
-
-        //Cannot test market neutrality when both exchanges uses amount step size
-
-        assertEquals(0, tradeVolume.getLongOrderVolume().remainder(new BigDecimal("2")).compareTo(BigDecimal.ZERO));
-        assertEquals(0, tradeVolume.getShortOrderVolume().remainder(new BigDecimal("3")).compareTo(BigDecimal.ZERO));
-        assertEquals(5, tradeVolume.getLongOrderVolume().scale());
-        assertEquals(2, tradeVolume.getShortOrderVolume().scale());
-    }
 
     @Test
     public void entryAdjustVolumeStepSizeCLIENTSERVERx3() {
@@ -781,47 +731,255 @@ public class TradeVolumeTest {
     }
 
     @Test
-    public void addFeesFeeComputationServer() {
+    public void getBuyBaseFees() {
         FeeComputation feeComputation = FeeComputation.SERVER;
-        BigDecimal volume = new BigDecimal("100");
-        BigDecimal fee = new BigDecimal("0.001");
+        BigDecimal volume = new BigDecimal("100").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
 
-        BigDecimal result = TradeVolume.addBaseFees(feeComputation, volume, fee);
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, true);
 
-        assertEquals(new BigDecimal("100"), result);
+        assertTrue(BigDecimal.ZERO.compareTo(baseFees)==0);
     }
 
     @Test
-    public void addFeesFeeComputationClient() {
+    public void getBuyBaseFeesFromOrderVolumeCLIENT() {
         FeeComputation feeComputation = FeeComputation.CLIENT;
-        BigDecimal volume = new BigDecimal("100");
-        BigDecimal fee = new BigDecimal("0.001");
+        BigDecimal orderVolume = new BigDecimal("100").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
 
-        BigDecimal result = TradeVolume.addBaseFees(feeComputation, volume, fee);
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
 
-        assertEquals(new BigDecimal("100.1").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
+        assertEquals(new BigDecimal("0.1").setScale(4, RoundingMode.HALF_EVEN),baseFees );
     }
 
     @Test
-    public void subtractFeesFeeComputationServer() {
+    public void getBuyBaseFeesFromVolumeCLIENT1() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("789").setScale(1, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.0026");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT2() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("78.37").setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.0026");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT3() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("216.89").setScale(3, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT4() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("23.0003").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.009");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT5() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("938.9874").setScale(5, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.007");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT6() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("0.398300").setScale(6, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.002");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT7() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("1.59").setScale(7, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.003");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getBuyBaseFeesFromVolumeCLIENT8() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("199.03").setScale(8, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.005");
+
+        BigDecimal baseFees = TradeVolume.getBuyBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.add(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getBuyBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFees() {
         FeeComputation feeComputation = FeeComputation.SERVER;
-        BigDecimal volume = new BigDecimal("100");
-        BigDecimal fee = new BigDecimal("0.001");
+        BigDecimal volume = new BigDecimal("100").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
 
-        BigDecimal result = TradeVolume.subtractBaseFees(feeComputation, volume, fee);
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, true);
 
-        assertEquals(new BigDecimal("100").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
+        assertTrue(BigDecimal.ZERO.compareTo(baseFees)==0);
     }
 
     @Test
-    public void subtractFeesFeeComputationClient() {
+    public void getSellBaseFeesFromOrderVolumeCLIENT() {
         FeeComputation feeComputation = FeeComputation.CLIENT;
-        BigDecimal volume = new BigDecimal("100");
-        BigDecimal fee = new BigDecimal("0.01");
+        BigDecimal orderVolume = new BigDecimal("100").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
 
-        BigDecimal result = TradeVolume.subtractBaseFees(feeComputation, volume, fee);
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
 
-        assertEquals(new BigDecimal("99").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
+        assertEquals(new BigDecimal("0.1").setScale(4, RoundingMode.HALF_EVEN),baseFees );
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT1() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("0.9").setScale(1, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.009");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT2() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("78.37").setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.0026");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT3() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("0.026").setScale(3, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT4() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("23.0003").setScale(4, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.001");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT5() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("938.9874").setScale(5, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.007");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT6() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("0.398300").setScale(6, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.002");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT7() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("1.59").setScale(7, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.003");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
+    }
+
+    @Test
+    public void getSellBaseFeesFromVolumeCLIENT8() {
+        FeeComputation feeComputation = FeeComputation.CLIENT;
+        BigDecimal volume = new BigDecimal("199.03").setScale(8, RoundingMode.HALF_EVEN);
+        BigDecimal baseFee = new BigDecimal("0.005");
+
+        BigDecimal baseFees = TradeVolume.getSellBaseFees(feeComputation,volume,baseFee, false);
+
+        BigDecimal orderVolume = volume.subtract(baseFees);
+        BigDecimal baseFees2 = TradeVolume.getSellBaseFees(feeComputation,orderVolume,baseFee, true);
+        assertEquals(baseFees, baseFees2);
     }
 
     @Test
