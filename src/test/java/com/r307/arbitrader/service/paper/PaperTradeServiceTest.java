@@ -115,6 +115,22 @@ public class PaperTradeServiceTest extends BaseTestCase {
     }
 
     @Test
+    public void testPlaceOrderWithLeverage() {
+        exchangeConfiguration.setFeeComputation(FeeComputation.SERVER);
+        exchangeConfiguration.setMargin(true);
+
+        LimitOrder order = (LimitOrder) new LimitOrder.Builder(Order.OrderType.ASK, CurrencyPair.BTC_USD)
+            .originalAmount(new BigDecimal("11"))
+            .timestamp(new Date())
+            .limitPrice(new BigDecimal("20"))
+            .orderStatus(Order.OrderStatus.NEW)
+            .leverage("2")
+            .build();
+
+        paperTradeService.placeLimitOrder(order);
+    }
+
+    @Test
     public void testFillOrderBuyFundExceeded() {
         exchangeConfiguration.setFeeComputation(FeeComputation.SERVER);
         exchangeConfiguration.setMargin(false);

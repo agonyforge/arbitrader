@@ -69,10 +69,11 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
         //Check if the order would keep our balance positive (for non margin accounts)
         verifyOrder(limitOrder);
 
-        LimitOrder limit = LimitOrder.Builder.from(limitOrder)
+        LimitOrder limit = (LimitOrder) LimitOrder.Builder.from(limitOrder)
             .id(UUID.randomUUID().toString())
             .timestamp(new Date())
             .orderStatus(Order.OrderStatus.NEW)
+            .leverage(limitOrder.getLeverage())
             .build();
 
         orders.add(limit);
@@ -124,7 +125,12 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
      * @param averagePrice the price to fill the order at
      */
     private void verifyOrder(LimitOrder order, BigDecimal averagePrice) {
-        verifyOrder(LimitOrder.Builder.from(order).averagePrice(averagePrice).build());
+        final LimitOrder limitOrder = (LimitOrder) LimitOrder.Builder.from(order)
+            .averagePrice(averagePrice)
+            .leverage(order.getLeverage())
+            .build();
+
+        verifyOrder(limitOrder);
     }
 
     /**
