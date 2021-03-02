@@ -184,7 +184,7 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent);
+        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent, longScale, shortScale);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -221,7 +221,7 @@ public class TradingService {
 
         //Adjust the volume after slip so the trade stays market neutral
         try {
-            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent);
+            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent, longScale, shortScale);
         } catch(IllegalArgumentException e) {
             LOGGER.error("Cannot adjust order volumes, exiting trade.");
             return;
@@ -234,7 +234,7 @@ public class TradingService {
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
         try{
-            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize);
         } catch(IllegalArgumentException e) {
             LOGGER.error("Cannot adjust order volumes, exiting trade.");
             return;
@@ -249,7 +249,7 @@ public class TradingService {
             return;
         }
 
-        logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, tradeVolume.getLongVolume(), tradeVolume.getShortVolume(), longLimitPrice, shortLimitPrice);
+        logEntryTrade(spread, shortExchangeName, longExchangeName, exitTarget, tradeVolume, longLimitPrice, shortLimitPrice);
 
         BigDecimal totalBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
 
@@ -270,7 +270,7 @@ public class TradingService {
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
                 longLimitPrice, shortLimitPrice,
-                tradeVolume.getShortOrderVolume(), tradeVolume.getShortOrderVolume(),
+                tradeVolume.getLongOrderVolume(), tradeVolume.getShortOrderVolume(),
                 true);
 
             notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, tradeVolume.getLongVolume(),
@@ -326,6 +326,23 @@ public class TradingService {
         final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
         final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
+        final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
+        final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
+
+
+        final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
+            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+        final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
+            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
+
+        // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
+        // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
+        final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
+
+        final int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencies()
+            .getOrDefault(currencyPairLongExchange.base, defaultMetaData).getScale();
+        final int shortScale = spread.getShortExchange().getExchangeMetaData().getCurrencies()
+            .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
 
         // figure out how much to trade
         TradeVolume tradeVolume;
@@ -341,7 +358,7 @@ public class TradingService {
                 activePosition.getShortTrade().getOrderId(),
                 activePosition.getShortTrade().getVolume());
 
-            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFeePercent, shortFeePercent);
+            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFeePercent, shortFeePercent, longScale, shortScale);
         } catch (OrderNotFoundException e) {
             LOGGER.error(e.getMessage());
             return;
@@ -400,27 +417,10 @@ public class TradingService {
             }
             return;
         }
-        final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
-        final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
-
-
-        final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
-        final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
-            .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
-
-        // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
-        // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
-        final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
-
-        final int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencies()
-            .getOrDefault(currencyPairLongExchange.base, defaultMetaData).getScale();
-        final int shortScale = spread.getShortExchange().getExchangeMetaData().getCurrencies()
-            .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
 
         //Adjust order volumes so they match the fee computation, step size and scales of the exchanges
         try {
-            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize, longScale, shortScale);
+            tradeVolume.adjustOrderVolume(longExchangeName, shortExchangeName, longAmountStepSize, shortAmountStepSize);
         } catch(IllegalArgumentException e) {
             LOGGER.error("Cannot adjust order volumes, exiting trade.");
             return;
@@ -522,7 +522,7 @@ public class TradingService {
 
     // convenience method to encapsulate logging an entry
     private void logEntryTrade(Spread spread, String shortExchangeName, String longExchangeName, BigDecimal exitTarget,
-                               BigDecimal longVolume, BigDecimal shortVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice) {
+                               EntryTradeVolume tradeVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice) {
 
         if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
             LOGGER.warn("***** FORCED ENTRY *****");
@@ -532,26 +532,27 @@ public class TradingService {
 
         LOGGER.info("Entry spread: {}", spread.getIn());
         LOGGER.info("Exit spread target: {}", exitTarget);
+        LOGGER.info("Market neutrality rating: {}", tradeVolume.getMarketNeutralityRating());
         LOGGER.info("Long entry: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
             longExchangeName,
             spread.getCurrencyPair(),
-            longVolume,
+            tradeVolume.getLongOrderVolume(),
             longLimitPrice,
             spread.getLongTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice).toPlainString(),
+            tradeVolume.getLongOrderVolume().multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
+            tradeVolume.getLongOrderVolume().multiply(spread.getLongTicker().getAsk()).toPlainString());
         LOGGER.info("Short entry: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
             shortExchangeName,
             spread.getCurrencyPair(),
-            shortVolume,
+            tradeVolume.getShortOrderVolume(),
             shortLimitPrice,
             spread.getShortTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice).toPlainString(),
+            tradeVolume.getShortOrderVolume().multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
+            tradeVolume.getShortOrderVolume().multiply(spread.getShortTicker().getBid()).toPlainString());
 
     }
 

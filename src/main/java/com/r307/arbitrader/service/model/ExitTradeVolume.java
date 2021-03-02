@@ -11,7 +11,7 @@ public class ExitTradeVolume extends TradeVolume {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
-    ExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee) {
+    ExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
         this.longFeeComputation=longFeeComputation;
         this.shortFeeComputation=shortFeeComputation;
 
@@ -19,16 +19,19 @@ public class ExitTradeVolume extends TradeVolume {
             this.longFee=longFee;
             this.longBaseFee=BigDecimal.ZERO;
         } else {
-            this.longFee= getFeeAdjustedForBuy(FeeComputation.CLIENT, longFee);
+            this.longFee= getFeeAdjustedForBuy(FeeComputation.CLIENT, longFee, longScale);
             this.longBaseFee = longFee;
         }
         if(shortFeeComputation == FeeComputation.SERVER) {
             this.shortFee=shortFee;
             this.shortBaseFee=BigDecimal.ZERO;
         } else {
-            this.shortFee = getFeeAdjustedForSell(FeeComputation.CLIENT, shortFee);
+            this.shortFee = getFeeAdjustedForSell(FeeComputation.CLIENT, shortFee, longScale);
             this.shortBaseFee = shortFee;
         }
+        this.longScale=longScale;
+        this.shortScale=shortScale;
+
         this.longVolume = entryLongOrderVolume.subtract(getBuyBaseFees(longFeeComputation, entryLongOrderVolume, longBaseFee, true));
         this.shortVolume = entryShortOrderVolume.add(getSellBaseFees(shortFeeComputation, entryShortOrderVolume, shortBaseFee, true));
         this.longOrderVolume=longVolume;
@@ -36,7 +39,7 @@ public class ExitTradeVolume extends TradeVolume {
     }
 
     @Override
-    public void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale) {
+    public void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize) {
 
         if(longFeeComputation == FeeComputation.CLIENT && longAmountStepSize != null) {
             throw new IllegalArgumentException("Long exchange FeeComputation.CLIENT and amountStepSize are not compatible.");
@@ -48,7 +51,7 @@ public class ExitTradeVolume extends TradeVolume {
 
         if(longFeeComputation == FeeComputation.SERVER) {
             BigDecimal scaledVolume = this.longVolume.setScale(longScale, RoundingMode.HALF_EVEN);
-            if(longVolume.scale() != longScale) {
+            if(longVolume.scale() > longScale) {
                 LOGGER.error("{}: Ordered volume {} does not match the scale {}.",
                     longExchangeName,
                     longOrderVolume,
@@ -70,7 +73,7 @@ public class ExitTradeVolume extends TradeVolume {
 
         if(shortFeeComputation == FeeComputation.SERVER) {
             BigDecimal scaledVolume = this.shortVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
-            if(shortVolume.scale() != shortScale) {
+            if(shortVolume.scale() > shortScale) {
                 LOGGER.error("{}: Ordered volume {} does not match the scale {}.",
                     shortExchangeName,
                     shortOrderVolume,

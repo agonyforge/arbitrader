@@ -23,8 +23,6 @@ public abstract class TradeVolume {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
-    static final int intermediateScale = DecimalConstants.getIntermediateScale(BTC_SCALE);
-
     BigDecimal longVolume;
 
     BigDecimal shortVolume;
@@ -47,6 +45,10 @@ public abstract class TradeVolume {
 
     FeeComputation shortFeeComputation;
 
+    int longScale;
+
+    int shortScale;
+
     /**
      * Instantiate a new EntryTradeVolume
      * @param longMaxExposure the maximum $ to trade on the long exchange
@@ -57,8 +59,8 @@ public abstract class TradeVolume {
      * @param shortFee the adjusted for FeeComputation short exchange fee percentage
      * @return a new EntryTradeVolume
      */
-    public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee) {
-        return new EntryTradeVolume(longFeeComputation, shortFeeComputation, longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee);
+    public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+        return new EntryTradeVolume(longFeeComputation, shortFeeComputation, longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee, longScale, shortScale);
     }
 
     /**
@@ -67,8 +69,8 @@ public abstract class TradeVolume {
      * @param entryShortOrderVolume the volume to trade on the short exchange
      * @return a new ExitTradeVolume
      */
-    public static ExitTradeVolume getExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee) {
-        return new ExitTradeVolume(longFeeComputation, shortFeeComputation, entryLongOrderVolume, entryShortOrderVolume, longFee, shortFee);
+    public static ExitTradeVolume getExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+        return new ExitTradeVolume(longFeeComputation, shortFeeComputation, entryLongOrderVolume, entryShortOrderVolume, longFee, shortFee, longScale, shortScale);
     }
 
     /**
@@ -102,7 +104,7 @@ public abstract class TradeVolume {
     /**
      * Adjust the trade order volumes so they are inflated/deflated according to the exchanges FeeComputation mode, rounded up by step size and scales
      */
-    public abstract void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize, int longScale, int shortScale);
+    public abstract void adjustOrderVolume(String longExchangeName, String shortExchangeName, BigDecimal longAmountStepSize, BigDecimal shortAmountStepSize);
 
     /**
      * Get the multiple of "step" that is nearest to the original number.
@@ -218,10 +220,10 @@ public abstract class TradeVolume {
      * @param baseFee the crypto fee percentage
      * @return the FeeComputaiton.SERVER equivalent fee percentage
      */
-    static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal baseFee) {
+    static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal baseFee, int scale) {
         BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            result = baseFee.divide(BigDecimal.ONE.add(baseFee), intermediateScale, RoundingMode.HALF_EVEN);
+            result = baseFee.divide(BigDecimal.ONE.add(baseFee), DecimalConstants.getIntermediateScale(scale), RoundingMode.HALF_EVEN);
         return result;
     }
 
@@ -233,10 +235,10 @@ public abstract class TradeVolume {
      * @param baseFee the crypto fee percentage
      * @return he FeeComputaiton.SERVER equivalent fee percentage
      */
-    static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal baseFee) {
+    static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal baseFee, int scale) {
         BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            result = baseFee.divide(BigDecimal.ONE.subtract(baseFee), intermediateScale, RoundingMode.HALF_EVEN);
+            result = baseFee.divide(BigDecimal.ONE.subtract(baseFee), DecimalConstants.getIntermediateScale(scale), RoundingMode.HALF_EVEN);
         return result;
     }
 }
