@@ -199,8 +199,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         try {
-            // Telegram groupId must always start with a '-'
-            telegramClient.sendMessage(message, "-" + groupId);
+            telegramClient.sendMessage(message, groupId);
         }
         catch (Exception e) {
             LOGGER.error("Could not instant message notification to groupId {}. Reason: {}", groupId, e.getMessage());
