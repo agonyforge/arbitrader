@@ -111,13 +111,16 @@ public class EntryTradeVolume extends TradeVolume{
         BigDecimal tempShortVolume = this.shortVolume;
 
         //First adjust make sure the base volume is market neutral
+        this.longVolume= this.longVolume.setScale(longScale, RoundingMode.HALF_EVEN);
         this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.intermediateScale);
-
+        this.shortVolume= this.shortVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
         //For exchanges where feeComputation is set to CLIENT:
         //We need to increase the volume of BUY orders and decrease the volume of SELL orders
         //Because the exchange will buy slightly less volume and sell slightly more as a way to pay the fees
-        this.longOrderVolume = longVolume.add(getBuyBaseFees(longFeeComputation, longVolume, longBaseFee, false));
-        this.shortOrderVolume = shortVolume.subtract(getSellBaseFees(shortFeeComputation, shortVolume, shortBaseFee,false));
+        BigDecimal longBaseFees = getBuyBaseFees(longFeeComputation, longVolume, longBaseFee, false);
+        this.longOrderVolume = longVolume.add(longBaseFees);
+        BigDecimal shortBaseFees = getSellBaseFees(shortFeeComputation, shortVolume, shortBaseFee,false);
+        this.shortOrderVolume = shortVolume.subtract(shortBaseFees);
 
         if(longFeeComputation == FeeComputation.CLIENT) {
             if(longAmountStepSize != null) {
@@ -132,7 +135,7 @@ public class EntryTradeVolume extends TradeVolume{
             LOGGER.info("{} fees are computed in the client: {} + {} = {}",
                 longExchangeName,
                 longVolume,
-                longBaseFee,
+                longBaseFees,
                 longOrderVolume);
         }
 
@@ -140,7 +143,7 @@ public class EntryTradeVolume extends TradeVolume{
             LOGGER.info("{} fees are computed in the client: {} + {} = {}",
                 shortExchangeName,
                 shortVolume,
-                shortBaseFee,
+                shortBaseFees,
                 shortOrderVolume);
         }
 
