@@ -532,7 +532,7 @@ public class TradingService {
 
         LOGGER.info("Entry spread: {}", spread.getIn());
         LOGGER.info("Exit spread target: {}", exitTarget);
-        LOGGER.info("Market neutrality rating: {}", tradeVolume.getMarketNeutralityRating());
+        LOGGER.info("Market neutrality rating: {}", tradeVolume.getMarketNeutralityRating().setScale(3, RoundingMode.HALF_EVEN));
         LOGGER.info("Long entry: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
             longExchangeName,
             spread.getCurrencyPair(),
