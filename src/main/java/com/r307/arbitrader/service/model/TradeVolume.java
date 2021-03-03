@@ -59,8 +59,8 @@ public abstract class TradeVolume {
      * @param shortFee the adjusted for FeeComputation short exchange fee percentage
      * @return a new EntryTradeVolume
      */
-    public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
-        return new EntryTradeVolume(longFeeComputation, shortFeeComputation, longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee, longScale, shortScale);
+    public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
+        return new EntryTradeVolume(longFeeComputation, shortFeeComputation, longMaxExposure, shortMaxExposure, longPrice, shortPrice,longFee, shortFee, exitSpread, longScale, shortScale);
     }
 
     /**
@@ -223,7 +223,7 @@ public abstract class TradeVolume {
     static BigDecimal getFeeAdjustedForSell(FeeComputation feeComputation, BigDecimal baseFee, int scale) {
         BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            result = baseFee.divide(BigDecimal.ONE.add(baseFee), DecimalConstants.getIntermediateScale(scale), RoundingMode.HALF_EVEN);
+            result = baseFee.divide(BigDecimal.ONE.add(baseFee), getIntermediateScale(scale), RoundingMode.HALF_EVEN);
         return result;
     }
 
@@ -238,7 +238,12 @@ public abstract class TradeVolume {
     static BigDecimal getFeeAdjustedForBuy(FeeComputation feeComputation, BigDecimal baseFee, int scale) {
         BigDecimal result = baseFee;
         if(feeComputation == FeeComputation.CLIENT)
-            result = baseFee.divide(BigDecimal.ONE.subtract(baseFee), DecimalConstants.getIntermediateScale(scale), RoundingMode.HALF_EVEN);
+            result = baseFee.divide(BigDecimal.ONE.subtract(baseFee), getIntermediateScale(scale), RoundingMode.HALF_EVEN);
         return result;
+    }
+
+    //An intermediate scale is necessary to limit rounding errors when queueing BigDecimal.divide calls
+    public static int getIntermediateScale(int scale) {
+        return scale+4;
     }
 }

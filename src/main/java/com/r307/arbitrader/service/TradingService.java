@@ -184,7 +184,7 @@ public class TradingService {
         LOGGER.debug("Short fee percent: {}", shortFeePercent);
 
         // figure out how much we want to trade
-        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent, longScale, shortScale);
+        EntryTradeVolume tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent, exitTarget, longScale, shortScale);
 
         BigDecimal longLimitPrice;
         BigDecimal shortLimitPrice;
@@ -221,7 +221,7 @@ public class TradingService {
 
         //Adjust the volume after slip so the trade stays market neutral
         try {
-            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent, longScale, shortScale);
+            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,longLimitPrice,shortLimitPrice,longFeePercent,shortFeePercent, exitTarget, longScale, shortScale);
         } catch(IllegalArgumentException e) {
             LOGGER.error("Cannot adjust order volumes, exiting trade.");
             return;
@@ -533,6 +533,7 @@ public class TradingService {
         LOGGER.info("Entry spread: {}", spread.getIn());
         LOGGER.info("Exit spread target: {}", exitTarget);
         LOGGER.info("Market neutrality rating: {}", tradeVolume.getMarketNeutralityRating().setScale(3, RoundingMode.HALF_EVEN));
+        LOGGER.info("Minimum profit estimation: {}{}", Currency.USD.getSymbol(), tradeVolume.getMinimumProfit(longLimitPrice, shortLimitPrice));
         LOGGER.info("Long entry: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
             longExchangeName,
             spread.getCurrencyPair(),

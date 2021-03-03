@@ -16,7 +16,9 @@ public class EntryTradeVolume extends TradeVolume{
 
     private int intermediateScale;
 
-     EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+    BigDecimal exitSpread;
+
+     EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
         this.longFeeComputation=longFeeComputation;
         this.shortFeeComputation=shortFeeComputation;
         if(longFeeComputation == FeeComputation.SERVER) {
@@ -33,10 +35,15 @@ public class EntryTradeVolume extends TradeVolume{
         }
         this.longScale=longScale;
         this.shortScale=shortScale;
-        this.intermediateScale = DecimalConstants.getIntermediateScale(Math.max(longScale,shortScale));
-
-        this.longVolume = getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee, this.intermediateScale);
-        this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.intermediateScale);
+        this.intermediateScale = getIntermediateScale(Math.max(longScale,shortScale));
+        this.exitSpread = exitSpread;
+        if(getShortToLongVolumeTargetRatio(longFee,shortFee,exitSpread,intermediateScale).compareTo(BigDecimal.ONE)>0) {
+            this.longVolume = getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
+            this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
+        } else {
+            this.shortVolume = getShortVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
+            this.longVolume = getLongVolumeFromShort(shortVolume, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
+        }
         this.longOrderVolume=longVolume;
         this.shortOrderVolume=shortVolume;
     }
@@ -48,30 +55,47 @@ public class EntryTradeVolume extends TradeVolume{
      * @see #getShortVolumeFromLong and #getFeeFactor
      * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
      */
-    static BigDecimal getLongVolumeFromExposures(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, int intermediateScale) {
+    static BigDecimal getLongVolumeFromExposures(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
         //volume limit induced by the maximum exposure on the long exchange
         BigDecimal longVolume1 = longMaxExposure.divide(longPrice,intermediateScale,RoundingMode.HALF_EVEN);
 
         //volume limit induced by the maximum exposure on the short exchange: shortVolume * shortPrice == shortMaxExposure
         //to respect market neutrality: shortVolume = longVolume2 / feeFactor
-        BigDecimal longVolume2 = getShortToLongVolumeTargetRatio(longFee, shortFee, intermediateScale).multiply(shortMaxExposure).divide(shortPrice,intermediateScale,RoundingMode.HALF_EVEN);
+        BigDecimal longVolume2 = getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).multiply(shortMaxExposure).divide(shortPrice,intermediateScale,RoundingMode.HALF_EVEN);
         return longVolume1.min(longVolume2);
+    }
+
+    /**
+     * Calculates and assign the volume to trade on the long exchange such as:
+     * - the total price does not exceed the long exchange maximum exposure
+     * - the total price to trade on the short exchange does not exceed the short exchange maximum exposure
+     * @see #getShortVolumeFromLong and #getFeeFactor
+     * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
+     */
+    static BigDecimal getShortVolumeFromExposures(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
+        //volume limit induced by the maximum exposure on the long exchange
+        BigDecimal shortVolume1 = shortMaxExposure.divide(shortPrice,intermediateScale,RoundingMode.HALF_EVEN);
+
+        //volume limit induced by the maximum exposure on the long exchange: longVolume * longPrice == longMaxExposure
+        //to respect market neutrality: longVolume = shortVolume2 * feeFactor
+        BigDecimal shortVolume2 = shortMaxExposure.divide(getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).multiply(longPrice),intermediateScale,RoundingMode.HALF_EVEN);
+        return shortVolume1.min(shortVolume2);
     }
 
     /**
      * Calculates a market neutral volume to trade on the short exchange from the volume to trade on the long exchange
      * @see #getLongVolumeFromShort and #getFeeFactor
      */
-    static BigDecimal getShortVolumeFromLong(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee,int intermediateScale) {
-        BigDecimal targetRatio =getShortToLongVolumeTargetRatio(longFee, shortFee, intermediateScale);
+    static BigDecimal getShortVolumeFromLong(BigDecimal longVolume, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
+        BigDecimal targetRatio =getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale);
         return longVolume.divide(targetRatio, intermediateScale, RoundingMode.HALF_EVEN);
     }
 
     /**
      * Calculates a market neutral volume to trade on the long exchange from the volume to trade on the short exchange
      */
-    static BigDecimal getLongVolumeFromShort(BigDecimal shortVolume, BigDecimal longFee, BigDecimal shortFee, int intermediateScale) {
-        return shortVolume.multiply(getShortToLongVolumeTargetRatio(longFee, shortFee, intermediateScale));
+    static BigDecimal getLongVolumeFromShort(BigDecimal shortVolume, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
+        return shortVolume.multiply(getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale));
     }
 
     /**
@@ -80,8 +104,8 @@ public class EntryTradeVolume extends TradeVolume{
      * is required to compensate for the fees that could increase if the price increases.
      * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
      */
-    static BigDecimal getShortToLongVolumeTargetRatio(BigDecimal longFee, BigDecimal shortFee, int intermediateScale) {
-        return (BigDecimal.ONE.add(shortFee)).divide(BigDecimal.ONE.subtract(longFee),intermediateScale, RoundingMode.HALF_EVEN);
+    static BigDecimal getShortToLongVolumeTargetRatio(BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
+        return (BigDecimal.ONE.add(shortFee)).multiply(BigDecimal.ONE.add(exitSpread)).divide(BigDecimal.ONE.subtract(longFee),intermediateScale, RoundingMode.HALF_EVEN);
     }
 
     /**
@@ -102,7 +126,13 @@ public class EntryTradeVolume extends TradeVolume{
      */
     public BigDecimal getMarketNeutralityRating() {
         BigDecimal shortToLongVolumeActualRatio = longVolume.divide(shortVolume, intermediateScale, RoundingMode.HALF_EVEN);
-        return (shortToLongVolumeActualRatio.subtract(BigDecimal.ONE)).divide(getShortToLongVolumeTargetRatio(longFee, shortFee, intermediateScale).subtract(BigDecimal.ONE), intermediateScale, RoundingMode.HALF_EVEN);
+        return (shortToLongVolumeActualRatio.subtract(BigDecimal.ONE)).divide(getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).subtract(BigDecimal.ONE), intermediateScale, RoundingMode.HALF_EVEN);
+    }
+
+    public BigDecimal getMinimumProfit(BigDecimal longPrice, BigDecimal shortPrice) {
+        BigDecimal longEntry = longVolume.multiply(longPrice).multiply(BigDecimal.ONE.add(longFee));
+        BigDecimal shortEntry = shortVolume.multiply(shortPrice).multiply(BigDecimal.ONE.subtract(shortFee));
+        return shortEntry.subtract(longEntry).setScale(DecimalConstants.USD_SCALE, RoundingMode.FLOOR);
     }
 
     @Override
@@ -112,7 +142,7 @@ public class EntryTradeVolume extends TradeVolume{
 
         //First adjust make sure the base volume is market neutral
         this.longVolume= this.longVolume.setScale(longScale, RoundingMode.HALF_EVEN);
-        this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.intermediateScale);
+        this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
         this.shortVolume= this.shortVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
         //For exchanges where feeComputation is set to CLIENT:
         //We need to increase the volume of BUY orders and decrease the volume of SELL orders
@@ -206,20 +236,30 @@ public class EntryTradeVolume extends TradeVolume{
         //Adjust other volumes to respect market neutrality
         BigDecimal longBaseFees = getBuyBaseFees(longFeeComputation, longOrderVolume, longBaseFee, true);
         this.longVolume = longOrderVolume.subtract(longBaseFees).setScale(longScale, RoundingMode.HALF_EVEN);
-        LOGGER.debug("Calculate underlying long volume {} - {} = {}",
-            longOrderVolume,
-            longBaseFees,
-            longVolume);
+        if(longFeeComputation == FeeComputation.CLIENT) {
+            LOGGER.debug("Calculate underlying long volume {} - {} = {}",
+                longOrderVolume,
+                longBaseFees,
+                longVolume);
+        } else {
+            LOGGER.debug("Calculate underlying long volume {}",
+                longVolume);
+        }
 
         //Recalculate short volume from long volume
-        this.shortVolume = getShortVolumeFromLong(longVolume, longFee, shortFee, intermediateScale).setScale(shortScale, RoundingMode.HALF_EVEN);
+        this.shortVolume = getShortVolumeFromLong(longVolume, longFee, shortFee, exitSpread, intermediateScale).setScale(shortScale, RoundingMode.HALF_EVEN);
 
         BigDecimal shortBaseFees = getSellBaseFees(shortFeeComputation, shortVolume, shortBaseFee, false);
         this.shortOrderVolume = shortVolume.subtract(shortBaseFees);
-        LOGGER.debug("Calculate short order volume {} + {} = {}",
-            shortVolume,
-            shortBaseFees,
-            shortOrderVolume);
+        if(shortFeeComputation == FeeComputation.CLIENT) {
+            LOGGER.debug("Calculate short order volume {} + {} = {}",
+                shortVolume,
+                shortBaseFees,
+                shortOrderVolume);
+        } else {
+            LOGGER.debug("Calculate short order volume {}",
+                shortVolume);
+        }
     }
 
     /**
@@ -246,20 +286,29 @@ public class EntryTradeVolume extends TradeVolume{
         //Adjust other volumes to respect market neutrality
         BigDecimal shortBaseFees =getSellBaseFees(shortFeeComputation, shortOrderVolume, shortBaseFee, true);
         this.shortVolume = shortOrderVolume.subtract(shortBaseFees).setScale(shortScale, RoundingMode.HALF_EVEN);
-        LOGGER.debug("Calculate underlying short volume {} - {} = {}",
-            shortOrderVolume,
-            shortBaseFees,
-            shortVolume);
-
+        if(shortFeeComputation == FeeComputation.CLIENT) {
+            LOGGER.debug("Calculate underlying short volume {} - {} = {}",
+                shortOrderVolume,
+                shortBaseFees,
+                shortVolume);
+        } else {
+            LOGGER.debug("Calculate short order volume {}",
+                shortVolume);
+        }
         //Recalculate long volume from short volume
-        this.longVolume = getLongVolumeFromShort(shortVolume, longFee, shortFee, intermediateScale).setScale(longScale, RoundingMode.HALF_EVEN);
+        this.longVolume = getLongVolumeFromShort(shortVolume, longFee, shortFee, exitSpread, intermediateScale).setScale(longScale, RoundingMode.HALF_EVEN);
 
         BigDecimal longBaseFees = getBuyBaseFees(longFeeComputation, longVolume, longBaseFee, false);
         this.longOrderVolume = longVolume.add(longBaseFees).setScale(longScale, RoundingMode.HALF_EVEN);
-        LOGGER.debug("Calculate long order volume {} + {} = {}",
-            longVolume,
-            longBaseFees,
-            longOrderVolume);
+        if(longFeeComputation ==FeeComputation.SERVER) {
+            LOGGER.debug("Calculate long order volume {} + {} = {}",
+                longVolume,
+                longBaseFees,
+                longOrderVolume);
+        } else {
+            LOGGER.debug("Calculate underlying long volume {}",
+                longVolume);
+        }
     }
 
 }

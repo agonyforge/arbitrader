@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
+import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 import static org.junit.Assert.*;
 
 public class TradeVolumeTest {
@@ -23,7 +24,7 @@ public class TradeVolumeTest {
         int longScale = 5;
         int shortScale = 6;
 
-        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, longScale, shortScale);
+        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, longScale, shortScale);
         entryTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee, longScale, shortScale);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
@@ -47,7 +48,7 @@ public class TradeVolumeTest {
         int longScale = 6;
         int shortScale = 6;
 
-        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, longScale, shortScale);
+        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, longScale, shortScale);
         entryTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee, longScale, shortScale);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
@@ -72,7 +73,7 @@ public class TradeVolumeTest {
         int longScale = 6;
         int shortScale = 6;
 
-        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, longScale, shortScale);
+        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, longScale, shortScale);
         entryTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longFee, shortFee, longScale, shortScale);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
@@ -96,7 +97,7 @@ public class TradeVolumeTest {
         int longScale = 6;
         int shortScale = 6;
 
-        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longBaseFee, shortBaseFee, longScale, shortScale);
+        EntryTradeVolume entryTradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longBaseFee, shortBaseFee, BigDecimal.ZERO, longScale, shortScale);
         entryTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
         ExitTradeVolume exitTradeVolume =ExitTradeVolume.getExitTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, entryTradeVolume.getLongOrderVolume(), entryTradeVolume.getShortOrderVolume(), longBaseFee, shortBaseFee, longScale, shortScale);
         exitTradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
@@ -140,7 +141,7 @@ public class TradeVolumeTest {
 
     @Test
     public void entryAdjustVolumeScaleSERVER8() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 8, 8);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -160,7 +161,7 @@ public class TradeVolumeTest {
 
     @Test
     public void entryAdjustVolumeScaleCLIENT63() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,6,3);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 6,3);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -181,7 +182,7 @@ public class TradeVolumeTest {
 
     @Test
     public void entryAdjustVolumeScaleCLIENT36() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,3,6);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 3,6);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -202,7 +203,7 @@ public class TradeVolumeTest {
 
     @Test
     public void entryAdjustVolumeStepSizeSERVER23() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,3,6);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 3,6);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -222,7 +223,7 @@ public class TradeVolumeTest {
 
     @Test
     public void entryAdjustVolumeStepSizeCLIENTSERVERx3() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 5,2);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 5,2);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -250,7 +251,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 8, 8)
+        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 8, 8)
             .isMarketNeutral();
 
         assertTrue("After construction a trade volume is expected to be perfectly market neutral",  result);
@@ -265,7 +266,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 8, 8)
+        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 8, 8)
             .isMarketNeutral();
 
         assertTrue("After construction a trade volume is expected to be perfectly market neutral",  result);
@@ -280,7 +281,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 8, 8)
+        boolean result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 8, 8)
             .isMarketNeutral();
 
         assertTrue("After construction a trade volume is expected to be perfectly market neutral",  result);
@@ -288,7 +289,7 @@ public class TradeVolumeTest {
 
     @Test
     public void isMarketNeutralZERO() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -301,7 +302,7 @@ public class TradeVolumeTest {
 
     @Test
     public void isMarketNeutralBelow() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longVolume=new BigDecimal("0.99");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -314,7 +315,7 @@ public class TradeVolumeTest {
 
     @Test
     public void isMarketNeutralTWO() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("110");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -327,7 +328,7 @@ public class TradeVolumeTest {
 
     @Test
     public void isMarketNeutralAbove() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("111");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -347,7 +348,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,8, 8)
+        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,BigDecimal.ZERO, 8, 8)
             .getMarketNeutralityRating();
 
         assertEquals("After construction a trade volume is expected to be perfectly market neutral", BigDecimal.ONE.setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
@@ -362,7 +363,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 8, 8)
+        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.CLIENT,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 8, 8)
             .getMarketNeutralityRating();
 
         assertEquals("After construction a trade volume is expected to be perfectly market neutral", new BigDecimal("1").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
@@ -377,7 +378,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,8, 8)
+        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.CLIENT, FeeComputation.SERVER,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,BigDecimal.ZERO, 8, 8)
             .getMarketNeutralityRating();
 
         assertEquals("After construction a trade volume is expected to be perfectly market neutral", new BigDecimal("1").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
@@ -392,14 +393,14 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,8, 8)
+        BigDecimal result = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT,  longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,BigDecimal.ZERO, 8, 8)
             .getMarketNeutralityRating();
 
         assertEquals("After construction a trade volume is expected to be perfectly market neutral", new BigDecimal("1").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
     @Test
     public void getMarketNeutralityRatingZERO() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("100");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -412,7 +413,7 @@ public class TradeVolumeTest {
 
     @Test
     public void getMarketNeutralityRatingONE() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("105");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.0");
@@ -425,7 +426,7 @@ public class TradeVolumeTest {
 
     @Test
     public void getMarketNeutralityRatingTWO() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("110");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.0");
@@ -438,7 +439,7 @@ public class TradeVolumeTest {
 
     @Test
     public void getMarketNeutralityRatingTHREE() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("115");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.0");
@@ -451,7 +452,7 @@ public class TradeVolumeTest {
 
     @Test
     public void getMarketNeutralityRating() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,8, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,BigDecimal.ZERO, 8, 8);
         tradeVolume.longVolume=new BigDecimal("103");
         tradeVolume.shortVolume=new BigDecimal("100");
         tradeVolume.longFee=new BigDecimal("0.05");
@@ -468,7 +469,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0");
         BigDecimal shortFee = new BigDecimal("0");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee,12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -478,7 +479,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.05");
         BigDecimal shortFee = new BigDecimal("0.01");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.06315789473684").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -488,7 +489,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.1");
         BigDecimal shortFee = new BigDecimal("0.01");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.12222222222222").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -498,7 +499,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.01");
         BigDecimal shortFee = new BigDecimal("0.05");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.06060606060606").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -508,7 +509,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.0026");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.0036036036036").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -518,7 +519,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.005");
         BigDecimal shortFee = new BigDecimal("0.0026");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.00763819095477").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -528,7 +529,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.01");
         BigDecimal shortFee = new BigDecimal("0.002");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.01212121212121").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -538,7 +539,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.003");
 
-        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortToLongVolumeTargetRatio(longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("1.004004004004").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -551,7 +552,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0");
         BigDecimal shortFee = new BigDecimal("0");
 
-        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("100").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -562,7 +563,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.01");
         BigDecimal shortFee = new BigDecimal("0.01");
 
-        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("196.039603960396").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -573,7 +574,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.05");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("94.9050949050949").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -584,7 +585,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.05");
 
-        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getShortVolumeFromLong(longVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("95.1428571428571").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -595,7 +596,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0");
         BigDecimal shortFee = new BigDecimal("0");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("100").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -606,7 +607,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.01");
         BigDecimal shortFee = new BigDecimal("0.01");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("204.040404040404").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -617,7 +618,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.05");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("105.368421052632").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -628,7 +629,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.05");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromShort(shortVolume, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("105.105105105105").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -642,7 +643,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 12);
 
         assertEquals(new BigDecimal("0.095428762095429").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -656,7 +657,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.005");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO, 12);
 
         assertEquals(new BigDecimal("0.095812395309883").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -670,7 +671,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.005");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("0.095810095810096").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -684,7 +685,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("0.105263157894737").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -698,7 +699,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee,BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("0.095428762095429").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -713,7 +714,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("0.095428762095429").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -727,7 +728,7 @@ public class TradeVolumeTest {
         BigDecimal longFee = new BigDecimal("0.001");
         BigDecimal shortFee = new BigDecimal("0.001");
 
-        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, 12);
+        BigDecimal result = EntryTradeVolume.getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, BigDecimal.ZERO,12);
 
         assertEquals(new BigDecimal("0.0668001334668").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), result.setScale(BTC_SCALE, RoundingMode.HALF_EVEN));
     }
@@ -1106,7 +1107,7 @@ public class TradeVolumeTest {
 
     @Test
     public void adjustOrderVolumeScale108() {
-        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 10, 8);
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 10, 8);
         tradeVolume.longVolume=new BigDecimal("0.336449304100");
         tradeVolume.shortVolume=new BigDecimal("0.333905010855");
         tradeVolume.longFee=new BigDecimal("0.0026");
@@ -1116,5 +1117,92 @@ public class TradeVolumeTest {
 
         assertEquals(10, tradeVolume.getLongOrderVolume().scale());
         assertEquals(8, tradeVolume.getShortOrderVolume().scale());
+    }
+
+    @Test
+    public void getMinimumProfitREADME() {
+        BigDecimal exitTarget = BigDecimal.ZERO;
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, exitTarget, 8, 8);
+        tradeVolume.longVolume=new BigDecimal("0.336449304100");
+        tradeVolume.shortVolume=new BigDecimal("0.333905010855");
+        tradeVolume.longFee=new BigDecimal("0.0026");
+        tradeVolume.shortFee=new BigDecimal("0.050");
+    }
+
+    @Test
+    public void getMinimumProfitPriceUp() {
+        BigDecimal longMaxExposure = new BigDecimal("100");
+        BigDecimal shortMaxExposure = new BigDecimal("100");
+        BigDecimal longPrice = new BigDecimal("950");
+        BigDecimal shortPrice = new BigDecimal("1050");
+        BigDecimal longFee = new BigDecimal("0.001");
+        BigDecimal shortFee = new BigDecimal("0.001");
+        BigDecimal exitTarget = new BigDecimal("-0.1");
+
+        int longScale = 12;
+        int shortScale = 12;
+
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, exitTarget, longScale, shortScale);
+        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
+
+        BigDecimal shortEntry = tradeVolume.getShortVolume().multiply(shortPrice).multiply(BigDecimal.ONE.subtract(shortFee));
+        BigDecimal longEntry = tradeVolume.getLongVolume().multiply(longPrice).multiply(BigDecimal.ONE.add(longFee));
+
+        BigDecimal longExitPrice = new BigDecimal("2000");
+        BigDecimal shortExitPrice = longExitPrice.multiply(BigDecimal.ONE.add(exitTarget));
+
+        BigDecimal shortExit = tradeVolume.getShortVolume().multiply(shortExitPrice).multiply(BigDecimal.ONE.add(shortFee));
+        BigDecimal longExit = tradeVolume.getLongVolume().multiply(longExitPrice).multiply(BigDecimal.ONE.subtract(longFee));
+
+        BigDecimal profit = shortEntry.subtract(shortExit).subtract(longEntry).add(longExit);
+
+        assertEquals(profit.setScale(USD_SCALE, RoundingMode.FLOOR), tradeVolume.getMinimumProfit(longPrice, shortPrice));
+    }
+
+    @Test
+    public void getMinimumProfitPriceDown() {
+        BigDecimal longMaxExposure = new BigDecimal("100");
+        BigDecimal shortMaxExposure = new BigDecimal("100");
+        BigDecimal longPrice = new BigDecimal("950");
+        BigDecimal shortPrice = new BigDecimal("1050");
+        BigDecimal longFee = new BigDecimal("0.001");
+        BigDecimal shortFee = new BigDecimal("0.001");
+        BigDecimal exitTarget = new BigDecimal("-0.1");
+
+        int longScale = 12;
+        int shortScale = 12;
+
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.CLIENT, longMaxExposure, shortMaxExposure, longPrice, shortPrice, longFee, shortFee, exitTarget, longScale, shortScale);
+        tradeVolume.adjustOrderVolume("longExchange", "shortExchange", null, null);
+
+        BigDecimal shortEntry = tradeVolume.getShortVolume().multiply(shortPrice).multiply(BigDecimal.ONE.subtract(shortFee));
+        BigDecimal longEntry = tradeVolume.getLongVolume().multiply(longPrice).multiply(BigDecimal.ONE.add(longFee));
+
+        BigDecimal longExitPrice = new BigDecimal("500");
+        BigDecimal shortExitPrice = longExitPrice.multiply(BigDecimal.ONE.add(exitTarget));
+
+        BigDecimal shortExit = tradeVolume.getShortVolume().multiply(shortExitPrice).multiply(BigDecimal.ONE.add(shortFee));
+        BigDecimal longExit = tradeVolume.getLongVolume().multiply(longExitPrice).multiply(BigDecimal.ONE.subtract(longFee));
+
+        BigDecimal profit = shortEntry.subtract(shortExit).subtract(longEntry).add(longExit);
+
+        assertEquals(profit.setScale(USD_SCALE, RoundingMode.FLOOR), tradeVolume.getMinimumProfit(longPrice, shortPrice));
+    }
+
+
+    @Test
+    public void getMinimumProfit() {
+
+        EntryTradeVolume tradeVolume = EntryTradeVolume.getEntryTradeVolume(FeeComputation.SERVER, FeeComputation.SERVER, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 8, 8);
+        tradeVolume.exitSpread=new BigDecimal("-0.02");
+        tradeVolume.longVolume=new BigDecimal("100");
+        tradeVolume.shortVolume= new BigDecimal("101.83693857");
+        tradeVolume.longFee=new BigDecimal("0.001");
+        tradeVolume.shortFee=new BigDecimal("0.001");
+
+        BigDecimal longPrice = new BigDecimal("950");
+        BigDecimal shortPrice = new BigDecimal("1050");
+
+        assertEquals(new BigDecimal("11726.85").setScale(USD_SCALE, RoundingMode.FLOOR), tradeVolume.getMinimumProfit(longPrice, shortPrice));
     }
 }
