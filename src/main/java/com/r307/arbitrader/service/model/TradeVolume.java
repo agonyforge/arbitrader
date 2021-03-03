@@ -23,40 +23,57 @@ public abstract class TradeVolume {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
+    //The underlying volume to trade on the long exchange
     BigDecimal longVolume;
 
+    //The underlying volume to trade on the short exchange
     BigDecimal shortVolume;
 
     // The order volumes will be used to pass the orders after step size and rounding
+    // This is different from longVolume only for feeComputation.CLIENT exchanges
     BigDecimal longOrderVolume;
 
     // The order volumes will be used to pass the orders after step size and rounding
+    // This is different from shortVolume only for feeComputation.CLIENT exchanges
     BigDecimal shortOrderVolume;
 
+    //The long exchange fees in percentage
     BigDecimal longFee;
 
+    //The short exchange fees in percentage
     BigDecimal shortFee;
 
+    //The long exchange crypto fees (for FeeComputation.CLIENT exchanges) in percentage
     BigDecimal longBaseFee;
 
+    //The short exchange crypto fees (for FeeComputation.CLIENT exchanges) in percentage
     BigDecimal shortBaseFee;
 
+    //The long exchange FeeComputation
     FeeComputation longFeeComputation;
 
+    //The long exchange FeeComputation
     FeeComputation shortFeeComputation;
 
+    //The long exchange volume scale
     int longScale;
 
+    //The short exchange volume scale
     int shortScale;
 
     /**
      * Instantiate a new EntryTradeVolume
+     * @param longFeeComputation the long exchange FeeComputation
+     * @param shortFeeComputation the short exchange FeeComputation
      * @param longMaxExposure the maximum $ to trade on the long exchange
      * @param shortMaxExposure the maxmimum $ to trade on the short exchange
      * @param longPrice the price on the long exchange
      * @param shortPrice the price on the short exchange
-     * @param longFee the adjusted for FeeComputation long exchange fee percentage
-     * @param shortFee the adjusted for FeeComputation short exchange fee percentage
+     * @param longFee the long exchange fee percentage
+     * @param shortFee the short exchange fee percentage
+     * @param exitSpread the exit target spread
+     * @param longScale the long exchange volume scale
+     * @param shortScale the short exchange volume scale
      * @return a new EntryTradeVolume
      */
     public static EntryTradeVolume getEntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
@@ -65,8 +82,14 @@ public abstract class TradeVolume {
 
     /**
      * Instantiate a new ExitTradeVolume
+     * @param longFeeComputation the long exchange FeeComputation
+     * @param shortFeeComputation the short exchange FeeComputation
      * @param entryLongOrderVolume the volume to trade on the long exchange
      * @param entryShortOrderVolume the volume to trade on the short exchange
+     * @param longFee the long exchange fee percentage
+     * @param shortFee the short exchange fee percentage
+     * @param longScale the long exchange volume scale
+     * @param shortScale the short exchange volume scale
      * @return a new ExitTradeVolume
      */
     public static ExitTradeVolume getExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {

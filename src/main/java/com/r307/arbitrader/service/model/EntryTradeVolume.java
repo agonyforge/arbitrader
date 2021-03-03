@@ -16,6 +16,7 @@ public class EntryTradeVolume extends TradeVolume{
 
     private int intermediateScale;
 
+    //The exit target spread
     BigDecimal exitSpread;
 
      EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
@@ -60,16 +61,16 @@ public class EntryTradeVolume extends TradeVolume{
         BigDecimal longVolume1 = longMaxExposure.divide(longPrice,intermediateScale,RoundingMode.HALF_EVEN);
 
         //volume limit induced by the maximum exposure on the short exchange: shortVolume * shortPrice == shortMaxExposure
-        //to respect market neutrality: shortVolume = longVolume2 / feeFactor
+        //to respect market neutrality: shortVolume = longVolume2 / shortToLongVolumeTargetRatio
         BigDecimal longVolume2 = getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).multiply(shortMaxExposure).divide(shortPrice,intermediateScale,RoundingMode.HALF_EVEN);
         return longVolume1.min(longVolume2);
     }
 
     /**
-     * Calculates and assign the volume to trade on the long exchange such as:
-     * - the total price does not exceed the long exchange maximum exposure
-     * - the total price to trade on the short exchange does not exceed the short exchange maximum exposure
-     * @see #getShortVolumeFromLong and #getFeeFactor
+     * Calculates and assign the volume to trade on the short exchange such as:
+     * - the total price does not exceed the short exchange maximum exposure
+     * - the total price to trade on the long exchange does not exceed the long exchange maximum exposure
+     * @see #getShortVolumeFromLong and #getShortToLongVolumeTargetRatio
      * Detailed maths: https://github.com/scionaltera/arbitrader/issues/325
      */
     static BigDecimal getShortVolumeFromExposures(BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int intermediateScale) {
@@ -77,7 +78,7 @@ public class EntryTradeVolume extends TradeVolume{
         BigDecimal shortVolume1 = shortMaxExposure.divide(shortPrice,intermediateScale,RoundingMode.HALF_EVEN);
 
         //volume limit induced by the maximum exposure on the long exchange: longVolume * longPrice == longMaxExposure
-        //to respect market neutrality: longVolume = shortVolume2 * feeFactor
+        //to respect market neutrality: longVolume = shortVolume2 * shortToLongVolumeTargetRatio
         BigDecimal shortVolume2 = shortMaxExposure.divide(getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).multiply(longPrice),intermediateScale,RoundingMode.HALF_EVEN);
         return shortVolume1.min(shortVolume2);
     }
@@ -129,6 +130,15 @@ public class EntryTradeVolume extends TradeVolume{
         return (shortToLongVolumeActualRatio.subtract(BigDecimal.ONE)).divide(getShortToLongVolumeTargetRatio(longFee, shortFee, exitSpread, intermediateScale).subtract(BigDecimal.ONE), intermediateScale, RoundingMode.HALF_EVEN);
     }
 
+    /**
+     * Retrieve the minimum profit estimation for this trade volume.
+     * the estimation is only correct if:
+     *  - getMarketNeutralityRating is 1 (or very close to 1)
+     *  - the exit prices match exactly the exitTarget spread
+     * @param longPrice the long entry price
+     * @param shortPrice the short entry price
+     * @return the estimated minimum profit
+     */
     public BigDecimal getMinimumProfit(BigDecimal longPrice, BigDecimal shortPrice) {
         BigDecimal longEntry = longVolume.multiply(longPrice).multiply(BigDecimal.ONE.add(longFee));
         BigDecimal shortEntry = shortVolume.multiply(shortPrice).multiply(BigDecimal.ONE.subtract(shortFee));
