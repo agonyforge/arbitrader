@@ -42,14 +42,25 @@ public class SpreadService {
      * Update the high and low water marks given a new Spread. Keeping track of the highest and lowest values over time
      * can be useful for figuring out how to configure your entrySpread and exitTarget.
      *
+     * We show a green check or a red bar icon in the log to indicate whether the pair has reached a "profitable range".
+     * The check means that the maximum spreadIn is higher than the minimum spreadOut. In other words if you had entered
+     * the market at the maximum spreadIn and exited at the minimum spreadOut, you would have made money. If this
+     * condition is not true it is not worthwhile to enter a trade in that market yet based on the prices we have seen
+     * so far.
+     *
      * @param spread A new Spread.
      */
     void publish(Spread spread) {
         String spreadKey = spreadKey(spread.getLongExchange(), spread.getShortExchange(), spread.getCurrencyPair());
 
         if (LOGGER.isInfoEnabled() && tradingConfiguration.isSpreadNotifications()) {
+            BigDecimal maxIn = maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+            BigDecimal maxOut = minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+            boolean crossed = maxIn.compareTo(maxOut) > 0;
+
             if (spread.getIn().compareTo(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))) > 0) {
-                LOGGER.info("Record high spreadIn: {}/{} {} {}",
+                LOGGER.info("{} Record high spreadIn: {}/{} {} {}",
+                    crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
@@ -57,7 +68,8 @@ public class SpreadService {
             }
 
             if (spread.getOut().compareTo(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))) < 0) {
-                LOGGER.info("Record low spreadOut: {}/{} {} {}",
+                LOGGER.info("{} Record low spreadOut: {}/{} {} {}",
+                    crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
