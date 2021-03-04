@@ -124,6 +124,13 @@ public abstract class TradeVolume {
         return shortOrderVolume;
     }
 
+    public BigDecimal getLongFee() {return longFee;}
+
+    public BigDecimal getLongBaseFee() {return longBaseFee;}
+
+    public BigDecimal getShortFee() {return shortFee;}
+
+    public BigDecimal getShortBaseFee() {return shortBaseFee;}
     /**
      * Adjust the trade order volumes so they are inflated/deflated according to the exchanges FeeComputation mode, rounded up by step size and scales
      */
@@ -170,13 +177,13 @@ public abstract class TradeVolume {
             verifyFeeComputationClientFees(baseFee);
             if (orderVolume) {
                 result =  volume.multiply(baseFee).setScale(volume.scale(), RoundingMode.HALF_EVEN);
-                LOGGER.debug("Calculate buy order base fees from underlying volume {}, with fee percentage {}%: {}",
+                LOGGER.debug("Calculate buy order base fees from underlying volume {}, with fee percentage {}: {}",
                     volume,
                     baseFee,
                     result);
             } else {
                 result = volume.multiply(baseFee).divide(BigDecimal.ONE.subtract(baseFee), volume.scale(), RoundingMode.HALF_EVEN);
-                LOGGER.debug("Calculate buy order base fees from order volume {}, with fee percentage {}%: {}",
+                LOGGER.debug("Calculate buy order base fees from order volume {}, with fee percentage {}: {}",
                     volume,
                     baseFee,
                     result);
@@ -199,13 +206,13 @@ public abstract class TradeVolume {
             verifyFeeComputationClientFees(baseFee);
             if (orderVolume) {
                 result =  volume.multiply(baseFee).setScale(volume.scale(), RoundingMode.HALF_EVEN);
-                LOGGER.debug("Calculate sell order base fees from underlying volume {}, with fee percentage {}%: {}",
+                LOGGER.debug("Calculate sell order base fees from underlying volume {}, with fee percentage {}: {}",
                     volume,
                     baseFee,
                     result);
             } else {
                 result = volume.multiply(baseFee).divide(BigDecimal.ONE.add(baseFee), volume.scale(), RoundingMode.HALF_EVEN);
-                LOGGER.debug("Calculate sell order base fees from order volume {}, with fee percentage {}%: {}",
+                LOGGER.debug("Calculate sell order base fees from order volume {}, with fee percentage {}: {}",
                     volume,
                     baseFee,
                     result);

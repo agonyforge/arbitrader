@@ -45,6 +45,21 @@ public class EntryTradeVolume extends TradeVolume{
             this.shortVolume = getShortVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
             this.longVolume = getLongVolumeFromShort(shortVolume, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
         }
+        LOGGER.debug("Instantiate EntryTradeVolume with longVolume {} and shortVolume {}, for parameters: \n" +
+            "longFeeComputation: {}|shortFeeComputation: {}|longMaxExposure: {}|shortMaxExposure: {}|longPrice: {}|shortPrice: {}|longFee: {}|shortFee: {}|exitSpread: {}|longScale: {}|shortScale: {}",
+            this.longVolume.toPlainString(),
+            this.shortVolume.toPlainString(),
+            longFeeComputation,
+            shortFeeComputation,
+            longMaxExposure,
+            shortMaxExposure,
+            longPrice,
+            shortPrice,
+            longFee,
+            shortFee,
+            exitSpread,
+            longScale,
+            shortScale);
         this.longOrderVolume=longVolume;
         this.shortOrderVolume=shortVolume;
     }
@@ -208,7 +223,7 @@ public class EntryTradeVolume extends TradeVolume{
         }
 
         if(!tempLongVolume.equals(longOrderVolume)) {
-            LOGGER.info("{} entry trade volumes adjusted: {} -> {} (order volume: {}) ",
+            LOGGER.info("{} long entry trade volumes adjusted: {} -> {} (order volume: {}) ",
                 longExchangeName,
                 tempLongVolume,
                 longVolume,
@@ -216,7 +231,7 @@ public class EntryTradeVolume extends TradeVolume{
             );
         }
         if(!tempLongVolume.equals(longOrderVolume)) {
-            LOGGER.info("{} entry trade volumes adjusted: {} -> {} (order volume: {}) ",
+            LOGGER.info("{} short entry trade volumes adjusted: {} -> {} (order volume: {}) ",
                 shortExchangeName,
                 tempShortVolume,
                 shortVolume,
@@ -235,19 +250,22 @@ public class EntryTradeVolume extends TradeVolume{
     private void adjustShortFromLong(BigDecimal longAmountStepSize, int longScale, int shortScale) {
         if(longAmountStepSize != null) {
             BigDecimal roundedLongOrderVolume = roundByStep(longOrderVolume, longAmountStepSize);
-            LOGGER.debug("Round long order volume by step {}/{} = {}",
+            LOGGER.debug("Round longOrderVolume by step {}/{} = {}",
                 longOrderVolume,
                 longAmountStepSize,
                 roundedLongOrderVolume);
             this.longOrderVolume = roundedLongOrderVolume;
         }
         this.longOrderVolume = longOrderVolume.setScale(longScale, RoundingMode.HALF_EVEN);
+        LOGGER.debug("Scale longOrderVolume with scale {} to {}",
+            longScale,
+            shortOrderVolume);
 
         //Adjust other volumes to respect market neutrality
         BigDecimal longBaseFees = getBuyBaseFees(longFeeComputation, longOrderVolume, longBaseFee, true);
         this.longVolume = longOrderVolume.subtract(longBaseFees).setScale(longScale, RoundingMode.HALF_EVEN);
         if(longFeeComputation == FeeComputation.CLIENT) {
-            LOGGER.debug("Calculate underlying long volume {} - {} = {}",
+            LOGGER.debug("Calculate underlying longVolume = longOrderVolume - longBaseFees: {} - {} = {}",
                 longOrderVolume,
                 longBaseFees,
                 longVolume);
@@ -262,7 +280,7 @@ public class EntryTradeVolume extends TradeVolume{
         BigDecimal shortBaseFees = getSellBaseFees(shortFeeComputation, shortVolume, shortBaseFee, false);
         this.shortOrderVolume = shortVolume.subtract(shortBaseFees);
         if(shortFeeComputation == FeeComputation.CLIENT) {
-            LOGGER.debug("Calculate short order volume {} + {} = {}",
+            LOGGER.debug("Calculate shortOrderVolume = shortVolume + shortBaseFees: {} + {} = {}",
                 shortVolume,
                 shortBaseFees,
                 shortOrderVolume);
@@ -283,21 +301,22 @@ public class EntryTradeVolume extends TradeVolume{
         if(shortAmountStepSize != null) {
             //Short exchange has a step size, round the short volume
             BigDecimal roundedShortOrderVolume = roundByStep(shortOrderVolume, shortAmountStepSize);
-            LOGGER.debug("Round long order volume by step {}/{} = {}",
+            LOGGER.debug("Round longOrderVolume by step {}/{} = {}",
                 shortOrderVolume,
                 shortAmountStepSize,
                 roundedShortOrderVolume);
             this.shortOrderVolume=roundedShortOrderVolume;
         }
         this.shortOrderVolume = shortOrderVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
-        LOGGER.debug("Scale short order volume to {}",
+        LOGGER.debug("Scale shortOrderVolume with scale {} to {}",
+            shortScale,
             shortOrderVolume);
 
         //Adjust other volumes to respect market neutrality
         BigDecimal shortBaseFees =getSellBaseFees(shortFeeComputation, shortOrderVolume, shortBaseFee, true);
         this.shortVolume = shortOrderVolume.subtract(shortBaseFees).setScale(shortScale, RoundingMode.HALF_EVEN);
         if(shortFeeComputation == FeeComputation.CLIENT) {
-            LOGGER.debug("Calculate underlying short volume {} - {} = {}",
+            LOGGER.debug("Calculate underlying shortVolume = shortOrderVolume - shortVolume: {} - {} = {}",
                 shortOrderVolume,
                 shortBaseFees,
                 shortVolume);
@@ -311,7 +330,7 @@ public class EntryTradeVolume extends TradeVolume{
         BigDecimal longBaseFees = getBuyBaseFees(longFeeComputation, longVolume, longBaseFee, false);
         this.longOrderVolume = longVolume.add(longBaseFees).setScale(longScale, RoundingMode.HALF_EVEN);
         if(longFeeComputation ==FeeComputation.SERVER) {
-            LOGGER.debug("Calculate long order volume {} + {} = {}",
+            LOGGER.debug("Calculate longOrderVolume = longVolume + longBaseFees: {} + {} = {}",
                 longVolume,
                 longBaseFees,
                 longOrderVolume);

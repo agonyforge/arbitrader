@@ -34,6 +34,18 @@ public class ExitTradeVolume extends TradeVolume {
 
         this.longVolume = entryLongOrderVolume.subtract(getBuyBaseFees(longFeeComputation, entryLongOrderVolume, longBaseFee, true));
         this.shortVolume = entryShortOrderVolume.add(getSellBaseFees(shortFeeComputation, entryShortOrderVolume, shortBaseFee, true));
+
+        LOGGER.debug("Instantiate ExitTradeVolume with longVolume {} and shortVolume {}, for parameters: \n" +
+                "longFeeComputation: {}|shortFeeComputation: {}|longFee: {}|shortFee: {}|longScale: {}|shortScale: {}",
+            this.longVolume.toPlainString(),
+            this.shortVolume.toPlainString(),
+            longFeeComputation,
+            shortFeeComputation,
+            longFee,
+            shortFee,
+            longScale,
+            shortScale);
+
         this.longOrderVolume=longVolume;
         this.shortOrderVolume=shortVolume;
     }
@@ -52,7 +64,7 @@ public class ExitTradeVolume extends TradeVolume {
         if(longFeeComputation == FeeComputation.SERVER) {
             BigDecimal scaledVolume = this.longVolume.setScale(longScale, RoundingMode.HALF_EVEN);
             if(longVolume.scale() > longScale) {
-                LOGGER.error("{}: Ordered volume {} does not match the scale {}.",
+                LOGGER.error("{}: long ordered volume {} does not match the scale {}.",
                     longExchangeName,
                     longOrderVolume,
                     longScale);
@@ -62,7 +74,7 @@ public class ExitTradeVolume extends TradeVolume {
             if(longAmountStepSize != null) {
                 BigDecimal roundedVolume = roundByStep(longOrderVolume, longAmountStepSize);
                 if (roundedVolume.compareTo(longOrderVolume) != 0) {
-                    LOGGER.error("{}: Ordered volume {} does not match amount step size {}.",
+                    LOGGER.error("{}: long ordered volume {} does not match amount step size {}.",
                         longExchangeName,
                         longOrderVolume,
                         longAmountStepSize);
@@ -74,7 +86,7 @@ public class ExitTradeVolume extends TradeVolume {
         if(shortFeeComputation == FeeComputation.SERVER) {
             BigDecimal scaledVolume = this.shortVolume.setScale(shortScale, RoundingMode.HALF_EVEN);
             if(shortVolume.scale() > shortScale) {
-                LOGGER.error("{}: Ordered volume {} does not match the scale {}.",
+                LOGGER.error("{}: long ordered volume {} does not match the scale {}.",
                     shortExchangeName,
                     shortOrderVolume,
                     shortScale);
@@ -84,7 +96,7 @@ public class ExitTradeVolume extends TradeVolume {
             if(shortAmountStepSize != null) {
                 BigDecimal roundedVolume = roundByStep(shortOrderVolume,shortAmountStepSize);
                 if(roundedVolume.compareTo(shortOrderVolume) != 0) {
-                    LOGGER.error("{}: Ordered volume {} does not match amount step size {}.",
+                    LOGGER.error("{}: short ordered volume {} does not match amount step size {}.",
                         shortExchangeName,
                         shortOrderVolume,
                         shortAmountStepSize);
