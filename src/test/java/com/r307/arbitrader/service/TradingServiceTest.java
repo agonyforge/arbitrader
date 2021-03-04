@@ -8,6 +8,7 @@ import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ArbitrageLog;
+import com.r307.arbitrader.service.telegram.TelegramClient;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
@@ -57,6 +58,7 @@ public class TradingServiceTest extends BaseTestCase {
 
         ConditionService conditionService = new ConditionService();
         NotificationConfiguration notificationConfiguration = new NotificationConfiguration();
+        TelegramClient telegramClient = new TelegramClient(notificationConfiguration);
         ErrorCollectorService errorCollectorService = new ErrorCollectorService();
 
         TickerService tickerService = new TickerService(
@@ -64,7 +66,7 @@ public class TradingServiceTest extends BaseTestCase {
             exchangeService,
             errorCollectorService);
         spreadService = new SpreadService(tradingConfiguration, tickerService);
-        NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration);
+        NotificationServiceImpl notificationService = new NotificationServiceImpl(javaMailSenderMock, notificationConfiguration, telegramClient);
         tradingConfiguration = new TradingConfiguration();
 
         longExchange = new ExchangeBuilder("Long", CurrencyPair.BTC_USD)
