@@ -272,8 +272,8 @@ public class TradingService {
                 tradeVolume.getLongOrderVolume(), tradeVolume.getShortOrderVolume(),
                 true);
 
-            notificationService.sendEmailNotificationBodyForEntryTrade(spread, exitTarget, tradeVolume.getLongVolume(),
-                longLimitPrice, tradeVolume.getShortVolume(), shortLimitPrice, isForcedOpenCondition);
+            notificationService.sendEntryTradeNotification(spread, exitTarget, tradeVolume,
+                longLimitPrice, shortLimitPrice, isForcedOpenCondition);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
             activePosition = null;
@@ -344,7 +344,7 @@ public class TradingService {
             .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
 
         // figure out how much to trade
-        TradeVolume tradeVolume;
+        ExitTradeVolume tradeVolume;
         try {
             BigDecimal longEntryOrderVolume = getVolumeForOrder(
                 spread.getLongExchange(),
@@ -496,7 +496,7 @@ public class TradingService {
         persistArbitrageToCsvFile(arbitrageLog);
 
         // Email notification must be sent before we set activePosition = null
-        notificationService.sendEmailNotificationBodyForExitTrade(spread, tradeVolume.getLongVolume(), longLimitPrice, tradeVolume.getShortVolume(),
+        notificationService.sendExitTradeNotification(spread, tradeVolume, longLimitPrice,
             shortLimitPrice, activePosition.getEntryBalance(), updatedBalance, activePosition.getExitTarget(), isForceCloseCondition, isActivePositionExpired());
 
         activePosition = null;

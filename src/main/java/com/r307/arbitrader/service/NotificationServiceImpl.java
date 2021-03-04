@@ -1,6 +1,8 @@
 package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.config.NotificationConfiguration;
+import com.r307.arbitrader.service.model.EntryTradeVolume;
+import com.r307.arbitrader.service.model.ExitTradeVolume;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.telegram.TelegramClient;
 import org.knowm.xchange.currency.Currency;
@@ -41,41 +43,42 @@ public class NotificationServiceImpl implements NotificationService {
      *
      * @param spread The Spread.
      * @param exitTarget The exit target.
-     * @param longVolume The long exchange volume.
+     * @param tradeVolume The traded volumes.
      * @param longLimitPrice The long exchange limit price.
-     * @param shortVolume The short exchange volume.
      * @param shortLimitPrice The short exchange limit price.
      * @param isForceEntryPosition Flag to indicate if this entry trade is forced or not.
      */
     @Override
-    public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, BigDecimal longVolume, BigDecimal longLimitPrice,
-                                           BigDecimal shortVolume, BigDecimal shortLimitPrice, boolean isForceEntryPosition) {
+    public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, EntryTradeVolume tradeVolume, BigDecimal longLimitPrice,
+                                           BigDecimal shortLimitPrice, boolean isForceEntryPosition) {
 
         final String longEntryString = String.format("Long entry: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getLongExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
-            longVolume.toPlainString(),
+            tradeVolume.getLongVolume().toPlainString(),
             longLimitPrice.toPlainString(),
             spread.getLongTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice).toPlainString(),
+            tradeVolume.getLongVolume().multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getAsk()).toPlainString());
+            tradeVolume.getLongVolume().multiply(spread.getLongTicker().getAsk()).toPlainString());
 
         final String shortEntryString = String.format("Short entry: %s %s %s @ %s (slipped %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
-            shortVolume.toPlainString(),
+            tradeVolume.getShortVolume().toPlainString(),
             shortLimitPrice.toPlainString(),
             spread.getShortTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice).toPlainString(),
+            tradeVolume.getShortVolume().multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getBid()).toPlainString());
+            tradeVolume.getShortVolume().multiply(spread.getShortTicker().getBid()).toPlainString());
 
         final String message = isForceEntryPosition ? "***** FORCED ENTRY *****\n" : "***** ENTRY *****\n" +
             String.format("Entry spread: %s\n", spread.getIn().toPlainString()) +
             String.format("Exit spread target: %s\n", exitTarget.toPlainString()) +
+            String.format("Market neutrality rating: %s\n", tradeVolume.getMarketNeutralityRating()) +
+            String.format("Minimum profit estimation: %s%s\n", Currency.USD.getSymbol(), tradeVolume.getMinimumProfit(longLimitPrice, shortLimitPrice))+
             longEntryString +
             shortEntryString;
 
@@ -86,9 +89,8 @@ public class NotificationServiceImpl implements NotificationService {
      * Format and send a notification when a trade exits.
      *
      * @param spread The Spread.
-     * @param longVolume The long exchange volume.
+     * @param tradeVolume The traded volumes
      * @param longLimitPrice The long exchange limit price.
-     * @param shortVolume The short exchange volume.
      * @param shortLimitPrice The short exchange limit price.
      * @param entryBalance The combined account balances when the trades were first entered.
      * @param updatedBalance The new account balances after exiting the trades.
@@ -97,7 +99,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param isActivePositionExpired Flag to indicate if this exit trade is due to a timeout (position time expired).
      */
     @Override
-    public void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume,
+    public void sendExitTradeNotification(Spread spread, ExitTradeVolume tradeVolume, BigDecimal longLimitPrice,
                                           BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget,
                                           boolean isForceExitPosition, boolean isActivePositionExpired) {
 
@@ -106,24 +108,24 @@ public class NotificationServiceImpl implements NotificationService {
         final String longCloseString = String.format("Long close: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getLongExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
-            longVolume.toPlainString(),
+            tradeVolume.getLongVolume().toPlainString(),
             longLimitPrice.toPlainString(),
             spread.getLongTicker().getBid().toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(longLimitPrice).toPlainString(),
+            tradeVolume.getLongVolume().multiply(longLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            longVolume.multiply(spread.getLongTicker().getBid()).toPlainString());
+            tradeVolume.getLongVolume().multiply(spread.getLongTicker().getBid()).toPlainString());
 
         final String shortCloseString = String.format("Short close: %s %s %s @ %s (slipped from %s) = %s%s (slipped from %s%s)\n",
             spread.getShortExchange().getExchangeSpecification().getExchangeName(),
             spread.getCurrencyPair(),
-            shortVolume.toPlainString(),
+            tradeVolume.getShortVolume().toPlainString(),
             shortLimitPrice.toPlainString(),
             spread.getShortTicker().getAsk().toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(shortLimitPrice).toPlainString(),
+            tradeVolume.getShortVolume().multiply(shortLimitPrice).toPlainString(),
             Currency.USD.getSymbol(),
-            shortVolume.multiply(spread.getShortTicker().getAsk()).toPlainString());
+            tradeVolume.getShortVolume().multiply(spread.getShortTicker().getAsk()).toPlainString());
 
         final BigDecimal profit = updatedBalance.subtract(entryBalance);
 
