@@ -409,10 +409,14 @@ public class TradingService {
         final BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
         final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
 
-        LOGGER.info("Profit calculation: ${} - ${} = ${}",
+        // Update the global account balance with the profit from this trade
+        exchangeService.updateCombinedBalance(profit);
+
+        LOGGER.info("Profit calculation: ${} - ${} = ${} | Current bankroll: ${}",
             updatedBalance,
             activePosition.getEntryBalance(),
-            profit);
+            profit,
+            exchangeService.getCombinedBalance());
 
         final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
             .withShortExchange(shortExchangeName)

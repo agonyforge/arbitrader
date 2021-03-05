@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
@@ -40,10 +41,14 @@ public class ExchangeService {
     private final ExchangeFeeCache feeCache;
     private final TickerStrategyProvider tickerStrategyProvider;
 
+    /** The current bankroll. Holds the sum of all account's balance. Useful to have a broad idea how our bankroll is evolving */
+    private final AtomicReference<BigDecimal> combinedBalance;
+
     @Inject
     public ExchangeService(ExchangeFeeCache feeCache, TickerStrategyProvider tickerStrategyProvider) {
         this.feeCache = feeCache;
         this.tickerStrategyProvider = tickerStrategyProvider;
+        this.combinedBalance = new AtomicReference<>(BigDecimal.ZERO);
     }
 
     /**
@@ -107,10 +112,16 @@ public class ExchangeService {
             LOGGER.debug("{} home currency: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 getExchangeHomeCurrency(exchange));
+
+            // Get the account balance for this exchange
+            final BigDecimal accountBalance = getAccountBalance(exchange);
+            // Add the account balance to the current global account balance
+            updateCombinedBalance(accountBalance);
+
             LOGGER.info("{} balance: {}{}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 getExchangeHomeCurrency(exchange).getSymbol(),
-                getAccountBalance(exchange));
+                accountBalance);
         } catch (IOException e) {
             LOGGER.error("Unable to fetch account balance: ", e);
         }
@@ -297,5 +308,13 @@ public class ExchangeService {
         // Last fall back - use CurrencyPairMetaData trading fee
         feeCache.setCachedFee(exchange, currencyPair, currencyPairMetaData.getTradingFee());
         return currencyPairMetaData.getTradingFee();
+    }
+
+    public void updateCombinedBalance(BigDecimal amount) {
+        combinedBalance.getAndUpdate(bigDecimal -> bigDecimal.add(amount));
+    }
+
+    public BigDecimal getCombinedBalance() {
+        return combinedBalance.get();
     }
 }
