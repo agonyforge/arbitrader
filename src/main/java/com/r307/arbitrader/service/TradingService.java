@@ -437,7 +437,8 @@ public class TradingService {
 
         // Email notification must be sent before we set activePosition = null
         notificationService.sendExitTradeNotification(spread, longVolume, longLimitPrice, shortVolume,
-            shortLimitPrice, activePosition.getEntryBalance(), updatedBalance, activePosition.getExitTarget(), isForceCloseCondition, isActivePositionExpired());
+            shortLimitPrice, activePosition.getEntryBalance(), updatedBalance, exchangeService.getCombinedBalance(),
+            activePosition.getExitTarget(), isForceCloseCondition, isActivePositionExpired());
 
         activePosition = null;
 

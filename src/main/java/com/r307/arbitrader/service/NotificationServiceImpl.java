@@ -98,7 +98,8 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     public void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume,
-                                          BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget,
+                                          BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance,
+                                          BigDecimal combinedBalance, BigDecimal exitTarget,
                                           boolean isForceExitPosition, boolean isActivePositionExpired) {
 
         final String exitSpreadString = String.format("Exit spread: %s\nExit spread target %s\n", spread.getOut(), exitTarget);
@@ -133,7 +134,8 @@ public class NotificationServiceImpl implements NotificationService {
             longCloseString +
             shortCloseString +
             String.format("Combined account balances on entry: $%s\n", entryBalance.toPlainString()) +
-            String.format("Profit calculation: $%s - $%s = $%s\n", updatedBalance.toPlainString(), entryBalance.toPlainString(), profit.toPlainString());
+            String.format("Profit calculation: $%s - $%s = $%s\n and combined balance = $%s",
+                updatedBalance.toPlainString(), entryBalance.toPlainString(), profit.toPlainString(), combinedBalance.toPlainString());
 
         sendNotification(EMAIL_SUBJECT_NEW_EXIT, message);
     }

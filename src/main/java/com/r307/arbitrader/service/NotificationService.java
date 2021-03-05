@@ -13,6 +13,6 @@ public interface NotificationService {
                                     BigDecimal longLimitPrice, BigDecimal shortVolume,
                                     BigDecimal shortLimitPrice, boolean isForceEntryPosition);
     void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume,
-                                   BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget,
-                                   boolean isForceCloseCondition, boolean isActivePositionExpired);
+                                   BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal combinedBalance,
+                                   BigDecimal exitTarget, boolean isForceCloseCondition, boolean isActivePositionExpired);
 }
