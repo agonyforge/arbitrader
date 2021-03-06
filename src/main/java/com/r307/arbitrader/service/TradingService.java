@@ -439,29 +439,6 @@ public class TradingService {
         logExitTrade(spread, longExchangeName, shortExchangeName, tradeVolume, longFeeComputation, shortFeeComputation, longLimitPrice, shortLimitPrice, isForceCloseCondition);
 
         try {
-            LOGGER.info("Exit spread: {}", spread.getOut());
-            LOGGER.info("Exit spread target: {}", activePosition.getExitTarget());
-            LOGGER.info("Long close: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
-                longExchangeName,
-                spread.getCurrencyPair(),
-                tradeVolume.getLongVolume(),
-                longLimitPrice,
-                spread.getLongTicker().getBid().toPlainString(),
-                Currency.USD.getSymbol(),
-                tradeVolume.getLongVolume().multiply(longLimitPrice).toPlainString(),
-                Currency.USD.getSymbol(),
-                tradeVolume.getLongVolume().multiply(spread.getLongTicker().getBid()).toPlainString());
-            LOGGER.info("Short close: {} {} {} @ {} (slipped from {}) = {}{} (slipped from {}{})",
-                shortExchangeName,
-                spread.getCurrencyPair(),
-                tradeVolume.getShortVolume(),
-                shortLimitPrice,
-                spread.getShortTicker().getAsk().toPlainString(),
-                Currency.USD.getSymbol(),
-                tradeVolume.getShortVolume().multiply(shortLimitPrice).toPlainString(),
-                Currency.USD.getSymbol(),
-                tradeVolume.getShortVolume().multiply(spread.getShortTicker().getAsk()).toPlainString());
-
             executeOrderPair(
                 spread.getLongExchange(), spread.getShortExchange(),
                 spread.getCurrencyPair(),
