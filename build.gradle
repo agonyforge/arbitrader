@@ -31,6 +31,9 @@ targetCompatibility = 1.8
 repositories {
     mavenLocal()
     mavenCentral()
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots"
+    }
 }
 
 configurations.compile {
@@ -46,16 +49,17 @@ dependencies {
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
     compile group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
 
-    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.4'
+    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-binance', version: '5.0.6'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
