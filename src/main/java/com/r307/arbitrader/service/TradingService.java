@@ -180,9 +180,9 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
-        LOGGER.debug("Long fee percent: {}", longExchangeFee.getTradeFee());
+        LOGGER.debug("Trade fee percent: {}", longExchangeFee.getTradeFee());
         if (shortExchangeFee.getMarginFee().isPresent()) {
-            LOGGER.debug("Short fee percent: {}", shortExchangeFee.getTradeFee().add(shortExchangeFee.getMarginFee().get()));
+            LOGGER.debug("Margin fee percent: {}", shortExchangeFee.getTradeFee().add(shortExchangeFee.getMarginFee().get()));
         }
 
         // figure out how much we want to trade

@@ -156,14 +156,14 @@ public class ExchangeService {
             exchange.getExchangeSpecification().getExchangeSpecificParametersItem(TICKER_STRATEGY_KEY));
 
         if (tradingFee.getMarginFee().isPresent()) {
-            LOGGER.info("{} {} trading longFee: {} and shortFee: {}",
+            LOGGER.info("{} {} trading fee: {} and margin fee: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 convertExchangePair(exchange, CurrencyPair.BTC_USD),
                 tradingFee.getTradeFee(),
                 tradingFee.getMarginFee());
         }
         else {
-            LOGGER.info("{} {} trading longFee: {}",
+            LOGGER.info("{} {} trading fee: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 convertExchangePair(exchange, CurrencyPair.BTC_USD),
                 tradingFee.getTradeFee());
@@ -243,18 +243,18 @@ public class ExchangeService {
 
         final ExchangeConfiguration exchangeMetadata = getExchangeMetadata(exchange);
 
-        // Get the margin (short) fee configured for this exchange
-        final BigDecimal shortFee = getShortFee(exchangeMetadata);
+        // Get the margin fee configured for this exchange
+        final BigDecimal marginFee = getMarginFee(exchangeMetadata);
 
         // if feeOverride is configured, just use that
         if (exchangeMetadata.getTradeFeeOverride() != null) {
-            BigDecimal longFee = exchangeMetadata.getTradeFeeOverride();
-            final ExchangeFee exchangeFee = new ExchangeFee(longFee, shortFee);
+            final BigDecimal tradeFee = exchangeMetadata.getTradeFeeOverride();
+            final ExchangeFee exchangeFee = new ExchangeFee(tradeFee, marginFee);
 
             feeCache.setCachedFee(exchange, currencyPair, exchangeFee);
 
-            LOGGER.trace("Using explicitly configured short fee override of {} for {}",
-                shortFee,
+            LOGGER.trace("Using explicitly configured margin fee override of {} for {}",
+                marginFee,
                 exchange.getExchangeSpecification().getExchangeName());
 
             return exchangeFee;
@@ -265,9 +265,9 @@ public class ExchangeService {
             Map<CurrencyPair, Fee> fees = exchange.getAccountService().getDynamicTradingFees();
 
             if (fees.containsKey(currencyPair)) {
-                BigDecimal longFee = fees.get(currencyPair).getMakerFee();
+                final BigDecimal tradeFee = fees.get(currencyPair).getMakerFee();
 
-                final ExchangeFee exchangeFee = new ExchangeFee(longFee, shortFee);
+                final ExchangeFee exchangeFee = new ExchangeFee(tradeFee, marginFee);
 
                 // We're going to cache this value. Fees don't change all that often and we don't want to use up
                 // our allowance of API calls just checking the fees.
@@ -291,7 +291,7 @@ public class ExchangeService {
         }
 
         // try to get fees from the exchange metadata
-        CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
+        final CurrencyPairMetaData currencyPairMetaData = exchange.getExchangeMetaData().getCurrencyPairs().get(convertExchangePair(exchange, currencyPair));
 
         if (currencyPairMetaData == null || currencyPairMetaData.getTradingFee() == null) {
             // if no metadata, see if the user configured a fee
@@ -304,7 +304,7 @@ public class ExchangeService {
                 }
 
                 // give up and return a default fee - this is intentionally higher than most exchanges
-                return new ExchangeFee(new BigDecimal("0.0030"), shortFee);
+                return new ExchangeFee(new BigDecimal("0.0030"), marginFee);
             }
 
             if (!isQuiet) {
@@ -312,32 +312,32 @@ public class ExchangeService {
                     exchange.getExchangeSpecification().getExchangeName());
             }
 
-            return new ExchangeFee(configuredFee, shortFee);
+            return new ExchangeFee(configuredFee, marginFee);
         }
 
         // Last fall back - use CurrencyPairMetaData trading fee
-        final ExchangeFee exchangeFee = new ExchangeFee(currencyPairMetaData.getTradingFee(), shortFee);
+        final ExchangeFee exchangeFee = new ExchangeFee(currencyPairMetaData.getTradingFee(), marginFee);
         feeCache.setCachedFee(exchange, currencyPair, exchangeFee);
         return exchangeFee;
     }
 
     @Nullable
-    private BigDecimal getShortFee(ExchangeConfiguration exchangeMetadata) {
-        final BigDecimal shortFee;
+    private BigDecimal getMarginFee(ExchangeConfiguration exchangeMetadata) {
+        final BigDecimal marginFee;
 
-        // If exchange is set for margin trade then get the configured margin (short) fee
+        // If exchange is set for margin trade then get the configured margin fee
         if (exchangeMetadata.getMargin()) {
             if (exchangeMetadata.getMarginFeeOverride() != null) {
-                shortFee = exchangeMetadata.getMarginFeeOverride();
+                marginFee = exchangeMetadata.getMarginFeeOverride();
             }
             else {
-                shortFee = exchangeMetadata.getMarginFee();
+                marginFee = exchangeMetadata.getMarginFee();
             }
         }
         else {
-            shortFee = null;
+            marginFee = null;
         }
 
-        return shortFee;
+        return marginFee;
     }
 }
