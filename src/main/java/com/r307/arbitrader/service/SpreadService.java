@@ -70,7 +70,7 @@ public class SpreadService {
                     spread.getIn());
             }
 
-            if (spread.getOut().compareTo(maxOut) < 0) {
+            if (spread.getOut().compareTo(minOut) < 0) {
                 LOGGER.info("{} Record low spreadOut: {}/{} {} {}",
                     crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
