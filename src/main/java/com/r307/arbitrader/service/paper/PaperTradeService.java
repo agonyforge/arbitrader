@@ -54,7 +54,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             public void run() {
                 PaperTradeService.this.updateOrders();
             }
-        }, 0, 2000);
+        }, 0, 500);
     }
 
     public OpenOrders getOpenOrders() {

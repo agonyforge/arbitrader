@@ -7,4 +7,5 @@ public final class DecimalConstants {
     private DecimalConstants() {
         // this method intentionally left blank
     }
+
 }

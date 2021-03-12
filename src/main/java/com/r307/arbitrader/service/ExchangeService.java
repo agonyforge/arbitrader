@@ -1,7 +1,9 @@
 package com.r307.arbitrader.service;
 
+import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
@@ -27,6 +29,7 @@ import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 /**
@@ -340,4 +343,5 @@ public class ExchangeService {
 
         return marginFee;
     }
+
 }
