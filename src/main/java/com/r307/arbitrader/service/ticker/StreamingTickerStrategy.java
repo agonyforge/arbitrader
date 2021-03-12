@@ -52,7 +52,7 @@ public class StreamingTickerStrategy implements TickerStrategy {
         if (!tickers.containsKey(exchange)) { // we're not receiving prices so we need to (re)connect
             ProductSubscription.ProductSubscriptionBuilder builder = ProductSubscription.create();
 
-            currencyPairs.forEach(builder::addTicker);
+            currencyPairs.forEach(pair -> { builder.addTicker(exchangeService.convertExchangePair(exchange, pair)); });
 
             // try to subscribe to the websocket
             exchange.connect(builder.build()).blockingAwait();
