@@ -788,7 +788,7 @@ public class TradingService {
 
         // if we got a greater-than-zero volume, we're done
         // cache it and return it
-        if (BigDecimal.ZERO.compareTo(volume) < 0) {
+        if (volume != null && BigDecimal.ZERO.compareTo(volume) < 0) {
             orderVolumeCache.setCachedVolume(exchange, orderId, volume);
             return volume;
         }
@@ -796,7 +796,13 @@ public class TradingService {
         // we couldn't get an order volume by ID, so next we try to get the account balance
         // for the BASE pair (eg. the BTC in BTC/USD)
         try {
-            BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base);
+            final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
+            final Integer scale = exchange.getExchangeMetaData()
+                .getCurrencies()
+                .getOrDefault(currencyPair.base, defaultMetaData)
+                .getScale();
+
+            BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base, scale);
 
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
                 LOGGER.debug("{}: Using {} balance: {}",
