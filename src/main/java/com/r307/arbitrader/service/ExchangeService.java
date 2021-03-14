@@ -176,7 +176,7 @@ public class ExchangeService {
     }
 
     /**
-     * Get the account balance in a specific currency from an exchange using {@link DecimalConstants#USD_SCALE} as scale
+     * Get the account balance in a specific currency from an exchange using {@link DecimalConstants#USD_SCALE} as scale.
      *
      * @param exchange The Exchange to query.
      * @param currency The Currency to query.

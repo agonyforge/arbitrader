@@ -796,10 +796,9 @@ public class TradingService {
         // we couldn't get an order volume by ID, so next we try to get the account balance
         // for the BASE pair (eg. the BTC in BTC/USD)
         try {
-            final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
             final Integer scale = exchange.getExchangeMetaData()
                 .getCurrencies()
-                .getOrDefault(currencyPair.base, defaultMetaData)
+                .getOrDefault(currencyPair.base, new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO))
                 .getScale();
 
             BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base, scale);
