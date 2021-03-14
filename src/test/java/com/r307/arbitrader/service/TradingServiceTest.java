@@ -108,7 +108,7 @@ public class TradingServiceTest extends BaseTestCase {
 
         doReturn(defaultValue)
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
         when(longExchange.getTradeService().getOrder(eq("nullOrder"))).thenReturn(null);
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -135,7 +135,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeForOrderNotAvailable() throws IOException {
         doReturn(new BigDecimal("90.0"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -153,7 +153,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeForOrderIOException() throws IOException {
         doReturn(new BigDecimal("90.0"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -171,7 +171,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeFallbackToDefaultZeroBalance() throws IOException {
         doReturn(BigDecimal.ZERO)
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         BigDecimal volume = tradingService.getVolumeForOrder(
             longExchange,
@@ -186,7 +186,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeFallbackToDefaultIOException() throws IOException {
         doThrow(new IOException("Boom!"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
 
