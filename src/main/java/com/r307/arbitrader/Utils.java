@@ -1,10 +1,14 @@
 package com.r307.arbitrader;
 
 import info.bitrich.xchangestream.core.StreamingExchange;
+import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -12,6 +16,8 @@ import java.util.Arrays;
  */
 public final class Utils {
     private static final Logger LOGGER = LoggerFactory.getLogger(Utils.class);
+
+    public static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
 
     // Intentionally empty
     private Utils() {}
@@ -50,5 +56,29 @@ public final class Utils {
      */
     public static boolean isStreamingExchange(Exchange exchange) {
         return exchange instanceof StreamingExchange;
+    }
+
+    /**
+     * Create a local file with the current bot state.
+     * @param state the state to save
+     * @throws IOException
+     */
+    public static void createStateFile(String state) throws IOException {
+        FileUtils.write(new File(STATE_FILE), state, Charset.defaultCharset());
+    }
+
+    /**
+     * Delete the state file.
+     */
+    public static void deleteStateFile() {
+        FileUtils.deleteQuietly(new File(STATE_FILE));
+    }
+
+    /**
+     * Check whether the state file exists or not.
+     * @return true if the state file could be found otherwise false.
+     */
+    public static boolean stateFileExists() {
+        return new File(STATE_FILE).exists();
     }
 }
