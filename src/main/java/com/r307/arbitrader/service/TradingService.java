@@ -9,7 +9,6 @@ import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.*;
 import org.apache.commons.io.FileUtils;
-import org.jetbrains.annotations.NotNull;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -883,7 +882,9 @@ public class TradingService {
                 .map(exchange -> exchangeBalanceCache.getCachedBalance(exchange) // try the cache first
                     .orElseGet(() -> {
                         try {
-                            BigDecimal balance = exchangeService.getAccountBalance(exchange); // then make the API call
+                            final Currency homeCurrency = exchangeService.getExchangeHomeCurrency(exchange);
+                            final int homeCurrencyScale = exchangeService.getExchangeCurrencyScale(exchange, homeCurrency);
+                            final BigDecimal balance = exchangeService.getAccountBalance(exchange, homeCurrency, homeCurrencyScale); // then make the API call
 
                             exchangeBalanceCache.setCachedBalance(exchange, balance); // cache the returned value
 
@@ -914,11 +915,15 @@ public class TradingService {
     }
 
     // log the balances of two exchanges and the sum of both
-    private BigDecimal logCurrentExchangeBalances(Exchange longExchange, Exchange shortExchange) {
+    private BigDecimal logCurrentExchangeBalances(final Exchange longExchange, final Exchange shortExchange) {
         try {
-            BigDecimal longBalance = exchangeService.getAccountBalance(longExchange);
-            BigDecimal shortBalance = exchangeService.getAccountBalance(shortExchange);
-            BigDecimal totalBalance = longBalance.add(shortBalance);
+            final Currency longHomeCurrency = exchangeService.getExchangeHomeCurrency(longExchange);
+            final Currency shortHomeCurrency = exchangeService.getExchangeHomeCurrency(shortExchange);
+            final int longHomeCurrencyScale = exchangeService.getExchangeCurrencyScale(longExchange, longHomeCurrency);
+            final int shortHomeCurrencyScale = exchangeService.getExchangeCurrencyScale(shortExchange, shortHomeCurrency);
+            final BigDecimal longBalance = exchangeService.getAccountBalance(longExchange, longHomeCurrency, longHomeCurrencyScale);
+            final BigDecimal shortBalance = exchangeService.getAccountBalance(shortExchange, shortHomeCurrency, shortHomeCurrencyScale);
+            final BigDecimal totalBalance = longBalance.add(shortBalance);
 
             LOGGER.info("Updated account balances: {} ${} + {} ${} = ${}",
                 longExchange.getExchangeSpecification().getExchangeName(),
