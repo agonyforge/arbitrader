@@ -1,9 +1,7 @@
 package com.r307.arbitrader.service;
 
-import com.r307.arbitrader.DecimalConstants;
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.ExchangeConfiguration;
-import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
 import com.r307.arbitrader.service.ticker.TickerStrategyProvider;
@@ -12,6 +10,7 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.account.Fee;
 import org.knowm.xchange.dto.account.Wallet;
+import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 
 /**
  * Services related to exchanges.
@@ -36,6 +34,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Component
 public class ExchangeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExchangeService.class);
+    private static final CurrencyMetaData DEFAULT_CURRENCY_METADATA = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
 
     public static final String METADATA_KEY = "arbitrader-metadata";
     public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
@@ -67,6 +66,17 @@ public class ExchangeService {
      */
     public Currency getExchangeHomeCurrency(Exchange exchange) {
         return getExchangeMetadata(exchange).getHomeCurrency();
+    }
+
+    /**
+     * Convenience method for getting the scale for a Currency.
+     *
+     * @param exchange The Exchange to get information from.
+     * @param currency The Currency to get the scale for.
+     * @return The scale for the given Currency on the given Exchange.
+     */
+    public int getExchangeCurrencyScale(Exchange exchange, Currency currency) {
+        return exchange.getExchangeMetaData().getCurrencies().getOrDefault(currency, DEFAULT_CURRENCY_METADATA).getScale();
     }
 
     /**
@@ -110,10 +120,13 @@ public class ExchangeService {
             LOGGER.debug("{} home currency: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 getExchangeHomeCurrency(exchange));
+
+            Currency homeCurrency = getExchangeHomeCurrency(exchange);
+
             LOGGER.info("{} balance: {}{}",
                 exchange.getExchangeSpecification().getExchangeName(),
-                getExchangeHomeCurrency(exchange).getSymbol(),
-                getAccountBalance(exchange));
+                homeCurrency.getSymbol(),
+                getAccountBalance(exchange, homeCurrency, getExchangeCurrencyScale(exchange, homeCurrency)));
         } catch (IOException e) {
             LOGGER.error("Unable to fetch account balance: ", e);
         }
@@ -160,31 +173,6 @@ public class ExchangeService {
             exchange.getExchangeSpecification().getExchangeName(),
             convertExchangePair(exchange, CurrencyPair.BTC_USD),
             tradingFee);
-    }
-
-    /**
-     * Get the account balance in the default currency from an exchange.
-     *
-     * @param exchange The Exchange to query.
-     * @return The balance for the default currency in the given exchange.
-     * @throws IOException when we can't talk to the exchange.
-     */
-    public BigDecimal getAccountBalance(Exchange exchange) throws IOException {
-        Currency currency = getExchangeHomeCurrency(exchange);
-
-        return getAccountBalance(exchange, currency);
-    }
-
-    /**
-     * Get the account balance in a specific currency from an exchange using {@link DecimalConstants#USD_SCALE} as scale.
-     *
-     * @param exchange The Exchange to query.
-     * @param currency The Currency to query.
-     * @return The balance for the given currency on the given exchange.
-     * @throws IOException when we can't talk to the exchange.
-     */
-    public BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
-        return getAccountBalance(exchange, currency, USD_SCALE);
     }
 
     /**

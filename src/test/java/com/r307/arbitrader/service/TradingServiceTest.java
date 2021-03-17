@@ -278,7 +278,11 @@ public class TradingServiceTest extends BaseTestCase {
         final BigDecimal expectedExposure = minAccountBalance.multiply(tradePortion)
             .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
-        when(exchangeService.getAccountBalance(any(Exchange.class)))
+        when(exchangeService.getExchangeHomeCurrency(any(Exchange.class)))
+            .thenReturn(Currency.USD);
+        when(exchangeService.getExchangeCurrencyScale(any(Exchange.class), any(Currency.class)))
+            .thenReturn(2);
+        when(exchangeService.getAccountBalance(any(Exchange.class), any(Currency.class), anyInt()))
             .thenReturn(minAccountBalance);
 
         BigDecimal actual = tradingService.getMaximumExposure(longExchange, shortExchange);
