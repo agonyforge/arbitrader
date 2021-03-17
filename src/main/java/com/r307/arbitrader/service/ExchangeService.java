@@ -23,8 +23,11 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 
@@ -108,6 +111,17 @@ public class ExchangeService {
      */
     public void setUpExchange(Exchange exchange) {
         try {
+            if (!Utils.stateFileExists()) {
+                final Set<String> cryptoCoinsFromTradingPairs = getCryptoCoinsFromTradingPairs(exchange);
+                if (!cryptoCoinsFromTradingPairs.isEmpty()) {
+                    cryptoCoinsFromTradingPairs.forEach(s -> LOGGER.error("Exchange {} is configured to trade with {} but the wallet for this coin is not empty! " +
+                        "As a safety measure this is not allowed. You can either sell your coins or remove this coin from any trading pair for this exchange",
+                        exchange.getExchangeSpecification().getExchangeName(), s)
+                    );
+
+                    throw new RuntimeException("All coins in the trading pair must have an empty wallet");
+                }
+            }
             LOGGER.debug("{} SSL URI: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 exchange.getExchangeSpecification().getSslUri());
@@ -202,6 +216,34 @@ public class ExchangeService {
             currency.getCurrencyCode());
 
         return BigDecimal.ZERO;
+    }
+
+    /**
+     * By using the configured trading pairs for the given exchange, get the list of crypto currencies where the wallet
+     * is not empty. The {@link Exchange} home currency is not taken in consideration, it is ignored.
+     * @param exchange
+     * @return A {@link Set} containing the currency code
+     * @throws IOException
+     */
+    public Set<String> getCryptoCoinsFromTradingPairs(Exchange exchange) throws IOException {
+        final List<CurrencyPair> tradingPairs = getExchangeMetadata(exchange).getTradingPairs();
+
+        // Get all account currencies where the wallet balance is not empty
+        final Set<String> accountCurrencies = exchange.getAccountService()
+            .getAccountInfo()
+            .getWallets()
+            .values()
+            .stream()
+            .flatMap(wallet -> wallet.getBalances().entrySet().stream())
+            .filter(currencyBalanceEntry -> currencyBalanceEntry.getKey() != getExchangeMetadata(exchange).getHomeCurrency())
+            .filter(currencyBalanceEntry -> currencyBalanceEntry.getValue().getAvailable().compareTo(BigDecimal.ZERO) > 0)
+            .map(currencyBalanceEntry -> currencyBalanceEntry.getKey().getCurrencyCode())
+            .collect(Collectors.toSet());
+
+        return tradingPairs.stream()
+            .filter(currencyPair -> accountCurrencies.contains(currencyPair.base.getCurrencyCode()))
+            .map(currencyPair -> currencyPair.base.getCurrencyCode())
+            .collect(Collectors.toSet());
     }
 
     /**

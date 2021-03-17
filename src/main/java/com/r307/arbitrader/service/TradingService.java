@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
@@ -46,7 +47,6 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Component
 public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
-    private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
     private static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
     private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
@@ -288,7 +288,7 @@ public class TradingService {
         }
 
         try {
-            FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
+            Utils.createStateFile(objectMapper.writeValueAsString(activePosition));
         } catch (IOException e) {
             LOGGER.error("Unable to write state file!", e);
         }
@@ -487,7 +487,7 @@ public class TradingService {
 
         activePosition = null;
 
-        FileUtils.deleteQuietly(new File(STATE_FILE));
+        Utils.deleteStateFile();
 
         if (isForceCloseCondition) {
             conditionService.clearForceCloseCondition();
