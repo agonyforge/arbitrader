@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.r307.arbitrader.DecimalConstants;
+import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
@@ -9,7 +10,6 @@ import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.*;
 import org.apache.commons.io.FileUtils;
-import org.jetbrains.annotations.NotNull;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -47,7 +47,6 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Component
 public class TradingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradingService.class);
-    private static final String STATE_FILE = ".arbitrader/arbitrader-state.json";
     private static final String TRADE_HISTORY_FILE = ".arbitrader/arbitrader-arbitrage-history.csv";
     private static final BigDecimal TRADE_PORTION = new BigDecimal("0.9");
     private static final BigDecimal TRADE_REMAINDER = BigDecimal.ONE.subtract(TRADE_PORTION);
@@ -297,7 +296,7 @@ public class TradingService {
         }
 
         try {
-            FileUtils.write(new File(STATE_FILE), objectMapper.writeValueAsString(activePosition), Charset.defaultCharset());
+            Utils.createStateFile(objectMapper.writeValueAsString(activePosition));
         } catch (IOException e) {
             LOGGER.error("Unable to write state file!", e);
         }
@@ -497,7 +496,7 @@ public class TradingService {
 
         activePosition = null;
 
-        FileUtils.deleteQuietly(new File(STATE_FILE));
+        Utils.deleteStateFile();
 
         if (isForceCloseCondition) {
             conditionService.clearForceCloseCondition();
@@ -797,7 +796,7 @@ public class TradingService {
 
         // if we got a greater-than-zero volume, we're done
         // cache it and return it
-        if (BigDecimal.ZERO.compareTo(volume) < 0) {
+        if (volume != null && BigDecimal.ZERO.compareTo(volume) < 0) {
             orderVolumeCache.setCachedVolume(exchange, orderId, volume);
             return volume;
         }
@@ -805,7 +804,12 @@ public class TradingService {
         // we couldn't get an order volume by ID, so next we try to get the account balance
         // for the BASE pair (eg. the BTC in BTC/USD)
         try {
-            BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base);
+            final Integer scale = exchange.getExchangeMetaData()
+                .getCurrencies()
+                .getOrDefault(currencyPair.base, new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO))
+                .getScale();
+
+            BigDecimal balance = exchangeService.getAccountBalance(exchange, currencyPair.base, scale);
 
             if (BigDecimal.ZERO.compareTo(balance) < 0) {
                 LOGGER.debug("{}: Using {} balance: {}",
@@ -887,7 +891,9 @@ public class TradingService {
                 .map(exchange -> exchangeBalanceCache.getCachedBalance(exchange) // try the cache first
                     .orElseGet(() -> {
                         try {
-                            BigDecimal balance = exchangeService.getAccountBalance(exchange); // then make the API call
+                            final Currency homeCurrency = exchangeService.getExchangeHomeCurrency(exchange);
+                            final int homeCurrencyScale = exchangeService.getExchangeCurrencyScale(exchange, homeCurrency);
+                            final BigDecimal balance = exchangeService.getAccountBalance(exchange, homeCurrency, homeCurrencyScale); // then make the API call
 
                             exchangeBalanceCache.setCachedBalance(exchange, balance); // cache the returned value
 
@@ -918,11 +924,15 @@ public class TradingService {
     }
 
     // log the balances of two exchanges and the sum of both
-    private BigDecimal logCurrentExchangeBalances(Exchange longExchange, Exchange shortExchange) {
+    private BigDecimal logCurrentExchangeBalances(final Exchange longExchange, final Exchange shortExchange) {
         try {
-            BigDecimal longBalance = exchangeService.getAccountBalance(longExchange);
-            BigDecimal shortBalance = exchangeService.getAccountBalance(shortExchange);
-            BigDecimal totalBalance = longBalance.add(shortBalance);
+            final Currency longHomeCurrency = exchangeService.getExchangeHomeCurrency(longExchange);
+            final Currency shortHomeCurrency = exchangeService.getExchangeHomeCurrency(shortExchange);
+            final int longHomeCurrencyScale = exchangeService.getExchangeCurrencyScale(longExchange, longHomeCurrency);
+            final int shortHomeCurrencyScale = exchangeService.getExchangeCurrencyScale(shortExchange, shortHomeCurrency);
+            final BigDecimal longBalance = exchangeService.getAccountBalance(longExchange, longHomeCurrency, longHomeCurrencyScale);
+            final BigDecimal shortBalance = exchangeService.getAccountBalance(shortExchange, shortHomeCurrency, shortHomeCurrencyScale);
+            final BigDecimal totalBalance = longBalance.add(shortBalance);
 
             LOGGER.info("Updated account balances: {} ${} + {} ${} = ${}",
                 longExchange.getExchangeSpecification().getExchangeName(),

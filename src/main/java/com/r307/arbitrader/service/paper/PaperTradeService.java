@@ -1,13 +1,11 @@
 package com.r307.arbitrader.service.paper;
 
-import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.PaperConfiguration;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
-import org.knowm.xchange.dto.account.AccountInfo;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.dto.marketdata.Trades;
 import org.knowm.xchange.dto.trade.*;
@@ -24,9 +22,6 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -149,7 +144,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     fillOrder(order, order.getLimitPrice());
                 } else {
                     Order.OrderType type = order.getType();
-                    Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
+                    Ticker ticker = tickerService.getTicker(exchange, (CurrencyPair)order.getInstrument());
 
                     LOGGER.debug("Ticker fetch for paper trading: {}/{}", ticker.getBid(), ticker.getAsk());
 
@@ -191,8 +186,8 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             order.toString());
 
         //Update balances
-        exchange.getPaperAccountService().putCoin(order.getCurrencyPair().counter, counterDelta);
-        exchange.getPaperAccountService().putCoin(order.getCurrencyPair().base, baseDelta);
+        exchange.getPaperAccountService().putCoin(((CurrencyPair)order.getInstrument()).counter, counterDelta);
+        exchange.getPaperAccountService().putCoin(((CurrencyPair)order.getInstrument()).base, baseDelta);
 
         LOGGER.info("{} paper account: {}",
             exchange.getExchangeSpecification().getExchangeName(),
@@ -231,9 +226,9 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
 
         BigDecimal counterDelta = getCounterDelta(order);
         BigDecimal baseDelta = getBaseDelta(order);
-        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
+        if(exchange.getPaperAccountService().getBalance(((CurrencyPair)order.getInstrument()).counter).add(counterDelta).compareTo(BigDecimal.ZERO) <0)
             throw new FundsExceededException();
-        if(exchange.getPaperAccountService().getBalance(order.getCurrencyPair().base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
+        if(exchange.getPaperAccountService().getBalance(((CurrencyPair)order.getInstrument()).base).add(baseDelta).compareTo(BigDecimal.ZERO) <0)
             throw new FundsExceededException();
     }
 
@@ -261,7 +256,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
      * @return the currency.base delta
      */
     private BigDecimal getBaseDelta(LimitOrder order) {
-        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
+        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, (CurrencyPair)order.getInstrument(), false);
 
         //Calculate fees in crypto currency
         BigDecimal baseFee = exchangeService.getExchangeMetadata(exchange).getFeeComputation() == SERVER ? BigDecimal.ZERO : order.getOriginalAmount().multiply(feePercentage).setScale(BTC_SCALE,RoundingMode.HALF_EVEN);
@@ -279,7 +274,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
      */
     private BigDecimal getCounterFee(LimitOrder order) {
         BigDecimal cumulativeCounterAmount = order.getAveragePrice() != null ? order.getOriginalAmount().multiply(order.getAveragePrice()) : order.getOriginalAmount().multiply(order.getLimitPrice());
-        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, order.getCurrencyPair(), false);
+        BigDecimal feePercentage = exchangeService.getExchangeFee(exchange, (CurrencyPair)order.getInstrument(), false);
         return exchangeService.getExchangeMetadata(exchange).getFeeComputation() == SERVER ? cumulativeCounterAmount.multiply(feePercentage) : BigDecimal.ZERO;
     }
 }
