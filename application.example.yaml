@@ -63,15 +63,17 @@ notifications:
 trading:
   # The percentage difference between the "long" and "short" exchange prices - fees included - before we will open our positions.
   # The real percentage difference will be bigger than this value to compensate for the trading fees.
+  # Increasing this value will make trades harder to enter
   entrySpreadTarget: 0.0010
 
   # The minimum profit in percentage before we will close our positions.
-  # ONLY ONE OF minimumProfit AND exitSpreadTarget CAN BE CONFIGURED AT ONCE
+  # Increasing this value will make trades harder to exit
   minimumProfit: 0.0001
 
+  # *** IF exitSpreadTarget IS SET minimumProfit WILL BE IGNORED ***
   # The percentage difference between the "long" and "short" exchange prices - fees included - before we will close our positions.
   # The real percentage difference will be lower than this value to compensate for the trading fees.
-  # ONLY ONE OF minimumProfit AND exitSpreadTarget CAN BE CONFIGURED AT ONCE
+  # If we want to wait until the long exchange price is bigger than the short exchange price before exiting the trade, we need to set a negative value.
   # exitSpreadTarget: 0.00001
 
   # (Default: false)
