@@ -73,6 +73,10 @@ public class TradingScheduler {
      */
     @PostConstruct
     public void connectExchanges() {
+
+        if (tradingConfiguration.getExitSpreadTarget() != null && tradingConfiguration.getMinimumProfit() != null)
+            throw new RuntimeException("Only one of exitSpreadTarget and minimumProfit configuration options is allowed.");
+
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
             // skip exchanges that are explicitly disabled
             if (exchangeMetadata.getActive() != null && !exchangeMetadata.getActive()) {
