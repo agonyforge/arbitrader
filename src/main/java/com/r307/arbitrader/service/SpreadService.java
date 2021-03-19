@@ -211,7 +211,7 @@ public class SpreadService {
      */
     private BigDecimal computeEffectiveExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, BigDecimal longFee, BigDecimal shortFee) {
         if(tradingConfiguration.getExitSpreadTarget() != null) {
-            return tradingConfiguration.getEntrySpreadTarget();
+            return tradingConfiguration.getExitSpreadTarget();
         } else {
             BigDecimal profit = tradingConfiguration.getMinimumProfit() != null ? tradingConfiguration.getMinimumProfit() : BigDecimal.ZERO;
             BigDecimal effectiveEntrySpread = (BigDecimal.ONE.add(entrySpread)).multiply(BigDecimal.ONE.subtract(shortFee)).divide(BigDecimal.ONE.add(longFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);

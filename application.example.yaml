@@ -61,12 +61,18 @@ notifications:
     token: x
 
 trading:
-  # The percentage difference between the "long" and "short" exchanges before we will open our positions.
-  entrySpread: 0.0080
+  # The percentage difference between the "long" and "short" exchange prices - fees included - before we will open our positions.
+  # The real percentage difference will be bigger than this value to compensate for the trading fees.
+  entrySpreadTarget: 0.0010
 
-  # The percentage difference *in profit only* before we will close our positions.
-  # Fees will be added to this amount.
-  exitTarget: 0.0050
+  # The minimum profit in percentage before we will close our positions.
+  # ONLY ONE OF minimumProfit AND exitSpreadTarget CAN BE CONFIGURED AT ONCE
+  minimumProfit: 0.0001
+
+  # The percentage difference between the "long" and "short" exchange prices - fees included - before we will close our positions.
+  # The real percentage difference will be lower than this value to compensate for the trading fees.
+  # ONLY ONE OF minimumProfit AND exitSpreadTarget CAN BE CONFIGURED AT ONCE
+  # exitSpreadTarget: 0.00001
 
   # (Default: false)
   # Log notifications when a spreadIn reaches an all time high, or a spreadOut reaches an all time low.
