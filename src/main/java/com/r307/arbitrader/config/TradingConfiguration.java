@@ -19,7 +19,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 public class TradingConfiguration {
     private BigDecimal entrySpreadTarget;
     private BigDecimal exitSpreadTarget;
-    private BigDecimal minimumProfit = BigDecimal.ZERO;
+    private BigDecimal minimumProfit;
     private Boolean spreadNotifications = false;
     private BigDecimal fixedExposure;
     private List<ExchangeConfiguration> exchanges = new ArrayList<>();
