@@ -181,7 +181,7 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
                     fillOrder(order, order.getLimitPrice());
                 } else {
                     Order.OrderType type = order.getType();
-                    Ticker ticker = tickerService.getTicker(exchange, order.getCurrencyPair());
+                    Ticker ticker = tickerService.getTicker(exchange, (CurrencyPair)order.getInstrument());
 
                     LOGGER.debug("Ticker fetch for paper trading: {}/{}", ticker.getBid(), ticker.getAsk());
 
@@ -223,8 +223,8 @@ public class PaperTradeService extends BaseExchangeService<PaperExchange> implem
             order.toString());
 
         //Update balances
-        exchange.getPaperAccountService().putCoin(order.getCurrencyPair().counter, counterDelta);
-        exchange.getPaperAccountService().putCoin(order.getCurrencyPair().base, baseDelta);
+        exchange.getPaperAccountService().putCoin(((CurrencyPair)order.getInstrument()).counter, counterDelta);
+        exchange.getPaperAccountService().putCoin(((CurrencyPair)order.getInstrument()).base, baseDelta);
 
         LOGGER.info("{} paper account: {}",
             exchange.getExchangeSpecification().getExchangeName(),
