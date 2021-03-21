@@ -11,6 +11,7 @@ import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.*;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
+import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
 import org.knowm.xchange.dto.marketdata.OrderBook;
@@ -146,9 +147,11 @@ public class TradingService {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal tradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true).getTradeFee();
-        final BigDecimal marginFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true)
-            .getMarginFee()
-            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
+        // When we short trade a coin, the fee is always: marginFee + tradeFee
+        final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final BigDecimal marginFee = shortExchangeFee.getMarginFee()
+            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName))
+            .add(shortExchangeFee.getTradeFee());
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
@@ -332,9 +335,11 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
         final BigDecimal tradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true)
             .getTradeFee();
-        final BigDecimal marginFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true)
-            .getMarginFee()
-            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
+        // When we short trade a coin, the fee is always: marginFee + tradeFee
+        final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final BigDecimal marginFee = shortExchangeFee.getMarginFee()
+            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName))
+            .add(tradeFee);
         final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
         final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());

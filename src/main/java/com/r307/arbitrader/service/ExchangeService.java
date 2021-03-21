@@ -190,7 +190,7 @@ public class ExchangeService {
                 exchange.getExchangeSpecification().getExchangeName(),
                 convertExchangePair(exchange, CurrencyPair.BTC_USD),
                 tradingFee.getTradeFee(),
-                tradingFee.getMarginFee());
+                tradingFee.getMarginFee().get().add(tradingFee.getTradeFee()));
         }
         else {
             LOGGER.info("{} {} trading fee: {}",
