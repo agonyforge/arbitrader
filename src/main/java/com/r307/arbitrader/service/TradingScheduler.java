@@ -74,7 +74,7 @@ public class TradingScheduler {
     @PostConstruct
     public void connectExchanges() {
 
-        if (tradingConfiguration.getExitSpreadTarget() != null && tradingConfiguration.getEntrySpreadTarget() != null)
+        if (tradingConfiguration.getExitSpreadTarget() != null && tradingConfiguration.getMinimumProfit() != null)
             LOGGER.warn("Property `exitSpreadTarget` is set, `minimumProfit` property will be ignored.");
 
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
