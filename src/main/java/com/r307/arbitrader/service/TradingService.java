@@ -146,12 +146,12 @@ public class TradingService {
     private void enterPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
-        final BigDecimal tradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true).getTradeFee();
-        // When we short trade a coin, the fee is always: marginFee + tradeFee
+        final BigDecimal longTradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true).getTradeFee();
         final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal marginFee = shortExchangeFee.getMarginFee()
-            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName))
-            .add(shortExchangeFee.getTradeFee());
+        final BigDecimal shortMarginFee = shortExchangeFee.getMarginFee()
+            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
+        // When we short trade a coin, the fee is always: marginFee + tradeFee
+        final BigDecimal shortTotalFee = shortMarginFee.add(shortExchangeFee.getTradeFee());
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
         final BigDecimal exitTarget = spread.getIn().subtract(tradingConfiguration.getExitTarget());
@@ -183,13 +183,13 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
-        LOGGER.debug("Trade fee percent: {}", tradeFee);
-        LOGGER.debug("Margin fee percent: {}", marginFee);
+        LOGGER.debug("Long trade fee percent: {}", longTradeFee);
+        LOGGER.debug("Short trade and margin fee percent: {} + {} = {}", shortExchangeFee.getTradeFee(), shortMarginFee, shortTotalFee);
 
         // figure out how much we want to trade
         EntryTradeVolume tradeVolume;
         try {
-            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),tradeFee,marginFee, exitTarget, longScale, shortScale);
+            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longTradeFee,shortTotalFee, exitTarget, longScale, shortScale);
         } catch (IllegalArgumentException e) {
             LOGGER.error("Cannot instantiate order volumes, exiting trade.");
             return;
@@ -231,7 +231,7 @@ public class TradingService {
         if(longLimitPrice.compareTo(spread.getLongTicker().getAsk()) != 0 || shortLimitPrice.compareTo(spread.getShortTicker().getBid()) != 0) {
             //Adjust the volume after slip so the trade stays market neutral
             try {
-                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, tradeFee, marginFee, exitTarget, longScale, shortScale);
+                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, longTradeFee, shortTotalFee, exitTarget, longScale, shortScale);
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Cannot instantiate order volumes, exiting trade.");
                 return;
@@ -333,13 +333,13 @@ public class TradingService {
     private void exitPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
-        final BigDecimal tradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true)
+        final BigDecimal longTradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true)
             .getTradeFee();
-        // When we short trade a coin, the fee is always: marginFee + tradeFee
         final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal marginFee = shortExchangeFee.getMarginFee()
-            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName))
-            .add(tradeFee);
+        final BigDecimal shortMarginFee = shortExchangeFee.getMarginFee()
+            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
+        // When we short trade a coin, the fee is always: marginFee + tradeFee
+        final BigDecimal shortTotalFee = shortMarginFee.add(longTradeFee);
         final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
         final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
@@ -374,7 +374,7 @@ public class TradingService {
                 activePosition.getShortTrade().getOrderId(),
                 activePosition.getShortTrade().getVolume());
 
-            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, tradeFee, marginFee, longScale, shortScale);
+            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longTradeFee, shortTotalFee, longScale, shortScale);
         } catch (OrderNotFoundException e) {
             LOGGER.error(e.getMessage());
             return;
