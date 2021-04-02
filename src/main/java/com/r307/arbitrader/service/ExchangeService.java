@@ -275,8 +275,6 @@ public class ExchangeService {
                         minimumAmount);
                 }
 
-                LOGGER.debug("{} {} min amount: {}", exchange.getExchangeSpecification().getExchangeName(), pair, minimumAmount);
-
                 return currencyBalanceEntry.getValue().getAvailable().compareTo(minimumAmount) > 0;
             })
             .map(currencyBalanceEntry -> currencyBalanceEntry.getKey().getCurrencyCode())
