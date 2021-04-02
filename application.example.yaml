@@ -181,6 +181,7 @@ trading:
       # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
       fee: 0.0026
+
       # Enable (value set to true) or disable (value set to false) this exchange. If 'active' configuration is not set
       # then, by default, the exchange is set as active
       active: true
@@ -214,7 +215,6 @@ trading:
         - NEO/USD
         - ONT/USD
         - DASH/USD
-      fee: 0.0010
 
     -
       exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
@@ -226,6 +226,17 @@ trading:
       port: 443
       tradingPairs:
         - BTC/USD
+
+      # Arbitrader won't start if your account has a crypto balance greater than the minimum trade size for the
+      # exchange. Unfortunately the metadata XChange has about the minimum trade sizes on exchanges is not always
+      # correct, and sometimes it's missing entirely. This is an option to provide your own value as a map of
+      # currency pairs to allowed account balances. If your account balance in the specified currency pair is less
+      # than the value provided here, the bot will start up and could potentially sell some of this balance.
+      #
+      # This configuration is your way out if you're stuck with 0.00000001 BTC that you can't seem to get rid of
+      # but the bot refuses to start up because the balance isn't _exactly_ zero.
+      minBalanceOverride:
+        BTC/USD: 0.001
 
       # BitFlyer doesn't support margin trading (for US based customers, anyway).
       margin: false

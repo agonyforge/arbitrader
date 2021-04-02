@@ -230,7 +230,8 @@ public class ExchangeService {
      * @throws IOException If we can't request account info from the exchange.
      */
     public Set<String> getCryptoCoinsFromTradingPairs(Exchange exchange) throws IOException {
-        final List<CurrencyPair> tradingPairs = getExchangeMetadata(exchange).getTradingPairs();
+        final ExchangeConfiguration exchangeConfiguration = getExchangeMetadata(exchange);
+        final List<CurrencyPair> tradingPairs = exchangeConfiguration.getTradingPairs();
         final Currency homeCurrency = getExchangeHomeCurrency(exchange);
 
         // Get all account currencies where the wallet balance is not empty
@@ -248,7 +249,33 @@ public class ExchangeService {
                     .getCurrencyPairs()
                     .get(pair));
 
-                BigDecimal minimumAmount = metaDataOptional.isPresent() ? metaDataOptional.get().getMinimumAmount() : BigDecimal.ZERO;
+                BigDecimal minimumAmount;
+                Optional<BigDecimal> overrideAmount = exchangeConfiguration.getMinBalanceOverride(pair);
+
+                if (overrideAmount.isPresent()) {
+                    minimumAmount = overrideAmount.get();
+
+                    LOGGER.info("{} using user configured minimum balance override: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                } else if (metaDataOptional.isPresent()) {
+                    minimumAmount = metaDataOptional.get().getMinimumAmount();
+
+                    LOGGER.debug("{} using exchange metadata for minimum balance: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                } else {
+                    minimumAmount = BigDecimal.ZERO;
+
+                    LOGGER.debug("{} using default value of zero for minimum balance: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                }
+
+                LOGGER.debug("{} {} min amount: {}", exchange.getExchangeSpecification().getExchangeName(), pair, minimumAmount);
 
                 return currencyBalanceEntry.getValue().getAvailable().compareTo(minimumAmount) > 0;
             })
