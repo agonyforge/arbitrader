@@ -215,6 +215,7 @@ trading:
         - NEO/USD
         - ONT/USD
         - DASH/USD
+      fee: 0.0010
 
     -
       exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
