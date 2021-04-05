@@ -16,7 +16,7 @@ plugins {
 apply plugin: 'docker'
 
 group 'com.r307'
-version '0.11.0-SNAPSHOT'
+version '0.12.0-SNAPSHOT'
 
 bootJar {
     manifest {

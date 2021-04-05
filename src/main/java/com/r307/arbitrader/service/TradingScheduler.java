@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -72,6 +73,10 @@ public class TradingScheduler {
      */
     @PostConstruct
     public void connectExchanges() {
+
+        if (tradingConfiguration.getExitSpreadTarget() != null && tradingConfiguration.getMinimumProfit() != null)
+            LOGGER.warn("Property `exitSpreadTarget` is set, `minimumProfit` property will be ignored.");
+
         tradingConfiguration.getExchanges().forEach(exchangeMetadata -> {
             // skip exchanges that are explicitly disabled
             if (exchangeMetadata.getActive() != null && !exchangeMetadata.getActive()) {
@@ -222,12 +227,14 @@ public class TradingScheduler {
             }
 
             if (tradingService.getActivePosition() == null) {
+                final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
+                final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
                 LOGGER.info("{}/{} {} {} -> {}",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
                     spread.getIn(),
-                    tradingConfiguration.getEntrySpread());
+                    spreadService.getEntrySpreadTarget(tradingConfiguration, longFeePercent, shortFeePercent));
             } else if (tradingService.getActivePosition() != null
                 && tradingService.getActivePosition().getCurrencyPair().equals(spread.getCurrencyPair())
                 && tradingService.getActivePosition().getLongTrade().getExchange().equals(spread.getLongExchange().getExchangeSpecification().getExchangeName())
