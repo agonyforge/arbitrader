@@ -10,6 +10,7 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.account.Fee;
 import org.knowm.xchange.dto.account.Wallet;
+import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.exceptions.NotYetImplementedForExchangeException;
 import org.knowm.xchange.service.account.AccountService;
@@ -22,10 +23,13 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 
 /**
  * Services related to exchanges.
@@ -33,6 +37,7 @@ import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
 @Component
 public class ExchangeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExchangeService.class);
+    private static final CurrencyMetaData DEFAULT_CURRENCY_METADATA = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
 
     public static final String METADATA_KEY = "arbitrader-metadata";
     public static final String TICKER_STRATEGY_KEY = "tickerStrategy";
@@ -67,6 +72,17 @@ public class ExchangeService {
     }
 
     /**
+     * Convenience method for getting the scale for a Currency.
+     *
+     * @param exchange The Exchange to get information from.
+     * @param currency The Currency to get the scale for.
+     * @return The scale for the given Currency on the given Exchange.
+     */
+    public int getExchangeCurrencyScale(Exchange exchange, Currency currency) {
+        return exchange.getExchangeMetaData().getCurrencies().getOrDefault(currency, DEFAULT_CURRENCY_METADATA).getScale();
+    }
+
+    /**
      * This is a kind of hacky workaround for the fact that Arbitrader was written assuming everyone would have USD
      * as their "main" currency. If you have configured a different "home currency" for an exchange, such as USDC or
      * EUR, this method translates USD into that currency instead and smooths over the USD assumptions we have made.
@@ -95,6 +111,17 @@ public class ExchangeService {
      */
     public void setUpExchange(Exchange exchange) {
         try {
+            if (!Utils.stateFileExists()) {
+                final Set<String> cryptoCoinsFromTradingPairs = getCryptoCoinsFromTradingPairs(exchange);
+                if (!cryptoCoinsFromTradingPairs.isEmpty()) {
+                    cryptoCoinsFromTradingPairs.forEach(s -> LOGGER.error("Exchange {} is configured to trade with {} but the wallet for this coin is not empty! " +
+                        "As a safety measure this is not allowed. You can either sell your coins or remove this coin from any trading pair for this exchange",
+                        exchange.getExchangeSpecification().getExchangeName(), s)
+                    );
+
+                    throw new RuntimeException("All coins in the trading pair must have an empty wallet");
+                }
+            }
             LOGGER.debug("{} SSL URI: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 exchange.getExchangeSpecification().getSslUri());
@@ -107,10 +134,13 @@ public class ExchangeService {
             LOGGER.debug("{} home currency: {}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 getExchangeHomeCurrency(exchange));
+
+            Currency homeCurrency = getExchangeHomeCurrency(exchange);
+
             LOGGER.info("{} balance: {}{}",
                 exchange.getExchangeSpecification().getExchangeName(),
-                getExchangeHomeCurrency(exchange).getSymbol(),
-                getAccountBalance(exchange));
+                homeCurrency.getSymbol(),
+                getAccountBalance(exchange, homeCurrency, getExchangeCurrencyScale(exchange, homeCurrency)));
         } catch (IOException e) {
             LOGGER.error("Unable to fetch account balance: ", e);
         }
@@ -160,31 +190,6 @@ public class ExchangeService {
     }
 
     /**
-     * Get the account balance in the default currency from an exchange.
-     *
-     * @param exchange The Exchange to query.
-     * @return The balance for the default currency in the given exchange.
-     * @throws IOException when we can't talk to the exchange.
-     */
-    public BigDecimal getAccountBalance(Exchange exchange) throws IOException {
-        Currency currency = getExchangeHomeCurrency(exchange);
-
-        return getAccountBalance(exchange, currency);
-    }
-
-    /**
-     * Get the account balance in a specific currency from an exchange.
-     *
-     * @param exchange The Exchange to query.
-     * @param currency The Currency to query.
-     * @return The balance for the given currency on the given exchange.
-     * @throws IOException when we can't talk to the exchange.
-     */
-    public BigDecimal getAccountBalance(Exchange exchange, Currency currency) throws IOException {
-        return getAccountBalance(exchange, currency, USD_SCALE);
-    }
-
-    /**
      * Get the account balance in a specific currency from an exchange with a specific scale.
      *
      * @param exchange The Exchange to query.
@@ -211,6 +216,74 @@ public class ExchangeService {
             currency.getCurrencyCode());
 
         return BigDecimal.ZERO;
+    }
+
+    /**
+     * By using the configured trading pairs for the given exchange, get the list of crypto currencies where the wallet
+     * has more than the minimum trade size in currency. The {@link Exchange} home currency is ignored. This check is used
+     * to determine if the accounts are in a valid state for the bot to start up: all balances need to be in the fiat
+     * currency so that we avoid disrupting any existing positions or inadvertently selling off any of the user's
+     * crypto balances that the bot didn't buy.
+     *
+     * @param exchange The exchange to return current balances for.
+     * @return A {@link Set} containing the currency code
+     * @throws IOException If we can't request account info from the exchange.
+     */
+    public Set<String> getCryptoCoinsFromTradingPairs(Exchange exchange) throws IOException {
+        final ExchangeConfiguration exchangeConfiguration = getExchangeMetadata(exchange);
+        final List<CurrencyPair> tradingPairs = exchangeConfiguration.getTradingPairs();
+        final Currency homeCurrency = getExchangeHomeCurrency(exchange);
+
+        // Get all account currencies where the wallet balance is not empty
+        final Set<String> accountCurrencies = exchange.getAccountService()
+            .getAccountInfo()
+            .getWallets()
+            .values()
+            .stream()
+            .flatMap(wallet -> wallet.getBalances().entrySet().stream())
+            .filter(currencyBalanceEntry -> currencyBalanceEntry.getKey() != homeCurrency)
+            .filter(currencyBalanceEntry -> {
+                CurrencyPair pair = new CurrencyPair(currencyBalanceEntry.getValue().getCurrency(), homeCurrency);
+                Optional<CurrencyPairMetaData> metaDataOptional = Optional.ofNullable(exchange
+                    .getExchangeMetaData()
+                    .getCurrencyPairs()
+                    .get(pair));
+
+                BigDecimal minimumAmount;
+                Optional<BigDecimal> overrideAmount = exchangeConfiguration.getMinBalanceOverride(pair);
+
+                if (overrideAmount.isPresent()) {
+                    minimumAmount = overrideAmount.get();
+
+                    LOGGER.info("{} using user configured minimum balance override: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                } else if (metaDataOptional.isPresent()) {
+                    minimumAmount = metaDataOptional.get().getMinimumAmount();
+
+                    LOGGER.debug("{} using exchange metadata for minimum balance: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                } else {
+                    minimumAmount = BigDecimal.ZERO;
+
+                    LOGGER.debug("{} using default value of zero for minimum balance: {} = {}",
+                        exchange.getExchangeSpecification().getExchangeName(),
+                        pair,
+                        minimumAmount);
+                }
+
+                return currencyBalanceEntry.getValue().getAvailable().compareTo(minimumAmount) > 0;
+            })
+            .map(currencyBalanceEntry -> currencyBalanceEntry.getKey().getCurrencyCode())
+            .collect(Collectors.toSet());
+
+        return tradingPairs.stream()
+            .filter(currencyPair -> accountCurrencies.contains(currencyPair.base.getCurrencyCode()))
+            .map(currencyPair -> currencyPair.base.getCurrencyCode())
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -298,4 +371,5 @@ public class ExchangeService {
         feeCache.setCachedFee(exchange, currencyPair, currencyPairMetaData.getTradingFee());
         return currencyPairMetaData.getTradingFee();
     }
+
 }

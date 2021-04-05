@@ -108,7 +108,7 @@ public class TradingServiceTest extends BaseTestCase {
 
         doReturn(defaultValue)
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
         when(longExchange.getTradeService().getOrder(eq("nullOrder"))).thenReturn(null);
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -135,7 +135,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeForOrderNotAvailable() throws IOException {
         doReturn(new BigDecimal("90.0"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -153,7 +153,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeForOrderIOException() throws IOException {
         doReturn(new BigDecimal("90.0"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
@@ -171,7 +171,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeFallbackToDefaultZeroBalance() throws IOException {
         doReturn(BigDecimal.ZERO)
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
 
         BigDecimal volume = tradingService.getVolumeForOrder(
             longExchange,
@@ -186,7 +186,7 @@ public class TradingServiceTest extends BaseTestCase {
     public void testGetVolumeFallbackToDefaultIOException() throws IOException {
         doThrow(new IOException("Boom!"))
             .when(exchangeService)
-            .getAccountBalance(any(Exchange.class), any(Currency.class));
+            .getAccountBalance(any(Exchange.class), any(Currency.class), any(Integer.class));
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
 
@@ -278,7 +278,11 @@ public class TradingServiceTest extends BaseTestCase {
         final BigDecimal expectedExposure = minAccountBalance.multiply(tradePortion)
             .setScale(USD_SCALE, RoundingMode.HALF_EVEN);
 
-        when(exchangeService.getAccountBalance(any(Exchange.class)))
+        when(exchangeService.getExchangeHomeCurrency(any(Exchange.class)))
+            .thenReturn(Currency.USD);
+        when(exchangeService.getExchangeCurrencyScale(any(Exchange.class), any(Currency.class)))
+            .thenReturn(2);
+        when(exchangeService.getAccountBalance(any(Exchange.class), any(Currency.class), anyInt()))
             .thenReturn(minAccountBalance);
 
         BigDecimal actual = tradingService.getMaximumExposure(longExchange, shortExchange);
@@ -301,116 +305,6 @@ public class TradingServiceTest extends BaseTestCase {
 
         // the IOE should not propagate and blow everything up
         assertEquals(new BigDecimal("0.00").setScale(USD_SCALE, RoundingMode.HALF_EVEN), exposure);
-    }
-
-    @Test
-    public void testRoundByFives64() {
-        BigDecimal input = new BigDecimal("64.00");
-        BigDecimal step = new BigDecimal("5.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("65.00"), result);
-    }
-
-    @Test
-    public void testRoundByFives65() {
-        BigDecimal input = new BigDecimal("65.00");
-        BigDecimal step = new BigDecimal("5.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("65.00"), result);
-    }
-
-    @Test
-    public void testRoundByFives66() {
-        BigDecimal input = new BigDecimal("66.00");
-        BigDecimal step = new BigDecimal("5.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("65.00"), result);
-    }
-
-    @Test
-    public void testRoundByTens64() {
-        BigDecimal input = new BigDecimal("64.00");
-        BigDecimal step = new BigDecimal("10.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("60.00"), result);
-    }
-
-    /*
-     * Using HALF_EVEN mode, we round to the nearest neighbor
-     * but if there is a tie we prefer the neighbor that is even,
-     * so this goes down to 60 instead of up to 70.
-     */
-    @Test
-    public void testRoundByTens65() {
-        BigDecimal input = new BigDecimal("65.00");
-        BigDecimal step = new BigDecimal("10.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("60.00"), result);
-    }
-
-    @Test
-    public void testRoundByTens66() {
-        BigDecimal input = new BigDecimal("66.00");
-        BigDecimal step = new BigDecimal("10.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("70.00"), result);
-    }
-
-    /*
-     * Using HALF_EVEN mode, we round to the nearest neighbor
-     * but if there is a tie we prefer the neighbor that is even,
-     * so this goes up to 80 instead of down to 70.
-     */
-    @Test
-    public void testRoundByTens75() {
-        BigDecimal input = new BigDecimal("75.00");
-        BigDecimal step = new BigDecimal("10.00");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("80.00"), result);
-    }
-
-    @Test
-    public void testRoundByDecimals34() {
-        BigDecimal input = new BigDecimal("0.034379584992664");
-        BigDecimal step = new BigDecimal("0.01");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("0.03"), result);
-    }
-
-    @Test
-    public void testRoundByDecimals35() {
-        BigDecimal input = new BigDecimal("0.035379584992664");
-        BigDecimal step = new BigDecimal("0.01");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("0.04"), result);
-    }
-
-    @Test
-    public void testRoundByDecimals36() {
-        BigDecimal input = new BigDecimal("0.036379584992664");
-        BigDecimal step = new BigDecimal("0.01");
-
-        BigDecimal result = TradingService.roundByStep(input, step);
-
-        assertEquals(new BigDecimal("0.04"), result);
     }
 
     @Test

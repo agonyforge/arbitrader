@@ -2,6 +2,8 @@ package com.r307.arbitrader.config;
 
 import com.r307.arbitrader.service.NotificationService;
 import com.r307.arbitrader.service.NotificationServiceImpl;
+import com.r307.arbitrader.service.model.EntryTradeVolume;
+import com.r307.arbitrader.service.model.ExitTradeVolume;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.telegram.TelegramClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -35,11 +37,11 @@ public class MailConfiguration {
             }
 
             @Override
-            public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice, boolean isForceEntryPosition) {
+            public void sendEntryTradeNotification(Spread spread, BigDecimal exitTarget, EntryTradeVolume tradeVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice, boolean isForceEntryPosition) {
             }
 
             @Override
-            public void sendExitTradeNotification(Spread spread, BigDecimal longVolume, BigDecimal longLimitPrice, BigDecimal shortVolume, BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget, boolean isForceCloseCondition, boolean isActivePositionExpired) {
+            public void sendExitTradeNotification(Spread spread, ExitTradeVolume tradeVolume, BigDecimal longLimitPrice, BigDecimal shortLimitPrice, BigDecimal entryBalance, BigDecimal updatedBalance, BigDecimal exitTarget, boolean isForceCloseCondition, boolean isActivePositionExpired) {
             }
         };
     }

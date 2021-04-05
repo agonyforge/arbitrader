@@ -3,6 +3,7 @@ package com.r307.arbitrader.service;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
+import org.jetbrains.annotations.TestOnly;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -42,22 +43,36 @@ public class SpreadService {
      * Update the high and low water marks given a new Spread. Keeping track of the highest and lowest values over time
      * can be useful for figuring out how to configure your entrySpread and exitTarget.
      *
+     * We show a green check or a red bar icon in the log to indicate whether the pair has reached a "profitable range".
+     * The check means that the maximum spreadIn is higher than the minimum spreadOut. In other words if you had entered
+     * the market at the maximum spreadIn and exited at the minimum spreadOut, you would have made money. If this
+     * condition is not true it is not worthwhile to enter a trade in that market yet based on the prices we have seen
+     * so far.
+     *
      * @param spread A new Spread.
      */
     void publish(Spread spread) {
         String spreadKey = spreadKey(spread.getLongExchange(), spread.getShortExchange(), spread.getCurrencyPair());
+        BigDecimal maxIn = maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        BigDecimal minIn = minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        BigDecimal maxOut = maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        BigDecimal minOut = minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
 
         if (LOGGER.isInfoEnabled() && tradingConfiguration.isSpreadNotifications()) {
-            if (spread.getIn().compareTo(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))) > 0) {
-                LOGGER.info("Record high spreadIn: {}/{} {} {}",
+            boolean crossed = maxIn.compareTo(minOut) > 0;
+
+            if (spread.getIn().compareTo(maxIn) > 0) {
+                LOGGER.info("{} Record high spreadIn: {}/{} {} {}",
+                    crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
                     spread.getIn());
             }
 
-            if (spread.getOut().compareTo(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))) < 0) {
-                LOGGER.info("Record low spreadOut: {}/{} {} {}",
+            if (spread.getOut().compareTo(minOut) < 0) {
+                LOGGER.info("{} Record low spreadOut: {}/{} {} {}",
+                    crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                     spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                     spread.getCurrencyPair(),
@@ -65,10 +80,27 @@ public class SpreadService {
             }
         }
 
-        minSpreadIn.put(spreadKey, spread.getIn().min(minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-        maxSpreadIn.put(spreadKey, spread.getIn().max(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-        minSpreadOut.put(spreadKey, spread.getOut().min(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-        maxSpreadOut.put(spreadKey, spread.getOut().max(maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
+        maxSpreadIn.put(spreadKey, spread.getIn().max(maxIn));
+        minSpreadIn.put(spreadKey, spread.getIn().min(minIn));
+        maxSpreadOut.put(spreadKey, spread.getOut().max(maxOut));
+        minSpreadOut.put(spreadKey, spread.getOut().min(minOut));
+    }
+
+    @TestOnly
+    BigDecimal getSpreadRecord(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair, String board) {
+        String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
+
+        if ("maxSpreadIn".equals(board)) {
+            return maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        } else if ("minSpreadIn".equals(board)) {
+            return minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        } else if ("maxSpreadOut".equals(board)) {
+            return maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        } else if ("minSpreadOut".equals(board)) {
+            return minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        } else {
+            throw new IllegalArgumentException("Unknown board: " + board);
+        }
     }
 
     /**
