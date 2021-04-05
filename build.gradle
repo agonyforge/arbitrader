@@ -6,10 +6,10 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '2.4.2'
+    id 'org.springframework.boot' version '2.4.4'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
-    id 'info.solidsoft.pitest' version '1.5.2'
-    id 'org.owasp.dependencycheck' version '6.1.1'
+    id 'info.solidsoft.pitest' version '1.6.0'
+    id 'org.owasp.dependencycheck' version '6.1.5'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
@@ -46,16 +46,16 @@ dependencies {
     compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
     compile group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
 
-    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.4'
-    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.4'
+    compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.6'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '1.1.6'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
