@@ -61,12 +61,20 @@ notifications:
     token: x
 
 trading:
-  # The percentage difference between the "long" and "short" exchanges before we will open our positions.
-  entrySpread: 0.0080
+  # The percentage difference between the "long" and "short" exchange prices - fees included - before we will open our positions.
+  # The real percentage difference will be bigger than this value to compensate for the trading fees.
+  # Increasing this value will make trades harder to enter
+  entrySpreadTarget: 0.0010
 
-  # The percentage difference *in profit only* before we will close our positions.
-  # Fees will be added to this amount.
-  exitTarget: 0.0050
+  # The minimum profit in percentage before we will close our positions.
+  # Increasing this value will make trades harder to exit
+  minimumProfit: 0.0001
+
+  # *** IF exitSpreadTarget IS SET minimumProfit WILL BE IGNORED ***
+  # The percentage difference between the "long" and "short" exchange prices - fees included - before we will close our positions.
+  # The real percentage difference will be lower than this value to compensate for the trading fees.
+  # If we want to wait until the long exchange price is bigger than the short exchange price before exiting the trade, we need to set a negative value.
+  # exitSpreadTarget: 0.00001
 
   # (Default: false)
   # Log notifications when a spreadIn reaches an all time high, or a spreadOut reaches an all time low.
@@ -233,6 +241,17 @@ trading:
       port: 443
       tradingPairs:
         - BTC/USD
+
+      # Arbitrader won't start if your account has a crypto balance greater than the minimum trade size for the
+      # exchange. Unfortunately the metadata XChange has about the minimum trade sizes on exchanges is not always
+      # correct, and sometimes it's missing entirely. This is an option to provide your own value as a map of
+      # currency pairs to allowed account balances. If your account balance in the specified currency pair is less
+      # than the value provided here, the bot will start up and could potentially sell some of this balance.
+      #
+      # This configuration is your way out if you're stuck with 0.00000001 BTC that you can't seem to get rid of
+      # but the bot refuses to start up because the balance isn't _exactly_ zero.
+      minBalanceOverride:
+        BTC/USD: 0.001
 
       # BitFlyer doesn't support margin trading (for US based customers, anyway).
       margin: false

@@ -172,6 +172,55 @@ public class SpreadService {
         return (scaledShortPrice.subtract(scaledLongPrice)).divide(scaledLongPrice, RoundingMode.HALF_EVEN);
     }
 
+    /**
+     * Get the real entry spread target from the effective entry spread target (the real entry spread target is larger
+     * as it needs to compensate for the entry fees)
+     * @param tradingConfiguration the trading configuration
+     * @param longFee the long exchange fees in percentage
+     * @param shortFee the short exchange fees in percentage
+     * @return the real entry spread target
+     */
+    public BigDecimal getEntrySpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal longFee, BigDecimal shortFee) {
+        return (BigDecimal.ONE.add(tradingConfiguration.getEntrySpreadTarget())).multiply(BigDecimal.ONE.add(longFee)).divide(BigDecimal.ONE.subtract(shortFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+    }
+
+    /**
+     * Get the real exit spread target from the trading configuration. The real exit spread target can be computed from
+     * the configured exitSpreadTarget or from the configured minimum profit. Both configuration should not be present
+     * at the same time.
+     * @param tradingConfiguration the trading configuration
+     * @param entrySpread the real entry spread
+     * @param longFee the long exchange fees in percentage
+     * @param shortFee the short exchange fees in percentage
+     * @return the real exit spread target
+     */
+    public BigDecimal getExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, BigDecimal longFee, BigDecimal shortFee) {
+        return computeExitSpreadTarget(computeEffectiveExitSpreadTarget(tradingConfiguration, entrySpread, longFee, shortFee), longFee, shortFee);
+    }
+
+    /*
+    * Calculate the real exit spread target from an effective exit spread target (the real exit spread target is lower
+    * as is needs to compensate for the exit fees)
+    */
+    private BigDecimal computeExitSpreadTarget(BigDecimal effectiveExitSpreadTarget, BigDecimal longFee, BigDecimal shortFee) {
+        return (BigDecimal.ONE.add(effectiveExitSpreadTarget)).multiply(BigDecimal.ONE.subtract(longFee)).divide(BigDecimal.ONE.add(shortFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+    }
+
+    /*
+    * Calculate the effective exit spread target either from the configured value or from the minimum profit percentage
+     */
+    private BigDecimal computeEffectiveExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, BigDecimal longFee, BigDecimal shortFee) {
+        if(tradingConfiguration.getExitSpreadTarget() != null) {
+            return tradingConfiguration.getExitSpreadTarget();
+        } else {
+            BigDecimal profit = tradingConfiguration.getMinimumProfit() != null ? tradingConfiguration.getMinimumProfit() : BigDecimal.ZERO;
+            BigDecimal effectiveEntrySpread = (BigDecimal.ONE.add(entrySpread)).multiply(BigDecimal.ONE.subtract(shortFee)).divide(BigDecimal.ONE.add(longFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+            return effectiveEntrySpread.subtract(profit);
+        }
+    }
+
+
+
     // build a summary of the contents of a spread map (high/low water marks)
     private String buildSummary(Map<String, BigDecimal> spreadMap) {
         return spreadMap.entrySet()

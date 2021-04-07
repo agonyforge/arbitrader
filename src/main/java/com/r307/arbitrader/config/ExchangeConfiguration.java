@@ -4,10 +4,7 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 
@@ -26,6 +23,7 @@ public class ExchangeConfiguration {
     private Integer port;
     private Map<String, String> custom = new HashMap<>();
     private List<CurrencyPair> tradingPairs = new ArrayList<>();
+    private Map<String, BigDecimal> minBalanceOverride = new HashMap<>();
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
     private BigDecimal tradeFee;
@@ -108,6 +106,14 @@ public class ExchangeConfiguration {
 
     public void setTradingPairs(List<CurrencyPair> tradingPairs) {
         this.tradingPairs = tradingPairs;
+    }
+
+    public Optional<BigDecimal> getMinBalanceOverride(CurrencyPair currencyPair) {
+        return Optional.ofNullable(minBalanceOverride.get(currencyPair.base.toString() + currencyPair.counter.toString()));
+    }
+
+    public void setMinBalanceOverride(Map<String, BigDecimal> minBalanceOverride) {
+        this.minBalanceOverride = minBalanceOverride;
     }
 
     public Boolean getMargin() {
