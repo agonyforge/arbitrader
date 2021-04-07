@@ -47,7 +47,7 @@ dependencies {
     compile group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
 
     compile group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.6'
-    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.6'
+    compile group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.7'
     compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.6'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.6'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.6'
