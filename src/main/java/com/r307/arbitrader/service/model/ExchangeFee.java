@@ -41,6 +41,20 @@ public class ExchangeFee {
         return tradeFee;
     }
 
+    /**
+     * The combined fee rate for this exchange. For non-margin exchanges this will simply return the trade fee. For
+     * margin exchanges it will return the trade fee plus the margin fee.
+     *
+     * @return the combined fees
+     */
+    public BigDecimal getTotalFee() {
+        if (marginFee != null) {
+            return tradeFee.add(marginFee);
+        }
+
+        return tradeFee;
+    }
+
     @Override
     public String toString() {
         return "ExchangeFee{" +
