@@ -30,7 +30,6 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -106,8 +105,8 @@ public class TradingService {
             LOGGER.warn("Cannot alter position on one or more exchanges due to user configured blackout");
             return;
         }
-        final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+        final ExchangeFee longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
+        final ExchangeFee shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final BigDecimal entrySpreadTarget = spreadService.getEntrySpreadTarget(tradingConfiguration, longFeePercent, shortFeePercent);
         // This is more verbose than it has to be. I'm trying to keep it easy to read as we continue
         // adding more different conditions that can affect whether we trade or not.
@@ -153,11 +152,11 @@ public class TradingService {
     private void enterPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
-        final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
-        final BigDecimal exitSpreadTarget = spreadService.getExitSpreadTarget(tradingConfiguration, spread.getIn(), longFeePercent, shortFeePercent);
+        final ExchangeFee longFee = exchangeService.getExchangeFee(spread.getLongExchange(), currencyPairLongExchange, true);
+        final ExchangeFee shortFee = exchangeService.getExchangeFee(spread.getShortExchange(), currencyPairShortExchange, true);
+        final BigDecimal exitSpreadTarget = spreadService.getExitSpreadTarget(tradingConfiguration, spread.getIn(), longFee, shortFee);
         final BigDecimal maxExposure = getMaximumExposure(spread.getLongExchange(), spread.getShortExchange());
         final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
         final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
@@ -186,13 +185,23 @@ public class TradingService {
         LOGGER.debug("Short scale: {}", shortScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
-        LOGGER.debug("Long fee percent: {}", longFeePercent);
-        LOGGER.debug("Short fee percent: {}", shortFeePercent);
+        LOGGER.debug("Long trade fee percent: {}", longFee.getTotalFee());
+        LOGGER.debug("Short trade and margin fee percent: {} + {} = {}", shortFee.getTradeFee(), shortFee.getMarginFee(), shortFee.getTotalFee());
 
         // figure out how much we want to trade
         EntryTradeVolume tradeVolume;
         try {
-            tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation,shortFeeComputation,maxExposure,maxExposure,spread.getLongTicker().getAsk(),spread.getShortTicker().getBid(),longFeePercent,shortFeePercent, exitSpreadTarget, longScale, shortScale);
+            tradeVolume = TradeVolume.getEntryTradeVolume(
+                longFeeComputation,
+                shortFeeComputation,
+                maxExposure,maxExposure,
+                spread.getLongTicker().getAsk(),
+                spread.getShortTicker().getBid(),
+                longFee,
+                shortFee,
+                exitSpreadTarget,
+                longScale,
+                shortScale);
         } catch (IllegalArgumentException e) {
             LOGGER.error("Cannot instantiate order volumes, exiting trade.");
             return;
@@ -226,7 +235,7 @@ public class TradingService {
         BigDecimal spreadVerification = spreadService.computeSpread(longLimitPrice, shortLimitPrice);
         final boolean isForcedOpenCondition = conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName);
 
-        final BigDecimal entrySpreadTarget = spreadService.getEntrySpreadTarget(tradingConfiguration, longFeePercent, shortFeePercent);
+        final BigDecimal entrySpreadTarget = spreadService.getEntrySpreadTarget(tradingConfiguration, longFee, shortFee);
         if (!isForcedOpenCondition && spreadVerification.compareTo(entrySpreadTarget) < 0) {
             LOGGER.debug("Spread verification {} is less than entry spread target {}, will not trade", spreadVerification, entrySpreadTarget); // this is debug because it can get spammy
             return;
@@ -235,7 +244,7 @@ public class TradingService {
         if(longLimitPrice.compareTo(spread.getLongTicker().getAsk()) != 0 || shortLimitPrice.compareTo(spread.getShortTicker().getBid()) != 0) {
             //Adjust the volume after slip so the trade stays market neutral
             try {
-                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, longFeePercent, shortFeePercent, exitSpreadTarget, longScale, shortScale);
+                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, longFee, shortFee, exitSpreadTarget, longScale, shortScale);
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Cannot instantiate order volumes, exiting trade.");
                 return;
@@ -337,13 +346,21 @@ public class TradingService {
     private void exitPosition(Spread spread) {
         final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
-        final BigDecimal longFeePercent = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true);
-        final BigDecimal shortFeePercent = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
-        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
-        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
         final CurrencyPair currencyPairLongExchange = exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair());
         final CurrencyPair currencyPairShortExchange = exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair());
+        final ExchangeFee longFee = exchangeService.getExchangeFee(spread.getLongExchange(), currencyPairLongExchange, true);
+        final ExchangeFee shortFee = exchangeService.getExchangeFee(spread.getShortExchange(), currencyPairShortExchange, true);
 
+//        final BigDecimal longTradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true)
+//            .getTradeFee();
+//        final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
+//        final BigDecimal shortMarginFee = shortExchangeFee.getMarginFee()
+//            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
+//        // When we short trade a coin, the fee is always: marginFee + tradeFee
+//        final BigDecimal shortTotalFee = shortMarginFee.add(longTradeFee);
+
+        final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
+        final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
 
         final BigDecimal longAmountStepSize = spread.getLongExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
@@ -373,7 +390,7 @@ public class TradingService {
                 activePosition.getShortTrade().getOrderId(),
                 activePosition.getShortTrade().getVolume());
 
-            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFeePercent, shortFeePercent, longScale, shortScale);
+            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFee, shortFee, longScale, shortScale);
         } catch (OrderNotFoundException e) {
             LOGGER.error(e.getMessage());
             return;
@@ -426,7 +443,7 @@ public class TradingService {
         //
         // Also, don't spam the logs with this warning. It's possible that this condition could last for awhile
         // and this code could be executed frequently.
-        final BigDecimal entrySpreadTarget = spreadService.getEntrySpreadTarget(tradingConfiguration, longFeePercent, shortFeePercent);
+        final BigDecimal entrySpreadTarget = spreadService.getEntrySpreadTarget(tradingConfiguration, longFee, shortFee);
         if (isActivePositionExpired() && spreadVerification.compareTo(entrySpreadTarget) < 0) {
             if (!timeoutExitWarning) {
                 LOGGER.warn("Timeout exit triggered");

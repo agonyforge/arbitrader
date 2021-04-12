@@ -1,5 +1,6 @@
 package com.r307.arbitrader.service.cache;
 
+import com.r307.arbitrader.service.model.ExchangeFee;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.springframework.stereotype.Component;
@@ -15,7 +16,7 @@ import java.util.Optional;
  */
 @Component
 public class ExchangeFeeCache {
-    private final Map<String, BigDecimal> cache = new HashMap<>();
+    private final Map<String, ExchangeFee> cache = new HashMap<>();
 
     /**
      * Return a fee from the cache.
@@ -24,7 +25,7 @@ public class ExchangeFeeCache {
      * @param currencyPair The CurrencyPair to fetch a fee from.
      * @return The fee as a decimal such as 0.0016, or 0.16%
      */
-    public Optional<BigDecimal> getCachedFee(Exchange exchange, CurrencyPair currencyPair) {
+    public Optional<ExchangeFee> getCachedFee(Exchange exchange, CurrencyPair currencyPair) {
         return Optional.ofNullable(cache.get(computeCacheKey(exchange, currencyPair)));
     }
 
@@ -35,7 +36,7 @@ public class ExchangeFeeCache {
      * @param currencyPair The CurrencyPair this fee is for.
      * @param fee The fee as a decimal, such as 0.0016 for 0.16%
      */
-    public void setCachedFee(Exchange exchange, CurrencyPair currencyPair, BigDecimal fee) {
+    public void setCachedFee(Exchange exchange, CurrencyPair currencyPair, ExchangeFee fee) {
         cache.put(computeCacheKey(exchange, currencyPair), fee);
     }
 
