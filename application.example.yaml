@@ -186,9 +186,11 @@ trading:
         - REP/USD
         - ZEC/USD
 
-      # The amount of fees Kraken charges. If an exchange's API supports requesting fees at runtime, the bot
+      # The amount of fees Kraken charges for each trade. If an exchange's API supports requesting fees at runtime, the bot
       # will use that value instead. If not, it will fall back to the configured value.
-      fee: 0.0026
+      tradeFee: 0.0026
+      # The amount of additional fees Kraken charges for margin trades. This fee is only needed if this exchange has margin set to true
+      marginFee: 0.0002
 
       # Enable (value set to true) or disable (value set to false) this exchange. If 'active' configuration is not set
       # then, by default, the exchange is set as active
@@ -223,7 +225,11 @@ trading:
         - NEO/USD
         - ONT/USD
         - DASH/USD
-      fee: 0.0010
+      tradeFee: 0.0010
+      # The amount of fees Kraken charges for Quoine (Liquid) trades.  This fee is only needed if this exchange has margin set to true.
+      # Liquid uses a lending market way to offer margin trade. At the time of writing this note, the average (top lower)
+      # fee percentage is around 0.002%. For more information go to https://app.liquid.com/lend/market
+      marginFee: 0.00002
 
     -
       exchangeClass: org.knowm.xchange.bitflyer.BitflyerExchange
@@ -249,7 +255,7 @@ trading:
 
       # BitFlyer doesn't support margin trading (for US based customers, anyway).
       margin: false
-      fee: 0.0012
+      tradeFee: 0.0012
 
     -
       exchangeClass: org.knowm.xchange.coinbasepro.CoinbaseProExchange
@@ -278,7 +284,7 @@ trading:
         - ETC/USD
         - ZRX/USD
       margin: false
-      fee: 0.0030
+      tradeFee: 0.0030
 
     -
       exchangeClass: org.knowm.xchange.poloniex.PoloniexExchange
@@ -298,7 +304,7 @@ trading:
         - DOGE/USD
         - BCH/USD
       margin: false
-      fee: 0.0025
+      tradeFee: 0.0025
 
       # Poloniex doesn't support any fiat currencies, so we need to use a USD based stablecoin instead.
       #
@@ -318,7 +324,7 @@ trading:
         - LTC/USD
         - ZEC/USD
       margin: false
-      fee: 0.0100
+      tradeFee: 0.0100
       tickerArguments: # this is a workaround for a bug in XChange
         - 1
 
@@ -331,7 +337,7 @@ trading:
         - BTC/USD
         - ETH/USD
       margin: false
-      feeOverride: 0.0016 # Cex.IO returns 0.16 as the fee but this will force it to 0.0016 which is the correct value
+      tradeFeeOverride: 0.0016 # Cex.IO returns 0.16 as the fee but this will force it to 0.0016 which is the correct value
 
     -
       exchangeClass: org.knowm.xchange.bitstamp.BitstampExchange
@@ -348,7 +354,7 @@ trading:
         - ETH/USD
         - BCH/USD
       margin: false
-      fee: 0.0025
+      tradeFee: 0.0025
       homeCurrency: USD
 
     -
@@ -360,5 +366,5 @@ trading:
         - LTC/USD
         - XRP/USD
       margin: false
-      fee: 0.0000
+      tradeFee: 0.0000
       homeCurrency: USDT

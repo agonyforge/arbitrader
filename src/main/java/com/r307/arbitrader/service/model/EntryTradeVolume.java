@@ -8,37 +8,37 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-
-public class EntryTradeVolume extends TradeVolume{
-
+public class EntryTradeVolume extends TradeVolume {
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
-    private int intermediateScale;
+    private final int intermediateScale;
 
     //The exit target spread
     BigDecimal exitSpread;
 
-     EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure, BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, BigDecimal longFee, BigDecimal shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
+     EntryTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal longMaxExposure,
+                      BigDecimal shortMaxExposure, BigDecimal longPrice, BigDecimal shortPrice, ExchangeFee longFee,
+                      ExchangeFee shortFee, BigDecimal exitSpread, int longScale, int shortScale) {
+
         this.longFeeComputation=longFeeComputation;
         this.shortFeeComputation=shortFeeComputation;
         if(longFeeComputation == FeeComputation.SERVER) {
-            this.longFee=longFee;
+            this.longFee=longFee.getTotalFee();
         } else {
             this.longFee= getFeeAdjustedForBuy(FeeComputation.CLIENT, longFee, longScale);
-            this.longBaseFee = longFee;
+            this.longBaseFee = longFee.getTotalFee();
         }
         if(shortFeeComputation == FeeComputation.SERVER) {
-         this.shortFee=shortFee;
+         this.shortFee=shortFee.getTotalFee();
         } else {
             this.shortFee = getFeeAdjustedForSell(FeeComputation.CLIENT, shortFee, shortScale);
-            this.shortBaseFee = shortFee;
+            this.shortBaseFee = shortFee.getTotalFee();
         }
         this.longScale=longScale;
         this.shortScale=shortScale;
         this.intermediateScale = getIntermediateScale(Math.max(longScale,shortScale));
         this.exitSpread = exitSpread;
-        if(getShortToLongVolumeTargetRatio(longFee,shortFee,exitSpread,intermediateScale).compareTo(BigDecimal.ONE)>0) {
+        if(getShortToLongVolumeTargetRatio(longFee.getTotalFee(),shortFee.getTotalFee(),exitSpread,intermediateScale).compareTo(BigDecimal.ONE)>0) {
             this.longVolume = getLongVolumeFromExposures(longMaxExposure, shortMaxExposure, longPrice, shortPrice, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
             this.shortVolume = getShortVolumeFromLong(longVolume, this.longFee, this.shortFee, this.exitSpread, this.intermediateScale);
         } else {

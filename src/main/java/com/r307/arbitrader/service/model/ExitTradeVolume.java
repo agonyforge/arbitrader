@@ -11,23 +11,23 @@ public class ExitTradeVolume extends TradeVolume {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TradeVolume.class);
 
-    ExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, BigDecimal longFee, BigDecimal shortFee, int longScale, int shortScale) {
+    ExitTradeVolume(FeeComputation longFeeComputation, FeeComputation shortFeeComputation, BigDecimal entryLongOrderVolume, BigDecimal entryShortOrderVolume, ExchangeFee longFee, ExchangeFee shortFee, int longScale, int shortScale) {
         this.longFeeComputation=longFeeComputation;
         this.shortFeeComputation=shortFeeComputation;
 
         if(longFeeComputation == FeeComputation.SERVER) {
-            this.longFee=longFee;
+            this.longFee=longFee.getTotalFee();
             this.longBaseFee=BigDecimal.ZERO;
         } else {
             this.longFee= getFeeAdjustedForBuy(FeeComputation.CLIENT, longFee, longScale);
-            this.longBaseFee = longFee;
+            this.longBaseFee = longFee.getTotalFee();
         }
         if(shortFeeComputation == FeeComputation.SERVER) {
-            this.shortFee=shortFee;
+            this.shortFee=shortFee.getTotalFee();
             this.shortBaseFee=BigDecimal.ZERO;
         } else {
             this.shortFee = getFeeAdjustedForSell(FeeComputation.CLIENT, shortFee, longScale);
-            this.shortBaseFee = shortFee;
+            this.shortBaseFee = shortFee.getTotalFee();
         }
         this.longScale=longScale;
         this.shortScale=shortScale;

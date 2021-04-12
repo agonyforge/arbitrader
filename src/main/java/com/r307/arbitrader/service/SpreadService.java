@@ -1,6 +1,7 @@
 package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
 import org.jetbrains.annotations.TestOnly;
@@ -180,8 +181,12 @@ public class SpreadService {
      * @param shortFee the short exchange fees in percentage
      * @return the real entry spread target
      */
-    public BigDecimal getEntrySpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal longFee, BigDecimal shortFee) {
-        return (BigDecimal.ONE.add(tradingConfiguration.getEntrySpreadTarget())).multiply(BigDecimal.ONE.add(longFee)).divide(BigDecimal.ONE.subtract(shortFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+    public BigDecimal getEntrySpreadTarget(TradingConfiguration tradingConfiguration, ExchangeFee longFee, ExchangeFee shortFee) {
+        return (BigDecimal.ONE
+            .add(tradingConfiguration.getEntrySpreadTarget()))
+            .multiply(BigDecimal.ONE.add(longFee.getTotalFee()))
+            .divide(BigDecimal.ONE.subtract(shortFee.getTotalFee()), BTC_SCALE, RoundingMode.HALF_EVEN)
+            .subtract(BigDecimal.ONE);
     }
 
     /**
@@ -194,8 +199,8 @@ public class SpreadService {
      * @param shortFee the short exchange fees in percentage
      * @return the real exit spread target
      */
-    public BigDecimal getExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, BigDecimal longFee, BigDecimal shortFee) {
-        return computeExitSpreadTarget(computeEffectiveExitSpreadTarget(tradingConfiguration, entrySpread, longFee, shortFee), longFee, shortFee);
+    public BigDecimal getExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, ExchangeFee longFee, ExchangeFee shortFee) {
+        return computeExitSpreadTarget(computeEffectiveExitSpreadTarget(tradingConfiguration, entrySpread, longFee.getTotalFee(), shortFee.getTotalFee()), longFee.getTotalFee(), shortFee.getTotalFee());
     }
 
     /*
