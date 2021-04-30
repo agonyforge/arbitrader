@@ -18,6 +18,7 @@ import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.meta.ExchangeMetaData;
+import org.knowm.xchange.dto.meta.FeeTier;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
@@ -168,17 +169,8 @@ public class TradingService {
 
         // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
         // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
-        final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
-
-        final ExchangeMetaData longExchangeMetaData = spread.getLongExchange().getExchangeMetaData();
-        final CurrencyMetaData longExchangeCurrencyMetaData = longExchangeMetaData.getCurrencies()
-            .getOrDefault(currencyPairLongExchange.base, defaultMetaData);
-        final int longScale = longExchangeCurrencyMetaData.getScale();
-
-        final ExchangeMetaData shortExchangeMetaData = spread.getShortExchange().getExchangeMetaData();
-        final CurrencyMetaData shortExchangeCurrencyMetaData = shortExchangeMetaData.getCurrencies()
-            .getOrDefault(currencyPairShortExchange.base, defaultMetaData);
-        final int shortScale = shortExchangeCurrencyMetaData.getScale();
+        final int longScale = computePriceScale(spread.getLongExchange(), longFee, currencyPairLongExchange);
+        final int shortScale = computePriceScale(spread.getShortExchange(), shortFee, currencyPairShortExchange);
 
         LOGGER.debug("Max exposure: {}", maxExposure);
         LOGGER.debug("Long scale: {}", longScale);
@@ -311,6 +303,33 @@ public class TradingService {
         }
 
         conditionService.clearForceOpenCondition();
+    }
+
+    /**
+     * Fetch the correct price scale from an exchange's metadata, or return a default
+     * value if it cannot be found.
+     *
+     * @param exchange The exchange to fetch metadata from.
+     * @param exchangeFee The fees for the exchange.
+     * @param currencyPair The currency pair to look for.
+     * @return The number of decimals allowed for a price in this currency pair on this exchange.
+     */
+    Integer computePriceScale(Exchange exchange, ExchangeFee exchangeFee, CurrencyPair currencyPair) {
+        final CurrencyPairMetaData defaultPairMetaData = new CurrencyPairMetaData(
+            exchangeFee.getTotalFee(),
+            BigDecimal.ZERO,
+            BigDecimal.valueOf(Long.MAX_VALUE),
+            BTC_SCALE,
+            new FeeTier[0]
+        );
+
+        final ExchangeMetaData exchangeMetaData = exchange.getExchangeMetaData();
+        final CurrencyPairMetaData currencyMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
+            currencyPair,
+            defaultPairMetaData
+        );
+
+        return currencyMetaData.getPriceScale();
     }
 
     // ensure that we have enough money to trade

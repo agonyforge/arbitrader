@@ -8,6 +8,7 @@ import com.r307.arbitrader.config.NotificationConfiguration;
 import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.model.ArbitrageLog;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.telegram.TelegramClient;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import java.util.List;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.ExchangeBuilder.EXCHANGE_METADATA_PRICE_SCALE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;
@@ -259,6 +261,22 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
         tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
+    }
+
+    @Test
+    public void testComputePriceScale() {
+        ExchangeFee fee = new ExchangeFee(new BigDecimal("0.0026"), null);
+        Integer result = tradingService.computePriceScale(longExchange, fee, CurrencyPair.BTC_USD);
+
+        assertEquals(Integer.valueOf(EXCHANGE_METADATA_PRICE_SCALE), result);
+    }
+
+    @Test
+    public void testComputePriceScaleDefault() {
+        ExchangeFee fee = new ExchangeFee(new BigDecimal("0.0026"), null);
+        Integer result = tradingService.computePriceScale(longExchange, fee, CurrencyPair.LTC_USD);
+
+        assertEquals(Integer.valueOf(BTC_SCALE), result);
     }
 
     @Test
