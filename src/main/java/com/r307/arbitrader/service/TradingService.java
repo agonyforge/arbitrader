@@ -71,7 +71,7 @@ public class TradingService {
         ConditionService conditionService,
         ExchangeService exchangeService,
         SpreadService spreadService,
-        @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection") NotificationService notificationService) {
+        NotificationService notificationService) {
 
         this.objectMapper = objectMapper;
         this.tradingConfiguration = tradingConfiguration;
@@ -169,12 +169,12 @@ public class TradingService {
 
         // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
         // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
-        final int longScale = computePriceScale(spread.getLongExchange(), longFee, currencyPairLongExchange);
-        final int shortScale = computePriceScale(spread.getShortExchange(), shortFee, currencyPairShortExchange);
+        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange);
+        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange);
 
         LOGGER.debug("Max exposure: {}", maxExposure);
-        LOGGER.debug("Long scale: {}", longScale);
-        LOGGER.debug("Short scale: {}", shortScale);
+        LOGGER.debug("Long volume scale: {}", longVolumeScale);
+        LOGGER.debug("Short volume scale: {}", shortVolumeScale);
         LOGGER.debug("Long ticker ASK: {}", spread.getLongTicker().getAsk());
         LOGGER.debug("Short ticker BID: {}", spread.getShortTicker().getBid());
         LOGGER.debug("Long trade fee percent: {}", longFee.getTotalFee());
@@ -192,8 +192,8 @@ public class TradingService {
                 longFee,
                 shortFee,
                 exitSpreadTarget,
-                longScale,
-                shortScale);
+                longVolumeScale,
+                shortVolumeScale);
         } catch (IllegalArgumentException e) {
             LOGGER.error("Cannot instantiate order volumes, exiting trade.");
             return;
@@ -236,7 +236,7 @@ public class TradingService {
         if(longLimitPrice.compareTo(spread.getLongTicker().getAsk()) != 0 || shortLimitPrice.compareTo(spread.getShortTicker().getBid()) != 0) {
             //Adjust the volume after slip so the trade stays market neutral
             try {
-                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, longFee, shortFee, exitSpreadTarget, longScale, shortScale);
+                tradeVolume = TradeVolume.getEntryTradeVolume(longFeeComputation, shortFeeComputation, maxExposure, maxExposure, longLimitPrice, shortLimitPrice, longFee, shortFee, exitSpreadTarget, longVolumeScale, shortVolumeScale);
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Cannot instantiate order volumes, exiting trade.");
                 return;
@@ -306,30 +306,58 @@ public class TradingService {
     }
 
     /**
-     * Fetch the correct price scale from an exchange's metadata, or return a default
+     * Fetch the correct volume scale from an exchange's metadata, or return a default
      * value if it cannot be found.
      *
      * @param exchange The exchange to fetch metadata from.
-     * @param exchangeFee The fees for the exchange.
      * @param currencyPair The currency pair to look for.
-     * @return The number of decimals allowed for a price in this currency pair on this exchange.
+     * @return The number of decimals allowed for a volume in this currency pair on this exchange.
      */
-    Integer computePriceScale(Exchange exchange, ExchangeFee exchangeFee, CurrencyPair currencyPair) {
+    Integer computeVolumeScale(Exchange exchange, CurrencyPair currencyPair) {
         final CurrencyPairMetaData defaultPairMetaData = new CurrencyPairMetaData(
-            exchangeFee.getTotalFee(),
+            BigDecimal.ZERO,
             BigDecimal.ZERO,
             BigDecimal.valueOf(Long.MAX_VALUE),
             BTC_SCALE,
-            new FeeTier[0]
+            BTC_SCALE,
+            new FeeTier[0],
+            Currency.BTC
         );
 
         final ExchangeMetaData exchangeMetaData = exchange.getExchangeMetaData();
-        final CurrencyPairMetaData currencyMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
+        final CurrencyPairMetaData currencyPairMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
             currencyPair,
             defaultPairMetaData
         );
 
-        return currencyMetaData.getPriceScale();
+        return currencyPairMetaData.getVolumeScale();
+    }
+
+    /**
+     * Fetch the correct price scale from an exchange's metadata, or return a default
+     * value if it cannot be found.
+     *
+     * @param exchange The exchange to fetch metadata from.
+     * @param currencyPair The currency pair to look for.
+     * @return The number of decimals allowed for a price in this currency pair on this exchange.
+     */
+    Integer computePriceScale(Exchange exchange, CurrencyPair currencyPair) {
+        final CurrencyPairMetaData defaultPairMetaData = new CurrencyPairMetaData(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.valueOf(Long.MAX_VALUE),
+            BTC_SCALE,
+            BTC_SCALE,
+            new FeeTier[0],
+            Currency.BTC
+        );
+        final ExchangeMetaData exchangeMetaData = exchange.getExchangeMetaData();
+        final CurrencyPairMetaData currencyPairMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
+            currencyPair,
+            defaultPairMetaData
+        );
+
+        return currencyPairMetaData.getPriceScale();
     }
 
     // ensure that we have enough money to trade
@@ -370,14 +398,6 @@ public class TradingService {
         final ExchangeFee longFee = exchangeService.getExchangeFee(spread.getLongExchange(), currencyPairLongExchange, true);
         final ExchangeFee shortFee = exchangeService.getExchangeFee(spread.getShortExchange(), currencyPairShortExchange, true);
 
-//        final BigDecimal longTradeFee = exchangeService.getExchangeFee(spread.getLongExchange(), spread.getCurrencyPair(), true)
-//            .getTradeFee();
-//        final ExchangeFee shortExchangeFee = exchangeService.getExchangeFee(spread.getShortExchange(), spread.getCurrencyPair(), true);
-//        final BigDecimal shortMarginFee = shortExchangeFee.getMarginFee()
-//            .orElseThrow(() -> new RuntimeException("Missing required margin fee for exchange " + longExchangeName));
-//        // When we short trade a coin, the fee is always: marginFee + tradeFee
-//        final BigDecimal shortTotalFee = shortMarginFee.add(longTradeFee);
-
         final FeeComputation longFeeComputation = exchangeService.getExchangeMetadata(spread.getLongExchange()).getFeeComputation();
         final FeeComputation shortFeeComputation = exchangeService.getExchangeMetadata(spread.getShortExchange()).getFeeComputation();
 
@@ -386,14 +406,8 @@ public class TradingService {
         final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
-        // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
-        // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
-        final CurrencyMetaData defaultMetaData = new CurrencyMetaData(BTC_SCALE, BigDecimal.ZERO);
-
-        final int longScale = spread.getLongExchange().getExchangeMetaData().getCurrencies()
-            .getOrDefault(currencyPairLongExchange.base, defaultMetaData).getScale();
-        final int shortScale = spread.getShortExchange().getExchangeMetaData().getCurrencies()
-            .getOrDefault(currencyPairShortExchange.base, defaultMetaData).getScale();
+        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange);
+        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange);
 
         // figure out how much to trade
         ExitTradeVolume tradeVolume;
@@ -409,7 +423,7 @@ public class TradingService {
                 activePosition.getShortTrade().getOrderId(),
                 activePosition.getShortTrade().getVolume());
 
-            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFee, shortFee, longScale, shortScale);
+            tradeVolume = TradeVolume.getExitTradeVolume(longFeeComputation, shortFeeComputation, longEntryOrderVolume, shortEntryOrderVolume, longFee, shortFee, longVolumeScale, shortVolumeScale);
         } catch (OrderNotFoundException e) {
             LOGGER.error(e.getMessage());
             return;
@@ -900,7 +914,9 @@ public class TradingService {
                 volume = volume.add(order.getRemainingAmount());
 
                 if (volume.compareTo(allowedVolume) > 0) {
-                    return price;
+                    int scale = computePriceScale(exchange, currencyPair);
+
+                    return price.setScale(scale, RoundingMode.HALF_EVEN);
                 }
             }
         } catch (IOException e) {
