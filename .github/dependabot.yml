@@ -1,0 +1,58 @@
+version: 2
+updates:
+- package-ecosystem: gradle
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  assignees:
+  - scionaltera
+  ignore:
+  - dependency-name: org.knowm.xchange:xchange-bitstamp
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-binance
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-stream-kraken
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-poloniex
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-stream-coinbasepro
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-quoine
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-stream-gemini
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-bitflyer
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-cobinhood
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.knowm.xchange:xchange-cexio
+    versions:
+    - 5.0.6
+    - 5.0.7
+  - dependency-name: org.owasp.dependencycheck
+    versions:
+    - 6.1.2
+    - 6.1.3
+    - 6.1.4
+  - dependency-name: org.springframework.boot
+    versions:
+    - 2.4.3

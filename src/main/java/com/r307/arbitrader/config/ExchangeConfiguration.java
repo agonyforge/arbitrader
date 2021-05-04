@@ -4,10 +4,7 @@ import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.r307.arbitrader.config.FeeComputation.SERVER;
 
@@ -26,10 +23,13 @@ public class ExchangeConfiguration {
     private Integer port;
     private Map<String, String> custom = new HashMap<>();
     private List<CurrencyPair> tradingPairs = new ArrayList<>();
+    private Map<String, BigDecimal> minBalanceOverride = new HashMap<>();
     private Boolean margin;
     private List<CurrencyPair> marginExclude = new ArrayList<>();
-    private BigDecimal fee;
-    private BigDecimal feeOverride;
+    private BigDecimal tradeFee;
+    private BigDecimal tradeFeeOverride;
+    private BigDecimal marginFee;
+    private BigDecimal marginFeeOverride;
     private Currency homeCurrency = Currency.USD;
     private Map<String, Integer> ticker = new HashMap<>();
     private List<Object> tickerArguments = new ArrayList<>();
@@ -108,6 +108,14 @@ public class ExchangeConfiguration {
         this.tradingPairs = tradingPairs;
     }
 
+    public Optional<BigDecimal> getMinBalanceOverride(CurrencyPair currencyPair) {
+        return Optional.ofNullable(minBalanceOverride.get(currencyPair.base.toString() + currencyPair.counter.toString()));
+    }
+
+    public void setMinBalanceOverride(Map<String, BigDecimal> minBalanceOverride) {
+        this.minBalanceOverride = minBalanceOverride;
+    }
+
     public Boolean getMargin() {
         return margin;
     }
@@ -124,20 +132,20 @@ public class ExchangeConfiguration {
         this.marginExclude = marginExclude;
     }
 
-    public BigDecimal getFee() {
-        return fee;
+    public BigDecimal getTradeFee() {
+        return tradeFee;
     }
 
-    public void setFee(BigDecimal fee) {
-        this.fee = fee;
+    public void setTradeFee(BigDecimal tradeFee) {
+        this.tradeFee = tradeFee;
     }
 
-    public BigDecimal getFeeOverride() {
-        return feeOverride;
+    public BigDecimal getTradeFeeOverride() {
+        return tradeFeeOverride;
     }
 
-    public void setFeeOverride(BigDecimal feeOverride) {
-        this.feeOverride = feeOverride;
+    public void setTradeFeeOverride(BigDecimal tradeFeeOverride) {
+        this.tradeFeeOverride = tradeFeeOverride;
     }
 
     public Currency getHomeCurrency() {
@@ -178,5 +186,21 @@ public class ExchangeConfiguration {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public BigDecimal getMarginFee() {
+        return marginFee;
+    }
+
+    public void setMarginFee(BigDecimal marginFee) {
+        this.marginFee = marginFee;
+    }
+
+    public BigDecimal getMarginFeeOverride() {
+        return marginFeeOverride;
+    }
+
+    public void setMarginFeeOverride(BigDecimal marginFeeOverride) {
+        this.marginFeeOverride = marginFeeOverride;
     }
 }

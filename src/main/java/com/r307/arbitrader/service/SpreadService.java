@@ -1,8 +1,10 @@
 package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.config.TradingConfiguration;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.model.Spread;
 import com.r307.arbitrader.service.model.TradeCombination;
+import org.jetbrains.annotations.TestOnly;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.marketdata.Ticker;
@@ -52,13 +54,15 @@ public class SpreadService {
      */
     void publish(Spread spread) {
         String spreadKey = spreadKey(spread.getLongExchange(), spread.getShortExchange(), spread.getCurrencyPair());
+        BigDecimal maxIn = maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        BigDecimal minIn = minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        BigDecimal maxOut = maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        BigDecimal minOut = minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
 
         if (LOGGER.isInfoEnabled() && tradingConfiguration.isSpreadNotifications()) {
-            BigDecimal maxIn = maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
-            BigDecimal maxOut = minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
-            boolean crossed = maxIn.compareTo(maxOut) > 0;
+            boolean crossed = maxIn.compareTo(minOut) > 0;
 
-            if (spread.getIn().compareTo(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))) > 0) {
+            if (spread.getIn().compareTo(maxIn) > 0) {
                 LOGGER.info("{} Record high spreadIn: {}/{} {} {}",
                     crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
@@ -67,7 +71,7 @@ public class SpreadService {
                     spread.getIn());
             }
 
-            if (spread.getOut().compareTo(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))) < 0) {
+            if (spread.getOut().compareTo(minOut) < 0) {
                 LOGGER.info("{} Record low spreadOut: {}/{} {} {}",
                     crossed ? "✅️" : "⛔",
                     spread.getLongExchange().getExchangeSpecification().getExchangeName(),
@@ -77,10 +81,27 @@ public class SpreadService {
             }
         }
 
-        minSpreadIn.put(spreadKey, spread.getIn().min(minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-        maxSpreadIn.put(spreadKey, spread.getIn().max(maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
-        minSpreadOut.put(spreadKey, spread.getOut().min(minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1))));
-        maxSpreadOut.put(spreadKey, spread.getOut().max(maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1))));
+        maxSpreadIn.put(spreadKey, spread.getIn().max(maxIn));
+        minSpreadIn.put(spreadKey, spread.getIn().min(minIn));
+        maxSpreadOut.put(spreadKey, spread.getOut().max(maxOut));
+        minSpreadOut.put(spreadKey, spread.getOut().min(minOut));
+    }
+
+    @TestOnly
+    BigDecimal getSpreadRecord(Exchange longExchange, Exchange shortExchange, CurrencyPair currencyPair, String board) {
+        String spreadKey = spreadKey(longExchange, shortExchange, currencyPair);
+
+        if ("maxSpreadIn".equals(board)) {
+            return maxSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        } else if ("minSpreadIn".equals(board)) {
+            return minSpreadIn.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        } else if ("maxSpreadOut".equals(board)) {
+            return maxSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(-1));
+        } else if ("minSpreadOut".equals(board)) {
+            return minSpreadOut.getOrDefault(spreadKey, BigDecimal.valueOf(1));
+        } else {
+            throw new IllegalArgumentException("Unknown board: " + board);
+        }
     }
 
     /**
@@ -151,6 +172,59 @@ public class SpreadService {
 
         return (scaledShortPrice.subtract(scaledLongPrice)).divide(scaledLongPrice, RoundingMode.HALF_EVEN);
     }
+
+    /**
+     * Get the real entry spread target from the effective entry spread target (the real entry spread target is larger
+     * as it needs to compensate for the entry fees)
+     * @param tradingConfiguration the trading configuration
+     * @param longFee the long exchange fees in percentage
+     * @param shortFee the short exchange fees in percentage
+     * @return the real entry spread target
+     */
+    public BigDecimal getEntrySpreadTarget(TradingConfiguration tradingConfiguration, ExchangeFee longFee, ExchangeFee shortFee) {
+        return (BigDecimal.ONE
+            .add(tradingConfiguration.getEntrySpreadTarget()))
+            .multiply(BigDecimal.ONE.add(longFee.getTotalFee()))
+            .divide(BigDecimal.ONE.subtract(shortFee.getTotalFee()), BTC_SCALE, RoundingMode.HALF_EVEN)
+            .subtract(BigDecimal.ONE);
+    }
+
+    /**
+     * Get the real exit spread target from the trading configuration. The real exit spread target can be computed from
+     * the configured exitSpreadTarget or from the configured minimum profit. Both configuration should not be present
+     * at the same time.
+     * @param tradingConfiguration the trading configuration
+     * @param entrySpread the real entry spread
+     * @param longFee the long exchange fees in percentage
+     * @param shortFee the short exchange fees in percentage
+     * @return the real exit spread target
+     */
+    public BigDecimal getExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, ExchangeFee longFee, ExchangeFee shortFee) {
+        return computeExitSpreadTarget(computeEffectiveExitSpreadTarget(tradingConfiguration, entrySpread, longFee.getTotalFee(), shortFee.getTotalFee()), longFee.getTotalFee(), shortFee.getTotalFee());
+    }
+
+    /*
+    * Calculate the real exit spread target from an effective exit spread target (the real exit spread target is lower
+    * as is needs to compensate for the exit fees)
+    */
+    private BigDecimal computeExitSpreadTarget(BigDecimal effectiveExitSpreadTarget, BigDecimal longFee, BigDecimal shortFee) {
+        return (BigDecimal.ONE.add(effectiveExitSpreadTarget)).multiply(BigDecimal.ONE.subtract(longFee)).divide(BigDecimal.ONE.add(shortFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+    }
+
+    /*
+    * Calculate the effective exit spread target either from the configured value or from the minimum profit percentage
+     */
+    private BigDecimal computeEffectiveExitSpreadTarget(TradingConfiguration tradingConfiguration, BigDecimal entrySpread, BigDecimal longFee, BigDecimal shortFee) {
+        if(tradingConfiguration.getExitSpreadTarget() != null) {
+            return tradingConfiguration.getExitSpreadTarget();
+        } else {
+            BigDecimal profit = tradingConfiguration.getMinimumProfit() != null ? tradingConfiguration.getMinimumProfit() : BigDecimal.ZERO;
+            BigDecimal effectiveEntrySpread = (BigDecimal.ONE.add(entrySpread)).multiply(BigDecimal.ONE.subtract(shortFee)).divide(BigDecimal.ONE.add(longFee), BTC_SCALE, RoundingMode.HALF_EVEN).subtract(BigDecimal.ONE);
+            return effectiveEntrySpread.subtract(profit);
+        }
+    }
+
+
 
     // build a summary of the contents of a spread map (high/low water marks)
     private String buildSummary(Map<String, BigDecimal> spreadMap) {

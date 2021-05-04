@@ -4,8 +4,10 @@ import com.r307.arbitrader.BaseTestCase;
 import com.r307.arbitrader.config.ExchangeConfiguration;
 import com.r307.arbitrader.config.FeeComputation;
 import com.r307.arbitrader.config.PaperConfiguration;
+import com.r307.arbitrader.exception.MarginNotSupportedException;
 import com.r307.arbitrader.service.ExchangeService;
 import com.r307.arbitrader.service.TickerService;
+import com.r307.arbitrader.service.model.ExchangeFee;
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.Exchange;
@@ -13,7 +15,6 @@ import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.Currency;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.dto.Order;
-import org.knowm.xchange.dto.meta.*;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.exceptions.FundsExceededException;
 
@@ -53,6 +54,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
         paperConfiguration.setActive(true);
         paperConfiguration.setInitialBalance(new BigDecimal("100"));
         exchangeConfiguration = new ExchangeConfiguration();
+        final ExchangeFee exchangeFee = new ExchangeFee(new BigDecimal("0.002"), new BigDecimal("0.001"));
 
         paperExchange = new PaperExchange(exchange, Currency.USD,tickerService, exchangeService, paperConfiguration);
         paperTradeService = paperExchange.getPaperTradeService();
@@ -60,7 +62,7 @@ public class PaperTradeServiceTest extends BaseTestCase {
 
         when(exchange.getExchangeSpecification()).thenReturn(new ExchangeSpecification(PaperExchange.class));
         when(exchangeService.getExchangeMetadata(any(Exchange.class))).thenReturn(exchangeConfiguration);
-        when(exchangeService.getExchangeFee(any(Exchange.class),any(CurrencyPair.class),anyBoolean())).thenReturn(new BigDecimal("0.002"));
+        when(exchangeService.getExchangeFee(any(Exchange.class),any(CurrencyPair.class),anyBoolean())).thenReturn(exchangeFee);
     }
 
 
@@ -107,6 +109,22 @@ public class PaperTradeServiceTest extends BaseTestCase {
             .timestamp(new Date())
             .limitPrice(new BigDecimal("20"))
             .orderStatus(Order.OrderStatus.NEW)
+            .build();
+
+        assertThrows(FundsExceededException.class, () -> paperTradeService.placeLimitOrder(order));
+    }
+
+    @Test
+    public void testPlaceOrderWithLeverage() {
+        exchangeConfiguration.setFeeComputation(FeeComputation.SERVER);
+        exchangeConfiguration.setMargin(true);
+
+        LimitOrder order = (LimitOrder) new LimitOrder.Builder(Order.OrderType.ASK, CurrencyPair.BTC_USD)
+            .originalAmount(new BigDecimal("11"))
+            .timestamp(new Date())
+            .limitPrice(new BigDecimal("20"))
+            .orderStatus(Order.OrderStatus.NEW)
+            .leverage("2")
             .build();
 
         paperTradeService.placeLimitOrder(order);

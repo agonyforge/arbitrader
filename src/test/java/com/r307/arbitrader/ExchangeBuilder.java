@@ -44,6 +44,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ExchangeBuilder {
+    public static final int EXCHANGE_METADATA_PRICE_SCALE = 3; // intentionally different than BTC_SCALE to help with assertions
+    public static final int EXCHANGE_METADATA_VOLUME_SCALE = 4; // intentionally different than BTC_SCALE to help with assertions
+
     private String name;
     private CurrencyPair currencyPair;
     private Currency homeCurrency = Currency.USD;
@@ -128,9 +131,10 @@ public class ExchangeBuilder {
             new BigDecimal("0.0020"),
             new BigDecimal("0.0010"),
             new BigDecimal("1000.00000000"),
-            BTC_SCALE,
+            EXCHANGE_METADATA_PRICE_SCALE,
+            EXCHANGE_METADATA_VOLUME_SCALE,
             null,
-            null);
+            Currency.USD);
         Map<CurrencyPair, CurrencyPairMetaData> currencyPairMetaDataMap = new HashMap<>();
 
         currencyPairMetaDataMap.put(currencyPair, currencyPairMetaData);
