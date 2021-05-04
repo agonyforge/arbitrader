@@ -330,6 +330,11 @@ public class TradingService {
             defaultPairMetaData
         );
 
+        if (currencyPairMetaData.getVolumeScale() == null) {
+            LOGGER.debug("Defaulting to scale of {} for volume because metadata is unavailable", BTC_SCALE);
+            return BTC_SCALE;
+        }
+
         return currencyPairMetaData.getVolumeScale();
     }
 
@@ -356,6 +361,11 @@ public class TradingService {
             currencyPair,
             defaultPairMetaData
         );
+
+        if (currencyPairMetaData.getPriceScale() == null) {
+            LOGGER.debug("Defaulting to scale of {} for price because metadata is unavailable", USD_SCALE);
+            return USD_SCALE;
+        }
 
         return currencyPairMetaData.getPriceScale();
     }
