@@ -29,6 +29,8 @@ import java.util.List;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
 import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.ExchangeBuilder.EXCHANGE_METADATA_PRICE_SCALE;
+import static com.r307.arbitrader.ExchangeBuilder.EXCHANGE_METADATA_VOLUME_SCALE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.*;
@@ -208,7 +210,7 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal("1.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal("100.0000").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal("100.000").setScale(EXCHANGE_METADATA_PRICE_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point has enough volume to fill my order
@@ -220,7 +222,7 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal("1.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal("100.0990").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal("100.099").setScale(EXCHANGE_METADATA_PRICE_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
@@ -231,7 +233,7 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal("11.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
 
-        assertEquals(new BigDecimal("100.0010").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal("100.001").setScale(EXCHANGE_METADATA_PRICE_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
@@ -242,7 +244,7 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal("11.00");
         BigDecimal limitPrice = tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
 
-        assertEquals(new BigDecimal("100.0980").setScale(BTC_SCALE, RoundingMode.HALF_EVEN), limitPrice);
+        assertEquals(new BigDecimal("100.098").setScale(EXCHANGE_METADATA_PRICE_SCALE, RoundingMode.HALF_EVEN), limitPrice);
     }
 
     // the exchange doesn't have enough volume to fill my gigantic order
@@ -259,6 +261,34 @@ public class TradingServiceTest extends BaseTestCase {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
         tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
+    }
+
+    @Test
+    public void testComputeVolumeScale() {
+        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.BTC_USD);
+
+        assertEquals(Integer.valueOf(EXCHANGE_METADATA_VOLUME_SCALE), result);
+    }
+
+    @Test
+    public void testComputeVolumeScaleDefault() {
+        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.LTC_USD);
+
+        assertEquals(Integer.valueOf(BTC_SCALE), result);
+    }
+
+    @Test
+    public void testComputePriceScale() {
+        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.BTC_USD);
+
+        assertEquals(Integer.valueOf(EXCHANGE_METADATA_PRICE_SCALE), result);
+    }
+
+    @Test
+    public void testComputePriceScaleDefault() {
+        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.BTC_USD);
+
+        assertEquals(Integer.valueOf(EXCHANGE_METADATA_PRICE_SCALE), result);
     }
 
     @Test
