@@ -55,7 +55,7 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.7'
     compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.7'
     compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.7'
-    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.7'
+    compile group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.8'
 
     compile group: 'com.github.seratch', name: 'jslack', version: '3.4.2'
     compile group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
