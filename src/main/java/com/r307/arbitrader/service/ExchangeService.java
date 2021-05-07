@@ -2,6 +2,7 @@ package com.r307.arbitrader.service;
 
 import com.r307.arbitrader.Utils;
 import com.r307.arbitrader.config.ExchangeConfiguration;
+import com.r307.arbitrader.config.TradingConfiguration;
 import com.r307.arbitrader.service.cache.ExchangeFeeCache;
 import com.r307.arbitrader.service.model.ExchangeFee;
 import com.r307.arbitrader.service.ticker.TickerStrategy;
@@ -111,7 +112,7 @@ public class ExchangeService {
      *
      * @param exchange The Exchange to setup.
      */
-    public void setUpExchange(Exchange exchange) {
+    public void setUpExchange(Exchange exchange, TradingConfiguration tradingConfiguration) {
         try {
             if (!Utils.stateFileExists()) {
                 final Set<String> cryptoCoinsFromTradingPairs = getCryptoCoinsFromTradingPairs(exchange);
@@ -138,11 +139,18 @@ public class ExchangeService {
                 getExchangeHomeCurrency(exchange));
 
             Currency homeCurrency = getExchangeHomeCurrency(exchange);
+            final BigDecimal accountBalance = getAccountBalance(exchange, homeCurrency, getExchangeCurrencyScale(exchange, homeCurrency));
+
+            if (tradingConfiguration.getFixedExposure() != null && accountBalance.compareTo(tradingConfiguration.getFixedExposure()) < 0) {
+                LOGGER.error("Account balance {} for '{}' is lower than the configured fixed exposure of {}. Stopping the bot",
+                    accountBalance, exchange.getExchangeSpecification().getExchangeName(), tradingConfiguration.getFixedExposure());
+                System.exit(1);
+            }
 
             LOGGER.info("{} balance: {}{}",
                 exchange.getExchangeSpecification().getExchangeName(),
                 homeCurrency.getSymbol(),
-                getAccountBalance(exchange, homeCurrency, getExchangeCurrencyScale(exchange, homeCurrency)));
+                accountBalance);
         } catch (IOException e) {
             LOGGER.error("Unable to fetch account balance: ", e);
         }
