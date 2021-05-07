@@ -157,7 +157,7 @@ public class TradingScheduler {
         });
 
         // call setUpExchange on every exchange
-        exchanges.forEach(exchangeService::setUpExchange);
+        exchanges.forEach(exchange -> exchangeService.setUpExchange(exchange, tradingConfiguration));
 
         // set up all the valid TradeCombinations between all our exchanges so we know what currency pairs we can trade
         tickerService.initializeTickers(exchanges);
