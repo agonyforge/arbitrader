@@ -279,7 +279,7 @@ public class ExchangeService {
                         exchange.getExchangeSpecification().getExchangeName(),
                         pair,
                         minimumAmount);
-                } else if (metaDataOptional.isPresent()) {
+                } else if (metaDataOptional.isPresent() && metaDataOptional.get().getMinimumAmount() != null) {
                     minimumAmount = metaDataOptional.get().getMinimumAmount();
 
                     LOGGER.debug("{} using exchange metadata for minimum balance: {} = {}",
