@@ -129,8 +129,18 @@ public class NotificationServiceImpl implements NotificationService {
 
         final BigDecimal profit = updatedBalance.subtract(entryBalance);
 
-        // This is equivalent of if(isActivePositionExpired) {timeout} else if(isForceExitPosition) {forced} else {exit}
-        final String message = isActivePositionExpired ? "***** TIMEOUT EXIT *****\n" : (isForceExitPosition ? "***** FORCED EXIT *****\n" : "***** EXIT *****\n") +
+        final String startOfMessage;
+        if (isActivePositionExpired) {
+            startOfMessage = "***** TIMEOUT EXIT *****\n";
+        }
+        else if (isForceExitPosition){
+            startOfMessage = "***** FORCED EXIT *****\n";
+        }
+        else {
+            startOfMessage =  "***** EXIT *****\n";
+        }
+
+        final String message = startOfMessage +
             exitSpreadString +
             longCloseString +
             shortCloseString +
