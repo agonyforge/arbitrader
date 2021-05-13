@@ -761,14 +761,19 @@ public class TradingService {
 
         LOGGER.info("Waiting for limit orders to complete...");
 
-        OpenOrders longOpenOrders;
-        OpenOrders shortOpenOrders;
+        OpenOrders longOpenOrders = null;
+        OpenOrders shortOpenOrders = null;
         int count = 0;
 
         // every few seconds check the exchanges to see if our orders are filled yet
         do {
-            longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
-            shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
+            if (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()) {
+                longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
+            }
+
+            if (shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty()) {
+                shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
+            }
 
             // only print the warning every 10th iteration
             // but do print warnings because otherwise I worry that the computer has died
