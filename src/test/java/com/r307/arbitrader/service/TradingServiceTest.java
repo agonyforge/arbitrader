@@ -265,30 +265,30 @@ public class TradingServiceTest extends BaseTestCase {
 
     @Test
     public void testComputeVolumeScale() {
-        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.BTC_USD);
+        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.BTC_USD, BTC_SCALE);
 
         assertEquals(Integer.valueOf(EXCHANGE_METADATA_VOLUME_SCALE), result);
     }
 
     @Test
     public void testComputeVolumeScaleDefault() {
-        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.LTC_USD);
+        Integer result = tradingService.computeVolumeScale(longExchange, CurrencyPair.LTC_USD, BTC_SCALE);
 
         assertEquals(Integer.valueOf(BTC_SCALE), result);
     }
 
     @Test
     public void testComputePriceScale() {
-        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.BTC_USD);
+        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.BTC_USD, USD_SCALE);
 
         assertEquals(Integer.valueOf(EXCHANGE_METADATA_PRICE_SCALE), result);
     }
 
     @Test
     public void testComputePriceScaleDefault() {
-        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.BTC_USD);
+        Integer result = tradingService.computePriceScale(longExchange, CurrencyPair.LTC_USD, USD_SCALE);
 
-        assertEquals(Integer.valueOf(EXCHANGE_METADATA_PRICE_SCALE), result);
+        assertEquals(Integer.valueOf(USD_SCALE), result);
     }
 
     @Test

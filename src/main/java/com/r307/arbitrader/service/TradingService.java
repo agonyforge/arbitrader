@@ -18,7 +18,6 @@ import org.knowm.xchange.dto.marketdata.OrderBook;
 import org.knowm.xchange.dto.meta.CurrencyMetaData;
 import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
 import org.knowm.xchange.dto.meta.ExchangeMetaData;
-import org.knowm.xchange.dto.meta.FeeTier;
 import org.knowm.xchange.dto.trade.LimitOrder;
 import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.exceptions.ExchangeException;
@@ -38,8 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
-import static com.r307.arbitrader.DecimalConstants.USD_SCALE;
+import static com.r307.arbitrader.DecimalConstants.*;
 
 /**
  * Trade analysis and execution.
@@ -64,6 +62,8 @@ public class TradingService {
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
+
+    private long orderTimer = 0;
 
     public TradingService(
         ObjectMapper objectMapper,
@@ -112,6 +112,8 @@ public class TradingService {
         // This is more verbose than it has to be. I'm trying to keep it easy to read as we continue
         // adding more different conditions that can affect whether we trade or not.
         if (activePosition == null) {
+            orderTimer = System.currentTimeMillis();
+
             if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
                 LOGGER.debug("enterPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
                 enterPosition(spread);
@@ -127,6 +129,8 @@ public class TradingService {
         } else if (spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
                 && longExchangeName.equals(activePosition.getLongTrade().getExchange())
                 && shortExchangeName.equals(activePosition.getShortTrade().getExchange())) {
+
+            orderTimer = System.currentTimeMillis();
 
             if (conditionService.isForceCloseCondition()) {
                 LOGGER.debug("exitPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
@@ -168,9 +172,8 @@ public class TradingService {
         }
 
         // Figure out the scale (number of decimal places) for each exchange based on its CurrencyMetaData.
-        // If there is no metadata, fall back to BTC's default of 8 places that should work in most cases.
-        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange);
-        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange);
+        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange, SAFE_SCALE);
+        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange, SAFE_SCALE);
 
         LOGGER.debug("Max exposure: {}", maxExposure);
         LOGGER.debug("Long volume scale: {}", longVolumeScale);
@@ -311,31 +314,24 @@ public class TradingService {
      *
      * @param exchange The exchange to fetch metadata from.
      * @param currencyPair The currency pair to look for.
+     * @param defaultScale If the scale cannot be found, this value will be returned.
      * @return The number of decimals allowed for a volume in this currency pair on this exchange.
      */
-    Integer computeVolumeScale(Exchange exchange, CurrencyPair currencyPair) {
-        final CurrencyPairMetaData defaultPairMetaData = new CurrencyPairMetaData(
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.valueOf(Long.MAX_VALUE),
-            BTC_SCALE,
-            BTC_SCALE,
-            new FeeTier[0],
-            Currency.BTC
-        );
-
+    Integer computeVolumeScale(Exchange exchange, CurrencyPair currencyPair, Integer defaultScale) {
         final ExchangeMetaData exchangeMetaData = exchange.getExchangeMetaData();
-        final CurrencyPairMetaData currencyPairMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
-            currencyPair,
-            defaultPairMetaData
-        );
+        final Optional<CurrencyPairMetaData> currencyPairMetaDataOptional = Optional.ofNullable(exchangeMetaData.getCurrencyPairs().get(currencyPair));
 
-        if (currencyPairMetaData.getVolumeScale() == null) {
-            LOGGER.debug("Defaulting to scale of {} for volume because metadata is unavailable", BTC_SCALE);
-            return BTC_SCALE;
+        if (currencyPairMetaDataOptional.isPresent()) {
+            CurrencyPairMetaData currencyPairMetaData = currencyPairMetaDataOptional.get();
+
+            if (currencyPairMetaData.getVolumeScale() != null) {
+                LOGGER.debug("{} {} volume scale found in metadata: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair, currencyPairMetaData.getPriceScale());
+                return currencyPairMetaData.getVolumeScale();
+            }
         }
 
-        return currencyPairMetaData.getVolumeScale();
+        LOGGER.warn("{} {} price scale unavailable from exchange metadata, using default: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair, defaultScale);
+        return defaultScale;
     }
 
     /**
@@ -344,30 +340,24 @@ public class TradingService {
      *
      * @param exchange The exchange to fetch metadata from.
      * @param currencyPair The currency pair to look for.
+     * @param defaultScale If the scale cannot be found, this value will be returned.
      * @return The number of decimals allowed for a price in this currency pair on this exchange.
      */
-    Integer computePriceScale(Exchange exchange, CurrencyPair currencyPair) {
-        final CurrencyPairMetaData defaultPairMetaData = new CurrencyPairMetaData(
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.valueOf(Long.MAX_VALUE),
-            BTC_SCALE,
-            BTC_SCALE,
-            new FeeTier[0],
-            Currency.BTC
-        );
+    Integer computePriceScale(Exchange exchange, CurrencyPair currencyPair, Integer defaultScale) {
         final ExchangeMetaData exchangeMetaData = exchange.getExchangeMetaData();
-        final CurrencyPairMetaData currencyPairMetaData = exchangeMetaData.getCurrencyPairs().getOrDefault(
-            currencyPair,
-            defaultPairMetaData
-        );
+        final Optional<CurrencyPairMetaData> currencyPairMetaDataOptional = Optional.ofNullable(exchangeMetaData.getCurrencyPairs().get(currencyPair));
 
-        if (currencyPairMetaData.getPriceScale() == null) {
-            LOGGER.debug("Defaulting to scale of {} for price because metadata is unavailable", USD_SCALE);
-            return USD_SCALE;
+        if (currencyPairMetaDataOptional.isPresent()) {
+            CurrencyPairMetaData currencyPairMetaData = currencyPairMetaDataOptional.get();
+
+            if (currencyPairMetaData.getPriceScale() != null) {
+                LOGGER.debug("{} {} price scale found in metadata: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair, currencyPairMetaData.getPriceScale());
+                return currencyPairMetaData.getPriceScale();
+            }
         }
 
-        return currencyPairMetaData.getPriceScale();
+        LOGGER.warn("{} {} price scale unavailable from exchange metadata, using default: {}", exchange.getExchangeSpecification().getExchangeName(), currencyPair, defaultScale);
+        return defaultScale;
     }
 
     // ensure that we have enough money to trade
@@ -379,19 +369,19 @@ public class TradingService {
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
 
         if (maxExposure.compareTo(longMinAmount) <= 0) {
-            LOGGER.error("{} must have at least ${} to trade {} but only has ${}",
+            LOGGER.error("{} {} minimum trade size is {}, cannot open position for {}",
                 longExchangeName,
-                longMinAmount.add(longMinAmount.multiply(TRADE_REMAINDER)),
                 longCurrencyPair,
+                longMinAmount,
                 maxExposure);
             return false;
         }
 
         if (maxExposure.compareTo(shortMinAmount) <= 0) {
-            LOGGER.error("{} must have at least ${} to trade {} but only has ${}",
+            LOGGER.error("{} {} minimum trade size is {}, cannot open position for {}",
                 shortExchangeName,
-                shortMinAmount.add(shortMinAmount.multiply(TRADE_REMAINDER)),
                 shortCurrencyPair,
+                shortMinAmount,
                 maxExposure);
             return false;
         }
@@ -416,8 +406,8 @@ public class TradingService {
         final BigDecimal shortAmountStepSize =  spread.getShortExchange().getExchangeMetaData().getCurrencyPairs()
             .getOrDefault(spread.getCurrencyPair(), NULL_CURRENCY_PAIR_METADATA).getAmountStepSize();
 
-        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange);
-        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange);
+        final int longVolumeScale = computeVolumeScale(spread.getLongExchange(), currencyPairLongExchange, SAFE_SCALE);
+        final int shortVolumeScale = computeVolumeScale(spread.getShortExchange(), currencyPairShortExchange, SAFE_SCALE);
 
         // figure out how much to trade
         ExitTradeVolume tradeVolume;
@@ -688,14 +678,20 @@ public class TradingService {
     }
 
     // get the smallest possible order for an entry position on an exchange
-    private BigDecimal getMinimumAmountForEntryPosition(Spread spread, Exchange longExchange) {
-        final BigDecimal defaultValue = new BigDecimal("0.001"); // TODO too big?
-        final CurrencyPairMetaData currencyPairMetaData = longExchange
+    private BigDecimal getMinimumAmountForEntryPosition(Spread spread, Exchange exchange) {
+        final BigDecimal defaultValue = new BigDecimal("0.001");
+        final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, spread.getCurrencyPair());
+        final CurrencyPairMetaData currencyPairMetaData = exchange
             .getExchangeMetaData()
             .getCurrencyPairs()
-            .getOrDefault(exchangeService.convertExchangePair(longExchange, spread.getCurrencyPair()), NULL_CURRENCY_PAIR_METADATA);
+            .getOrDefault(currencyPair, NULL_CURRENCY_PAIR_METADATA);
 
         if (currencyPairMetaData == null || currencyPairMetaData.getMinimumAmount() == null) {
+            LOGGER.warn("{} {} minimum value unavailable from exchange metadata, using default value of {}",
+                exchange.getExchangeSpecification().getExchangeName(),
+                currencyPair,
+                defaultValue);
+
             return defaultValue;
         }
 
@@ -731,8 +727,18 @@ public class TradingService {
             shortLimitOrder);
 
         try { // get the order IDs from each exchange
+            long orderExecutionStart = System.currentTimeMillis();
+
             String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
             String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+
+            long orderExecutionTimer = System.currentTimeMillis() - orderExecutionStart;
+            long orderPlacementTimer = System.currentTimeMillis() - orderTimer;
+            long tradeDecisionTimer = orderPlacementTimer - orderExecutionTimer;
+
+            LOGGER.info("{} ms elapsed between decision and execution", orderPlacementTimer);
+            LOGGER.info("{} ms elapsed during trade decision", tradeDecisionTimer);
+            LOGGER.info("{} ms elapsed during order execution", orderExecutionTimer);
 
             // TODO not happy with this coupling, need to refactor this
             // activePosition tracks the orders we just opened
@@ -774,10 +780,18 @@ public class TradingService {
             // but do print warnings because otherwise I worry that the computer has died
             if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
                 LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
+                LOGGER.warn("{} {} current price: {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair,
+                    getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.BID));
             }
 
             if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
                 LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
+                LOGGER.warn("{} {} current price: {}",
+                    longExchange.getExchangeSpecification().getExchangeName(),
+                    currencyPair,
+                    getLimitPrice(longExchange, currencyPair, longVolume, Order.OrderType.ASK));
             }
 
             count++;
@@ -901,12 +915,13 @@ public class TradingService {
      *
      * @param exchange The exchange to use.
      * @param rawCurrencyPair The currency pair to use, not converted for home currency.
-     * @param allowedVolume The volume we're looking for (governs how many orders to look through before stopping).
+     * @param allowedVolume How much volume is required to satisfy our order.
      * @param orderType Are we buying or selling? Use the bid or ask price?
      * @return The more accurate price for this order.
      */
     BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
-        CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
+        final CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
+        final String exchangeName = exchange.getExchangeSpecification().getExchangeName();
 
         try {
             OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
@@ -924,9 +939,13 @@ public class TradingService {
                 volume = volume.add(order.getRemainingAmount());
 
                 if (volume.compareTo(allowedVolume) > 0) {
-                    int scale = computePriceScale(exchange, currencyPair);
+                    int scale = computePriceScale(exchange, currencyPair, price.scale());
 
-                    return price.setScale(scale, RoundingMode.HALF_EVEN);
+                    price = price.setScale(scale, RoundingMode.HALF_EVEN);
+
+                    LOGGER.debug("{} limit price {} @ {}", exchangeName, allowedVolume, price);
+
+                    return price;
                 }
             }
         } catch (IOException e) {
