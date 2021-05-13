@@ -9,6 +9,8 @@ import com.r307.arbitrader.exception.OrderNotFoundException;
 import com.r307.arbitrader.service.cache.ExchangeBalanceCache;
 import com.r307.arbitrader.service.cache.OrderVolumeCache;
 import com.r307.arbitrader.service.model.*;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
@@ -36,6 +38,8 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.r307.arbitrader.DecimalConstants.BTC_SCALE;
@@ -64,6 +68,7 @@ public class TradingService {
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
+    private AtomicBoolean openOrdersFlag = new AtomicBoolean(false);
 
     public TradingService(
         ObjectMapper objectMapper,
@@ -90,6 +95,11 @@ public class TradingService {
         if (bailOut) {
             LOGGER.error("Exiting immediately to avoid erroneous trades.");
             System.exit(1);
+        }
+
+        if (openOrdersFlag.get()) {
+            LOGGER.debug("We have open orders waiting to be filled. Skipping this event");
+            return;
         }
 
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
@@ -761,47 +771,75 @@ public class TradingService {
 
         LOGGER.info("Waiting for limit orders to complete...");
 
-        OpenOrders longOpenOrders = null;
-        OpenOrders shortOpenOrders = null;
-        int count = 0;
+//        OpenOrders longOpenOrders = null;
+//        OpenOrders shortOpenOrders = null;
+//        int count = 0;
 
-        // every few seconds check the exchanges to see if our orders are filled yet
-        do {
-            if (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()) {
-                longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
-            }
+        final Observable<OpenOrders> shorOpenOrdersObservable = checkForOpenOrders(shortExchange);
+        final Observable<OpenOrders> longOpenOrdersObservable = checkForOpenOrders(longExchange);
 
-            if (shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty()) {
-                shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
-            }
 
-            // only print the warning every 10th iteration
-            // but do print warnings because otherwise I worry that the computer has died
-            if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-                LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
-            }
+        Observable.concat(shorOpenOrdersObservable, longOpenOrdersObservable)
+            .subscribe(openOrders -> {
+                if (openOrders.getOpenOrders().isEmpty()) {
+                    openOrdersFlag.set(false);
 
-            if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-                LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
-            }
+                    // invalidate the balance cache because we *know* it's incorrect now
+                    exchangeBalanceCache.invalidate(longExchange, shortExchange);
 
-            count++;
+                    // yay!
+                    LOGGER.info("Trades executed successfully!");
+                }
+            });
 
-            try {
-                // yes this is a busy wait, the bot has nothing better to do right now except wait for the orders to fill
-                //noinspection BusyWait
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                LOGGER.trace("Sleep interrupted!", e);
-            }
-        } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
-            || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
 
-        // invalidate the balance cache because we *know* it's incorrect now
-        exchangeBalanceCache.invalidate(longExchange, shortExchange);
+//        // every few seconds check the exchanges to see if our orders are filled yet
+//        do {
+//            if (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()) {
+//                longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
+//            }
+//
+//            if (shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty()) {
+//                shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
+//            }
+//
+//            // only print the warning every 10th iteration
+//            // but do print warnings because otherwise I worry that the computer has died
+//            if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
+//                LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
+//            }
+//
+//            if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
+//                LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
+//            }
+//
+//            count++;
+//
+//            try {
+//                // yes this is a busy wait, the bot has nothing better to do right now except wait for the orders to fill
+//                //noinspection BusyWait
+//                Thread.sleep(3000);
+//            } catch (InterruptedException e) {
+//                LOGGER.trace("Sleep interrupted!", e);
+//            }
+//        } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
+//            || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
+//
+//        // invalidate the balance cache because we *know* it's incorrect now
+//        exchangeBalanceCache.invalidate(longExchange, shortExchange);
+//
+//        // yay!
+//        LOGGER.info("Trades executed successfully!");
+    }
 
-        // yay!
-        LOGGER.info("Trades executed successfully!");
+    private Observable<OpenOrders> checkForOpenOrders(Exchange longExchange) {
+        return Observable.fromCallable(() -> fetchOpenOrders(longExchange).orElseThrow(Exception::new))
+            .retryWhen(throwableFlowable -> throwableFlowable.flatMap(throwable -> Observable.timer(3, TimeUnit.SECONDS)))
+            .repeatWhen(objectObservable -> objectObservable.delay(3, TimeUnit.SECONDS))
+            .takeUntil(openOrders -> {
+                return openOrders.getOpenOrders().isEmpty();
+            })
+            .subscribeOn(Schedulers.io());
     }
 
     // summarize all the open orders on an exchange, used while we're waiting for orders to fill
@@ -815,15 +853,8 @@ public class TradingService {
     }
 
     // fetch open orders from the exchange
-    private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) {
-        try {
-            return Optional.of(exchange.getTradeService().getOpenOrders());
-        } catch (IOException | ExchangeException e) {
-            LOGGER.error("{} threw an Exception while fetching open orders: ",
-                exchange.getExchangeSpecification().getExchangeName(), e);
-        }
-
-        return Optional.empty();
+    private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) throws IOException {
+        return Optional.of(exchange.getTradeService().getOpenOrders());
     }
 
     /**
