@@ -771,72 +771,31 @@ public class TradingService {
 
         LOGGER.info("Waiting for limit orders to complete...");
 
-//        OpenOrders longOpenOrders = null;
-//        OpenOrders shortOpenOrders = null;
-//        int count = 0;
-
         final Observable<OpenOrders> shorOpenOrdersObservable = checkForOpenOrders(shortExchange);
         final Observable<OpenOrders> longOpenOrdersObservable = checkForOpenOrders(longExchange);
 
 
-        Observable.concat(shorOpenOrdersObservable, longOpenOrdersObservable)
-            .subscribe(openOrders -> {
-                if (openOrders.getOpenOrders().isEmpty()) {
-                    openOrdersFlag.set(false);
+        Observable
+            .zip(shorOpenOrdersObservable, longOpenOrdersObservable, (shortResult, longResult) -> shortResult.getOpenOrders().isEmpty() && longResult.getOpenOrders().isEmpty())
+            .subscribe(aBoolean -> {
+                // aBoolean here will be true because both openOrder list should be empty
+                // So we negate the value of aBoolean 
+                openOrdersFlag.set(!aBoolean);
 
-                    // invalidate the balance cache because we *know* it's incorrect now
-                    exchangeBalanceCache.invalidate(longExchange, shortExchange);
+                // invalidate the balance cache because we *know* it's incorrect now
+                exchangeBalanceCache.invalidate(longExchange, shortExchange);
 
-                    // yay!
-                    LOGGER.info("Trades executed successfully!");
-                }
+                // yay!
+                LOGGER.info("Trades executed successfully!");
             });
-
-
-//        // every few seconds check the exchanges to see if our orders are filled yet
-//        do {
-//            if (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()) {
-//                longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
-//            }
-//
-//            if (shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty()) {
-//                shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
-//            }
-//
-//            // only print the warning every 10th iteration
-//            // but do print warnings because otherwise I worry that the computer has died
-//            if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-//                LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
-//            }
-//
-//            if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-//                LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
-//            }
-//
-//            count++;
-//
-//            try {
-//                // yes this is a busy wait, the bot has nothing better to do right now except wait for the orders to fill
-//                //noinspection BusyWait
-//                Thread.sleep(3000);
-//            } catch (InterruptedException e) {
-//                LOGGER.trace("Sleep interrupted!", e);
-//            }
-//        } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
-//            || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
-//
-//        // invalidate the balance cache because we *know* it's incorrect now
-//        exchangeBalanceCache.invalidate(longExchange, shortExchange);
-//
-//        // yay!
-//        LOGGER.info("Trades executed successfully!");
     }
 
-    private Observable<OpenOrders> checkForOpenOrders(Exchange longExchange) {
-        return Observable.fromCallable(() -> fetchOpenOrders(longExchange).orElseThrow(Exception::new))
+    private Observable<OpenOrders> checkForOpenOrders(final Exchange exchange) {
+        return Observable.fromCallable(() -> fetchOpenOrders(exchange).orElseThrow(Exception::new))
             .retryWhen(throwableFlowable -> throwableFlowable.flatMap(throwable -> Observable.timer(3, TimeUnit.SECONDS)))
             .repeatWhen(objectObservable -> objectObservable.delay(3, TimeUnit.SECONDS))
             .takeUntil(openOrders -> {
+                LOGGER.warn(collectOpenOrders(exchange, openOrders));
                 return openOrders.getOpenOrders().isEmpty();
             })
             .subscribeOn(Schedulers.io());
