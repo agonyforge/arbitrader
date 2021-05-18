@@ -795,20 +795,30 @@ public class TradingService {
             .retryWhen(throwableFlowable -> throwableFlowable.flatMap(throwable -> Observable.timer(3, TimeUnit.SECONDS)))
             .repeatWhen(objectObservable -> objectObservable.delay(3, TimeUnit.SECONDS))
             .takeUntil(openOrders -> {
-                LOGGER.warn(collectOpenOrders(exchange, openOrders));
+                collectOpenOrders(exchange, openOrders).ifPresent(LOGGER::warn);
                 return openOrders.getOpenOrders().isEmpty();
+            })
+            .doOnNext(openOrders -> {
+                if (openOrders.getOpenOrders().isEmpty()) {
+                    LOGGER.info("Open orders on {} executed successfully!", exchange.getExchangeSpecification().getExchangeName());
+                }
             })
             .subscribeOn(Schedulers.io());
     }
 
     // summarize all the open orders on an exchange, used while we're waiting for orders to fill
-    private String collectOpenOrders(Exchange exchange, OpenOrders openOrders) {
+    private Optional<String> collectOpenOrders(Exchange exchange, OpenOrders openOrders) {
+        if (openOrders.getOpenOrders().isEmpty()) {
+            return Optional.empty();
+        }
         String header = String.format("%s has the following open orders:\n", exchange.getExchangeSpecification().getExchangeName());
 
-        return header + openOrders.getOpenOrders()
+        final String logMessage = header + openOrders.getOpenOrders()
             .stream()
             .map(LimitOrder::toString)
             .collect(Collectors.joining("\n"));
+
+        return Optional.of(logMessage);
     }
 
     // fetch open orders from the exchange
