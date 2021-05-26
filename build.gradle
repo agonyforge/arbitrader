@@ -18,6 +18,10 @@ apply plugin: 'docker'
 group 'com.r307'
 version '0.13.0-SNAPSHOT'
 
+jar {
+    enabled = false // don't build the plain, non-executable jar
+}
+
 bootJar {
     manifest {
         attributes('Implementation-Title':  jar.getArchiveBaseName().get(),

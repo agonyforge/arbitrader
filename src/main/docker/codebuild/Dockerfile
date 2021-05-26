@@ -11,5 +11,5 @@ FROM amazoncorretto:8-alpine
 MAINTAINER Peter Keeler <peter@agonyforge.com>
 LABEL org.opencontainers.image.source="https://github.com/agonyforge/arbitrader"
 EXPOSE 8080
-COPY --from=build /opt/build/build/docker/arbitrader-*.jar /opt/app/app.jar
+COPY --from=build /opt/build/build/libs/arbitrader-*.jar /opt/app/app.jar
 CMD ["/usr/bin/java", "-jar", "/opt/app/app.jar"]
