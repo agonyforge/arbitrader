@@ -77,21 +77,21 @@ task buildDocker(type: Docker) {
 
     doFirst {
         copy {
-            from jar
+            from bootJar
             into stageDir
         }
     }
 }
 
-build.dependsOn project.tasks.buildDocker
+project.tasks.build.dependsOn buildDocker
 
 pitest {
-    excludedMethods = [
+    excludedMethods.set([
             'hashCode',
             'equals',
             'toString'
-    ]
-    timestampedReports = false
+    ])
+    timestampedReports.set false
 }
 
 dependencyCheck {
