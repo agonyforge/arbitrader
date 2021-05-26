@@ -15,8 +15,8 @@ plugins {
 
 apply plugin: 'docker'
 
-group 'com.r307'
-version '0.13.0-SNAPSHOT'
+group 'com.agonyforge'
+version '0.13.1-SNAPSHOT'
 
 jar {
     enabled = false // don't build the plain, non-executable jar
