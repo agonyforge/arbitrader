@@ -12,7 +12,7 @@
 #logging:
 #  level:
 #    com:
-#      r307:
+#      agonyforge:
 #        arbitrader: DEBUG
 
 # If you wish to be notified by email on every trade then you need to add your mail server configuration here and
