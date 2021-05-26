@@ -6,7 +6,7 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '2.4.5'
+    id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'info.solidsoft.pitest' version '1.6.0'
     id 'org.owasp.dependencycheck' version '6.1.6'
@@ -17,6 +17,10 @@ apply plugin: 'docker'
 
 group 'com.r307'
 version '0.13.0-SNAPSHOT'
+
+jar {
+    enabled = false // don't build the plain, non-executable jar
+}
 
 bootJar {
     manifest {
@@ -77,21 +81,21 @@ task buildDocker(type: Docker) {
 
     doFirst {
         copy {
-            from jar
+            from bootJar
             into stageDir
         }
     }
 }
 
-build.dependsOn project.tasks.buildDocker
+project.tasks.build.dependsOn buildDocker
 
 pitest {
-    excludedMethods = [
+    excludedMethods.set([
             'hashCode',
             'equals',
             'toString'
-    ]
-    timestampedReports = false
+    ])
+    timestampedReports.set false
 }
 
 dependencyCheck {
