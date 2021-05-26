@@ -61,6 +61,7 @@ public class TradingService {
     private boolean timeoutExitWarning = false;
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
+    private long orderTimer = 0;
 
     public TradingService(
         ObjectMapper objectMapper,
@@ -109,6 +110,8 @@ public class TradingService {
         // This is more verbose than it has to be. I'm trying to keep it easy to read as we continue
         // adding more different conditions that can affect whether we trade or not.
         if (activePosition == null) {
+            orderTimer = System.currentTimeMillis();
+
             if (conditionService.isForceOpenCondition(spread.getCurrencyPair(), longExchangeName, shortExchangeName)) {
                 LOGGER.debug("enterPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
                 enterPosition(spread);
@@ -124,6 +127,8 @@ public class TradingService {
         } else if (spread.getCurrencyPair().equals(activePosition.getCurrencyPair())
                 && longExchangeName.equals(activePosition.getLongTrade().getExchange())
                 && shortExchangeName.equals(activePosition.getShortTrade().getExchange())) {
+
+            orderTimer = System.currentTimeMillis();
 
             if (conditionService.isForceCloseCondition()) {
                 LOGGER.debug("exitPosition() {}/{} {} - forced", longExchangeName, shortExchangeName, spread.getCurrencyPair());
@@ -728,8 +733,18 @@ public class TradingService {
             shortLimitOrder);
 
         try { // get the order IDs from each exchange
+            long orderExecutionStart = System.currentTimeMillis();
+
             String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
             String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+
+            long orderExecutionTimer = System.currentTimeMillis() - orderExecutionStart;
+            long orderPlacementTimer = System.currentTimeMillis() - orderTimer;
+            long tradeDecisionTimer = orderPlacementTimer - orderExecutionTimer;
+
+            LOGGER.info("{} ms elapsed between decision and execution", orderPlacementTimer);
+            LOGGER.info("{} ms elapsed during trade decision", tradeDecisionTimer);
+            LOGGER.info("{} ms elapsed during order execution", orderExecutionTimer);
 
             // TODO not happy with this coupling, need to refactor this
             // activePosition tracks the orders we just opened
