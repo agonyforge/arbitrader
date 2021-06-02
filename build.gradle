@@ -5,7 +5,7 @@ plugins {
     id 'com.palantir.docker' version '0.26.0'
     id 'info.solidsoft.pitest' version '1.6.0'
     id 'org.owasp.dependencycheck' version '6.2.0'
-    id 'org.kordamp.gradle.stats' version '0.2.2'
+    id "org.kordamp.gradle.source-stats" version "0.46.0"
 }
 
 group 'com.agonyforge'
@@ -88,6 +88,6 @@ dependencyCheck {
     suppressionFile "codequality/cve-suppressions.xml"
 }
 
-check.dependsOn project.tasks.pitest, project.tasks.dependencyCheckAnalyze, project.tasks.stats
+check.dependsOn project.tasks.pitest, project.tasks.dependencyCheckAnalyze //, project.tasks.sourceStats
 
 project.tasks.pitest.mustRunAfter test
