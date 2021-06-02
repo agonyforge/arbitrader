@@ -1,4 +1,4 @@
-FROM amazoncorretto:8-alpine as build
+FROM amazoncorretto:16-alpine as build
 MAINTAINER Peter Keeler <peter@agonyforge.com>
 WORKDIR /opt/build
 COPY . /opt/build/
@@ -7,7 +7,7 @@ RUN cd /opt/build \
 && apk add --no-cache bash \
 && ./gradlew --console=plain clean build -x buildDocker -x dependencyCheckAnalyze
 
-FROM amazoncorretto:8-alpine
+FROM amazoncorretto:16-alpine
 MAINTAINER Peter Keeler <peter@agonyforge.com>
 LABEL org.opencontainers.image.source="https://github.com/agonyforge/arbitrader"
 EXPOSE 8080
