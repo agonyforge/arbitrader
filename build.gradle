@@ -3,7 +3,7 @@ plugins {
     id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'com.palantir.docker' version '0.26.0'
-    id 'info.solidsoft.pitest' version '1.6.5'
+    id 'info.solidsoft.pitest' version '1.6.0'
     id 'org.owasp.dependencycheck' version '6.2.0'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
@@ -63,6 +63,7 @@ dependencies {
 
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
     testImplementation group: 'org.mockito', name: 'mockito-core', version: '3.10.0'
+    testImplementation group: 'org.pitest', name: 'pitest', version: '1.6.6'
 }
 
 docker {
@@ -74,6 +75,7 @@ docker {
 project.tasks.build.dependsOn tasks.docker
 
 pitest {
+    pitestVersion.set('1.6.6')
     excludedMethods.set([
             'hashCode',
             'equals',
