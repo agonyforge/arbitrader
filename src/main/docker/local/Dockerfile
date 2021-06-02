@@ -1,4 +1,4 @@
-FROM amazoncorretto:16-alpine
+FROM amazoncorretto:8-alpine
 MAINTAINER Peter Keeler <peter@agonyforge.com>
 LABEL org.opencontainers.image.source="https://github.com/agonyforge/arbitrader"
 EXPOSE 8080
