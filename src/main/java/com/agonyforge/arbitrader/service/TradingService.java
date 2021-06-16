@@ -295,9 +295,6 @@ public class TradingService {
             activePosition.getShortTrade().setEntry(shortLimitPrice);
 
             executeOrderPair(spread, exitSpreadTarget, longLimitPrice, shortLimitPrice, tradeVolume, true);
-
-            notificationService.sendEntryTradeNotification(spread, exitSpreadTarget, tradeVolume,
-                longLimitPrice, shortLimitPrice, isForcedOpenCondition);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
             activePosition = null;
