@@ -9,7 +9,7 @@ plugins {
     id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'info.solidsoft.pitest' version '1.6.0'
-    id 'org.owasp.dependencycheck' version '6.2.0'
+    id 'org.owasp.dependencycheck' version '6.2.2'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
@@ -55,7 +55,7 @@ dependencies {
     compile group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.8'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.8'
     compile group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.8'
-    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.8'
+    compile group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.9'
     compile group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.8'
     compile group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.8'
     compile group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.8'
