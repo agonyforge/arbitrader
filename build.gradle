@@ -4,11 +4,12 @@ plugins {
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'com.palantir.docker' version '0.26.0'
     id 'info.solidsoft.pitest' version '1.6.0'
-    id 'org.owasp.dependencycheck' version '6.2.0'
+    id 'org.owasp.dependencycheck' version '6.2.2'
+    id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
 group 'com.agonyforge'
-version '0.13.1-SNAPSHOT'
+version '0.13.2-SNAPSHOT'
 
 jar {
     enabled = false // don't build the plain, non-executable jar
