@@ -63,7 +63,7 @@ dependencies {
 
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
     testImplementation group: 'org.mockito', name: 'mockito-core', version: '3.10.0'
-    testImplementation group: 'org.pitest', name: 'pitest', version: '1.6.6'
+    testImplementation group: 'org.pitest', name: 'pitest', version: '1.6.7'
 }
 
 docker {
