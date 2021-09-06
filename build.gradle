@@ -43,7 +43,7 @@ dependencies {
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
     implementation group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
 
-    implementation group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.8'
+    implementation group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.11'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.8'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.8'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.8'
