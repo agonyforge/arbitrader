@@ -5,7 +5,7 @@ COPY . /opt/build/
 RUN cd /opt/build \
 && apk update \
 && apk add --no-cache bash \
-&& ./gradlew --console=plain clean build -x buildDocker -x dependencyCheckAnalyze
+&& ./gradlew --console=plain clean build -x docker -x dependencyCheckAnalyze
 
 FROM amazoncorretto:8-alpine
 MAINTAINER Peter Keeler <peter@agonyforge.com>

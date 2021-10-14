@@ -9,6 +9,8 @@ import com.agonyforge.arbitrader.service.cache.ExchangeBalanceCache;
 import com.agonyforge.arbitrader.service.cache.OrderVolumeCache;
 import com.agonyforge.arbitrader.service.model.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
 import org.apache.commons.io.FileUtils;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.Currency;
@@ -36,6 +38,8 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +66,7 @@ public class TradingService {
     private ActivePosition activePosition = null;
     private boolean bailOut = false;
     private long orderTimer = 0;
+    private AtomicBoolean openOrdersFlag = new AtomicBoolean(false);
 
     public TradingService(
         ObjectMapper objectMapper,
@@ -88,6 +93,11 @@ public class TradingService {
         if (bailOut) {
             LOGGER.error("Exiting immediately to avoid erroneous trades.");
             System.exit(1);
+        }
+
+        if (openOrdersFlag.get()) {
+            LOGGER.debug("We have open orders waiting to be filled. Skipping this event");
+            return;
         }
 
         final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
@@ -284,15 +294,7 @@ public class TradingService {
             activePosition.getShortTrade().setVolume(tradeVolume.getShortOrderVolume());
             activePosition.getShortTrade().setEntry(shortLimitPrice);
 
-            executeOrderPair(
-                spread.getLongExchange(), spread.getShortExchange(),
-                spread.getCurrencyPair(),
-                longLimitPrice, shortLimitPrice,
-                tradeVolume.getLongOrderVolume(), tradeVolume.getShortOrderVolume(),
-                true);
-
-            notificationService.sendEntryTradeNotification(spread, exitSpreadTarget, tradeVolume,
-                longLimitPrice, shortLimitPrice, isForcedOpenCondition);
+            executeOrderPair(spread, exitSpreadTarget, longLimitPrice, shortLimitPrice, tradeVolume, true);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
             activePosition = null;
@@ -509,12 +511,7 @@ public class TradingService {
         logExitTrade(spread, longExchangeName, shortExchangeName, tradeVolume, longFeeComputation, shortFeeComputation, longLimitPrice, shortLimitPrice, isForceCloseCondition);
 
         try {
-            executeOrderPair(
-                spread.getLongExchange(), spread.getShortExchange(),
-                spread.getCurrencyPair(),
-                longLimitPrice, shortLimitPrice,
-                tradeVolume.getLongOrderVolume(), tradeVolume.getShortOrderVolume(),
-                false);
+            executeOrderPair(spread, null, longLimitPrice, shortLimitPrice, tradeVolume, false);
         } catch (IOException e) {
             LOGGER.error("IOE executing limit orders: ", e);
 
@@ -523,45 +520,6 @@ public class TradingService {
             // let's bail out so the bot doesn't do anything bad after failing to execute the orders.
 
             bailOut = true;
-        }
-
-        LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
-
-        final BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
-        final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
-
-        LOGGER.info("Profit calculation: ${} - ${} = ${}",
-            updatedBalance,
-            activePosition.getEntryBalance(),
-            profit);
-
-        final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
-            .withShortExchange(shortExchangeName)
-            .withShortCurrency(spread.getCurrencyPair().toString())
-            .withShortSpread(shortLimitPrice)
-            .withShortSlip(spread.getShortTicker().getAsk().subtract(shortLimitPrice))
-            .withShortAmount(tradeVolume.getShortVolume().multiply(spread.getShortTicker().getAsk()))
-            .withLongExchange(longExchangeName)
-            .withLongCurrency(spread.getCurrencyPair().toString())
-            .withLongSpread(longLimitPrice)
-            .withLongSlip(longLimitPrice.subtract(spread.getLongTicker().getBid()))
-            .withLongAmount(tradeVolume.getLongVolume().multiply(spread.getLongTicker().getBid()))
-            .withProfit(profit)
-            .withTimestamp(OffsetDateTime.now())
-            .build();
-
-        persistArbitrageToCsvFile(arbitrageLog);
-
-        // Email notification must be sent before we set activePosition = null
-        notificationService.sendExitTradeNotification(spread, tradeVolume, longLimitPrice,
-            shortLimitPrice, activePosition.getEntryBalance(), updatedBalance, activePosition.getExitTarget(), isForceCloseCondition, isActivePositionExpired());
-
-        activePosition = null;
-
-        Utils.deleteStateFile();
-
-        if (isForceCloseCondition) {
-            conditionService.clearForceCloseCondition();
         }
     }
 
@@ -705,38 +663,39 @@ public class TradingService {
     }
 
     // execute a buy and a sell together
-    private void executeOrderPair(Exchange longExchange, Exchange shortExchange,
-                                  CurrencyPair currencyPair,
-                                  BigDecimal longLimitPrice, BigDecimal shortLimitPrice,
-                                  BigDecimal longVolume, BigDecimal shortVolume,
+    private void executeOrderPair(Spread spread,
+                                  BigDecimal exitSpreadTarget,
+                                  BigDecimal longLimitPrice,
+                                  BigDecimal shortLimitPrice,
+                                  TradeVolume tradeVolume,
                                   boolean isPositionOpen) throws IOException, ExchangeException {
 
         // build two limit orders - orders that execute at a specific price
         // this helps us to get the "maker" price on exchanges where the fees are lower for makers
-        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, exchangeService.convertExchangePair(longExchange, currencyPair))
+        LimitOrder longLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.BID : Order.OrderType.ASK, exchangeService.convertExchangePair(spread.getLongExchange(), spread.getCurrencyPair()))
             .limitPrice(longLimitPrice)
-            .originalAmount(longVolume)
+            .originalAmount(tradeVolume.getLongOrderVolume())
             .build();
-        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, exchangeService.convertExchangePair(shortExchange, currencyPair))
+        LimitOrder shortLimitOrder = new LimitOrder.Builder(isPositionOpen ? Order.OrderType.ASK : Order.OrderType.BID, exchangeService.convertExchangePair(spread.getShortExchange(), spread.getCurrencyPair()))
             .limitPrice(shortLimitPrice)
-            .originalAmount(shortVolume)
+            .originalAmount(tradeVolume.getShortOrderVolume())
             .build();
 
         // Kraken won't consider it a margin trade without this
         shortLimitOrder.setLeverage("2");
 
         LOGGER.debug("{}: {}",
-            longExchange.getExchangeSpecification().getExchangeName(),
+            spread.getLongExchange().getExchangeSpecification().getExchangeName(),
             longLimitOrder);
         LOGGER.debug("{}: {}",
-            shortExchange.getExchangeSpecification().getExchangeName(),
+            spread.getShortExchange().getExchangeSpecification().getExchangeName(),
             shortLimitOrder);
 
         try { // get the order IDs from each exchange
             long orderExecutionStart = System.currentTimeMillis();
 
-            String longOrderId = longExchange.getTradeService().placeLimitOrder(longLimitOrder);
-            String shortOrderId = shortExchange.getTradeService().placeLimitOrder(shortLimitOrder);
+            String longOrderId = spread.getLongExchange().getTradeService().placeLimitOrder(longLimitOrder);
+            String shortOrderId = spread.getShortExchange().getTradeService().placeLimitOrder(shortLimitOrder);
 
             long orderExecutionTimer = System.currentTimeMillis() - orderExecutionStart;
             long orderPlacementTimer = System.currentTimeMillis() - orderTimer;
@@ -757,10 +716,10 @@ public class TradingService {
             }
 
             LOGGER.info("{} limit order ID: {}",
-                longExchange.getExchangeSpecification().getExchangeName(),
+                spread.getLongExchange().getExchangeSpecification().getExchangeName(),
                 longOrderId);
             LOGGER.info("{} limit order ID: {}",
-                shortExchange.getExchangeSpecification().getExchangeName(),
+                spread.getShortExchange().getExchangeSpecification().getExchangeName(),
                 shortOrderId);
         } catch (ExchangeException e) {
             // At this point we may or may not have executed one of the trades so we're in an unknown state.
@@ -773,69 +732,129 @@ public class TradingService {
 
         LOGGER.info("Waiting for limit orders to complete...");
 
-        OpenOrders longOpenOrders = null;
-        OpenOrders shortOpenOrders = null;
-        int count = 0;
+        final Observable<OpenOrders> longOpenOrdersObservable = checkForOpenOrders(spread.getLongExchange());
+        final Observable<OpenOrders> shortOpenOrdersObservable = checkForOpenOrders(spread.getShortExchange());
 
-        // every few seconds check the exchanges to see if our orders are filled yet
-        do {
-            if (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()) {
-                longOpenOrders = fetchOpenOrders(longExchange).orElse(null);
-            }
+        Observable.combineLatest(shortOpenOrdersObservable, longOpenOrdersObservable,
+                (shortResult, longResult) -> shortResult.getOpenOrders().isEmpty() && longResult.getOpenOrders().isEmpty()
+            )
+            .doOnComplete(() -> {
+                openOrdersFlag.set(false);
 
-            if (shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty()) {
-                shortOpenOrders = fetchOpenOrders(shortExchange).orElse(null);
-            }
+                // invalidate the balance cache because we *know* it's incorrect now
+                exchangeBalanceCache.invalidate(spread.getLongExchange(), spread.getShortExchange());
 
-            // only print the warning every 10th iteration
-            // but do print warnings because otherwise I worry that the computer has died
-            if (longOpenOrders != null && !longOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-                LOGGER.warn(collectOpenOrders(longExchange, longOpenOrders));
-            }
+                if (tradeVolume instanceof EntryTradeVolume) {
+                    completeEntry(spread, exitSpreadTarget, longLimitPrice, shortLimitPrice, ((EntryTradeVolume)tradeVolume));
+                } else if (tradeVolume instanceof ExitTradeVolume) {
+                    completeExit(spread, longLimitPrice, shortLimitPrice, ((ExitTradeVolume)tradeVolume));
+                }
 
-            if (shortOpenOrders != null && !shortOpenOrders.getOpenOrders().isEmpty() && count % 10 == 0) {
-                LOGGER.warn(collectOpenOrders(shortExchange, shortOpenOrders));
-            }
+                LOGGER.info("Trades executed successfully!");
+            })
+            .subscribe();
+    }
 
-            count++;
-
-            try {
-                // yes this is a busy wait, the bot has nothing better to do right now except wait for the orders to fill
-                //noinspection BusyWait
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                LOGGER.trace("Sleep interrupted!", e);
-            }
-        } while (longOpenOrders == null || !longOpenOrders.getOpenOrders().isEmpty()
-            || shortOpenOrders == null || !shortOpenOrders.getOpenOrders().isEmpty());
-
-        // invalidate the balance cache because we *know* it's incorrect now
-        exchangeBalanceCache.invalidate(longExchange, shortExchange);
-
-        // yay!
-        LOGGER.info("Trades executed successfully!");
+    private Observable<OpenOrders> checkForOpenOrders(final Exchange exchange) {
+        return Observable.fromCallable(() -> fetchOpenOrders(exchange).orElseThrow(Exception::new))
+            .retryWhen(throwableFlowable -> throwableFlowable.flatMap(throwable -> Observable.timer(10, TimeUnit.SECONDS)))
+            .repeatWhen(objectObservable -> objectObservable.delay(10, TimeUnit.SECONDS))
+            .takeUntil(openOrders -> {
+                collectOpenOrders(exchange, openOrders).ifPresent(LOGGER::warn);
+                return openOrders.getOpenOrders().isEmpty();
+            })
+            .subscribeOn(Schedulers.io());
     }
 
     // summarize all the open orders on an exchange, used while we're waiting for orders to fill
-    private String collectOpenOrders(Exchange exchange, OpenOrders openOrders) {
+    private Optional<String> collectOpenOrders(Exchange exchange, OpenOrders openOrders) {
+        if (openOrders.getOpenOrders().isEmpty()) {
+            return Optional.empty();
+        }
         String header = String.format("%s has the following open orders:\n", exchange.getExchangeSpecification().getExchangeName());
 
-        return header + openOrders.getOpenOrders()
+        final String logMessage = header + openOrders.getOpenOrders()
             .stream()
             .map(LimitOrder::toString)
             .collect(Collectors.joining("\n"));
+
+        return Optional.of(logMessage);
     }
 
     // fetch open orders from the exchange
-    private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) {
+    private Optional<OpenOrders> fetchOpenOrders(Exchange exchange) throws IOException {
+        return Optional.of(exchange.getTradeService().getOpenOrders());
+    }
+
+    private void completeEntry(Spread spread, BigDecimal exitSpreadTarget, BigDecimal longLimitPrice, BigDecimal shortLimitPrice, EntryTradeVolume tradeVolume) {
+        final boolean isForceOpenCondition = conditionService.isForceOpenCondition(
+            spread.getCurrencyPair(),
+            spread.getLongExchange().getExchangeSpecification().getExchangeName(),
+            spread.getShortExchange().getExchangeSpecification().getExchangeName());
+
+        notificationService.sendEntryTradeNotification(spread, exitSpreadTarget, tradeVolume,
+            longLimitPrice, shortLimitPrice, isForceOpenCondition);
+
         try {
-            return Optional.of(exchange.getTradeService().getOpenOrders());
-        } catch (IOException | ExchangeException e) {
-            LOGGER.error("{} threw an Exception while fetching open orders: ",
-                exchange.getExchangeSpecification().getExchangeName(), e);
+            Utils.createStateFile(objectMapper.writeValueAsString(activePosition));
+        } catch (IOException e) {
+            LOGGER.error("Unable to write state file!", e);
         }
 
-        return Optional.empty();
+        conditionService.clearForceOpenCondition();
+    }
+
+    private void completeExit(Spread spread, BigDecimal longLimitPrice, BigDecimal shortLimitPrice, ExitTradeVolume tradeVolume) {
+        final String longExchangeName = spread.getLongExchange().getExchangeSpecification().getExchangeName();
+        final String shortExchangeName = spread.getShortExchange().getExchangeSpecification().getExchangeName();
+        final boolean isForceCloseCondition = conditionService.isForceCloseCondition();
+
+        LOGGER.info("Combined account balances on entry: ${}", activePosition.getEntryBalance());
+
+        final BigDecimal updatedBalance = logCurrentExchangeBalances(spread.getLongExchange(), spread.getShortExchange());
+        final BigDecimal profit = updatedBalance.subtract(activePosition.getEntryBalance());
+
+        LOGGER.info("Profit calculation: ${} - ${} = ${}",
+            updatedBalance,
+            activePosition.getEntryBalance(),
+            profit);
+
+        final ArbitrageLog arbitrageLog = ArbitrageLog.ArbitrageLogBuilder.builder()
+            .withShortExchange(shortExchangeName)
+            .withShortCurrency(spread.getCurrencyPair().toString())
+            .withShortSpread(shortLimitPrice)
+            .withShortSlip(spread.getShortTicker().getAsk().subtract(shortLimitPrice))
+            .withShortAmount(tradeVolume.getShortVolume().multiply(spread.getShortTicker().getAsk()))
+            .withLongExchange(longExchangeName)
+            .withLongCurrency(spread.getCurrencyPair().toString())
+            .withLongSpread(longLimitPrice)
+            .withLongSlip(longLimitPrice.subtract(spread.getLongTicker().getBid()))
+            .withLongAmount(tradeVolume.getLongVolume().multiply(spread.getLongTicker().getBid()))
+            .withProfit(profit)
+            .withTimestamp(OffsetDateTime.now())
+            .build();
+
+        persistArbitrageToCsvFile(arbitrageLog);
+
+        // Email notification must be sent before we set activePosition = null
+        notificationService.sendExitTradeNotification(
+            spread,
+            tradeVolume,
+            longLimitPrice,
+            shortLimitPrice,
+            activePosition.getEntryBalance(),
+            updatedBalance,
+            activePosition.getExitTarget(),
+            isForceCloseCondition,
+            isActivePositionExpired()
+        );
+
+        activePosition = null;
+        Utils.deleteStateFile();
+
+        if (isForceCloseCondition) {
+            conditionService.clearForceCloseCondition();
+        }
     }
 
     /**
