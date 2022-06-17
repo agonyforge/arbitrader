@@ -52,7 +52,7 @@ dependencies {
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.9'
-    implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.13'
 
     implementation group: 'com.github.seratch', name: 'jslack', version: '3.4.2'
     implementation group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
