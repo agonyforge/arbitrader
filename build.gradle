@@ -9,7 +9,7 @@ plugins {
 }
 
 group 'com.agonyforge'
-version '0.13.2'
+version '0.13.3-SNAPSHOT'
 
 jar {
     enabled = false // don't build the plain, non-executable jar
@@ -43,16 +43,16 @@ dependencies {
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
     implementation group: 'com.squareup.okhttp3', name:'okhttp', version:'4.10.0'
 
-    implementation group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.8'
-    implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.8'
+    implementation group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.9'
 
     implementation group: 'com.github.seratch', name: 'jslack', version: '3.4.2'
     implementation group: 'javax.websocket', name: 'javax.websocket-api', version: '1.1'
