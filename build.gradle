@@ -4,7 +4,7 @@ plugins {
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'com.palantir.docker' version '0.33.0'
     id 'info.solidsoft.pitest' version '1.6.0'
-    id 'org.owasp.dependencycheck' version '6.2.2'
+    id 'org.owasp.dependencycheck' version '7.1.1'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
