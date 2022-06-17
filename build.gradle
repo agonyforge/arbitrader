@@ -9,7 +9,7 @@ plugins {
 }
 
 group 'com.agonyforge'
-version '0.13.2'
+version '0.13.3-SNAPSHOT'
 
 jar {
     enabled = false // don't build the plain, non-executable jar
