@@ -3,7 +3,7 @@ plugins {
     id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'com.palantir.docker' version '0.33.0'
-    id 'info.solidsoft.pitest' version '1.6.0'
+    id 'info.solidsoft.pitest' version '1.7.4'
     id 'org.owasp.dependencycheck' version '7.1.1'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
@@ -51,7 +51,7 @@ dependencies {
     implementation group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.9'
-    implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.13'
     implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.9'
 
     implementation group: 'com.github.seratch', name: 'jslack', version: '3.4.2'
