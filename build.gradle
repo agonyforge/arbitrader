@@ -2,9 +2,9 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '2.5.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
-    id 'com.palantir.docker' version '0.26.0'
+    id 'com.palantir.docker' version '0.33.0'
     id 'info.solidsoft.pitest' version '1.6.0'
-    id 'org.owasp.dependencycheck' version '6.2.2'
+    id 'org.owasp.dependencycheck' version '7.1.1'
     id 'org.kordamp.gradle.stats' version '0.2.2'
 }
 
@@ -41,7 +41,7 @@ dependencies {
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-mail'
 
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310'
-    implementation group: 'com.squareup.okhttp3', name:'okhttp', version:'4.9.1'
+    implementation group: 'com.squareup.okhttp3', name:'okhttp', version:'4.10.0'
 
     implementation group: 'org.knowm.xchange', name: 'xchange-quoine', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.9'
@@ -59,11 +59,11 @@ dependencies {
 
     implementation group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
     implementation group: 'org.apache.commons', name: 'commons-text', version: '1.9'
-    implementation group: 'commons-io', name: 'commons-io', version: '2.9.0'
+    implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
 
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
     testImplementation group: 'org.mockito', name: 'mockito-core', version: '3.10.0'
-    testImplementation group: 'org.pitest', name: 'pitest', version: '1.6.6'
+    testImplementation group: 'org.pitest', name: 'pitest', version: '1.8.1'
 }
 
 docker {
