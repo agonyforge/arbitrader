@@ -199,7 +199,7 @@ public class SpreadServiceTest extends BaseTestCase {
 
         BigDecimal spread = spreadService.computeSpread(longPrice, shortPrice);
 
-        assertEquals(new BigDecimal("0.50000000"), spread);
+        assertEquals(0, new BigDecimal("0.50000000").compareTo(spread));
     }
 
     @Test
