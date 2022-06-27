@@ -167,7 +167,7 @@ public class TickerService {
     public boolean isInvalidTicker(Ticker ticker) {
         return ticker == null
             || ticker.getBid() == null || ticker.getAsk() == null
-            || ticker.getBid().equals(BigDecimal.ZERO) || ticker.getAsk().equals(BigDecimal.ZERO);
+            || ticker.getBid().compareTo(BigDecimal.ZERO) == 0 || ticker.getAsk().compareTo(BigDecimal.ZERO) == 0;
     }
 
     /**
