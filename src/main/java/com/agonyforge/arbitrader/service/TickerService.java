@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -164,7 +165,9 @@ public class TickerService {
      * @return true if the Ticker is missing required fields.
      */
     public boolean isInvalidTicker(Ticker ticker) {
-        return ticker == null || ticker.getBid() == null || ticker.getAsk() == null;
+        return ticker == null
+            || ticker.getBid() == null || ticker.getAsk() == null
+            || ticker.getBid().equals(BigDecimal.ZERO) || ticker.getAsk().equals(BigDecimal.ZERO);
     }
 
     /**

@@ -166,6 +166,26 @@ public class TickerServiceTest {
     }
 
     @Test
+    public void testIsInvalidTickerZeroBid() {
+        Ticker ticker = new Ticker.Builder()
+            .bid(new BigDecimal("0"))
+            .ask(new BigDecimal("64000.00000000"))
+            .build();
+
+        assertTrue(tickerService.isInvalidTicker(ticker));
+    }
+
+    @Test
+    public void testIsInvalidTickerZeroAsk() {
+        Ticker ticker = new Ticker.Builder()
+            .bid(new BigDecimal("64000.00000000"))
+            .ask(new BigDecimal("0"))
+            .build();
+
+        assertTrue(tickerService.isInvalidTicker(ticker));
+    }
+
+    @Test
     public void testIsInvalidTicker() {
         Ticker ticker = new Ticker.Builder()
             .bid(new BigDecimal("120.00"))
