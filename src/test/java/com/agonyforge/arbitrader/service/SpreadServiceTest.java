@@ -193,6 +193,16 @@ public class SpreadServiceTest extends BaseTestCase {
     }
 
     @Test
+    public void testComputeSpread() {
+        BigDecimal longPrice = new BigDecimal("10.00000000");
+        BigDecimal shortPrice = new BigDecimal("15.00000000");
+
+        BigDecimal spread = spreadService.computeSpread(longPrice, shortPrice);
+
+        assertEquals(0, new BigDecimal("0.50000000").compareTo(spread));
+    }
+
+    @Test
     public void testGetEntrySpreadTarget() {
         TradingConfiguration tradingConfiguration = new TradingConfiguration();
         tradingConfiguration.setEntrySpreadTarget(new BigDecimal("0.001"));
