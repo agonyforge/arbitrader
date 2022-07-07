@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'org.springframework.boot' version '2.7.1'
-    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'io.spring.dependency-management' version '1.0.12.RELEASE'
     id 'com.palantir.docker' version '0.33.0'
     id 'info.solidsoft.pitest' version '1.7.4'
     id 'org.owasp.dependencycheck' version '7.1.1'
@@ -62,7 +62,7 @@ dependencies {
     implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
 
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
-    testImplementation group: 'org.mockito', name: 'mockito-core', version: '3.10.0'
+    testImplementation group: 'org.mockito', name: 'mockito-core', version: '4.6.1'
     testImplementation group: 'org.pitest', name: 'pitest', version: '1.8.1'
 }
 
