@@ -47,7 +47,7 @@ dependencies {
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-kraken', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitflyer', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.9'
-    implementation group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.13'
     implementation group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.9'
@@ -63,7 +63,7 @@ dependencies {
 
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
     testImplementation group: 'org.mockito', name: 'mockito-core', version: '4.6.1'
-    testImplementation group: 'org.pitest', name: 'pitest', version: '1.8.1'
+    testImplementation group: 'org.pitest', name: 'pitest', version: '1.9.3'
 }
 
 docker {
