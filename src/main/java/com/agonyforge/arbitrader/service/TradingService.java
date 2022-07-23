@@ -944,6 +944,13 @@ public class TradingService {
     BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
         CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
 
+        LOGGER.info("Entering getLimitPrice()");
+        LOGGER.info("{} {} {} allowed volume: {}",
+            exchange.getExchangeSpecification().getExchangeName(),
+            currencyPair,
+            orderType,
+            allowedVolume);
+
         try {
             OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
             List<LimitOrder> orders = orderType.equals(Order.OrderType.ASK) ? orderBook.getAsks() : orderBook.getBids();
@@ -956,14 +963,12 @@ public class TradingService {
             // If we set our limit order at this price (without waiting too long) it is very likely to fill
             // because we know the exchange has enough currency available to fill it at this or a better price.
             for (LimitOrder order : orders) {
-                LOGGER.info("{} order {} remaining amount: {}",
+                LOGGER.info("{} order {} original, remaining: {}, {}",
                     exchange.getExchangeSpecification().getExchangeName(),
                     order.getId(),
+                    order.getOriginalAmount(),
                     order.getRemainingAmount());
-                LOGGER.info("{} order {} original amount: {}",
-                    exchange.getExchangeSpecification().getExchangeName(),
-                    order.getId(),
-                    order.getOriginalAmount());
+                LOGGER.info("vol {} -> allowed {}", volume, allowedVolume);
 
                 price = order.getLimitPrice();
 
@@ -976,6 +981,7 @@ public class TradingService {
                 if (volume.compareTo(allowedVolume) > 0) {
                     int scale = computePriceScale(exchange, currencyPair);
 
+                    LOGGER.info("SUCCESS: Returning from getLimitPrice()");
                     return price.setScale(scale, RoundingMode.HALF_EVEN);
                 }
             }
@@ -983,6 +989,7 @@ public class TradingService {
             LOGGER.error("IOE fetching {} {} order volume", exchange.getExchangeSpecification().getExchangeName(), currencyPair, e);
         }
 
+        LOGGER.error("FAILURE: Throwing error from getLimitPrice()");
         throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
     }
 
