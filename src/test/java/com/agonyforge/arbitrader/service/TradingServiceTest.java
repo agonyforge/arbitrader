@@ -201,7 +201,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the best price point has enough volume to fill my order
     @Test
-    public void testLimitPriceLongSufficientVolume() {
+    public void testLimitPriceLongSufficientVolume() throws IOException {
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
 
@@ -213,7 +213,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the best price point has enough volume to fill my order
     @Test
-    public void testLimitPriceShortSufficientVolume() {
+    public void testLimitPriceShortSufficientVolume() throws IOException {
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
 
@@ -225,7 +225,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
-    public void testLimitPriceLongInsufficientVolume() {
+    public void testLimitPriceLongInsufficientVolume() throws IOException {
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
         BigDecimal allowedVolume = new BigDecimal("11.00");
@@ -236,7 +236,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the best price point isn't big enough to fill my order alone, so the price will slip
     @Test
-    public void testLimitPriceShortInsufficientVolume() {
+    public void testLimitPriceShortInsufficientVolume() throws IOException {
         when(exchangeService.convertExchangePair(any(Exchange.class), any(CurrencyPair.class)))
             .thenReturn(currencyPair);
         BigDecimal allowedVolume = new BigDecimal("11.00");
@@ -247,7 +247,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the exchange doesn't have enough volume to fill my gigantic order
     @Test(expected = RuntimeException.class)
-    public void testLimitPriceLongInsufficientLiquidity() {
+    public void testLimitPriceLongInsufficientLiquidity() throws IOException {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
         tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.ASK);
@@ -255,7 +255,7 @@ public class TradingServiceTest extends BaseTestCase {
 
     // the exchange doesn't have enough volume to fill my gigantic order
     @Test(expected = RuntimeException.class)
-    public void testLimitPriceShortInsufficientLiquidity() {
+    public void testLimitPriceShortInsufficientLiquidity() throws IOException {
         BigDecimal allowedVolume = new BigDecimal(10001);
 
         tradingService.getLimitPrice(longExchange, currencyPair, allowedVolume, Order.OrderType.BID);
