@@ -956,8 +956,22 @@ public class TradingService {
             // If we set our limit order at this price (without waiting too long) it is very likely to fill
             // because we know the exchange has enough currency available to fill it at this or a better price.
             for (LimitOrder order : orders) {
+                LOGGER.info("{} order {} remaining amount: {}",
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    order.getId(),
+                    order.getRemainingAmount());
+                LOGGER.info("{} order {} original amount: {}",
+                    exchange.getExchangeSpecification().getExchangeName(),
+                    order.getId(),
+                    order.getOriginalAmount());
+
                 price = order.getLimitPrice();
-                volume = volume.add(order.getRemainingAmount());
+
+                if (order.getRemainingAmount() == null || BigDecimal.ZERO.compareTo(order.getRemainingAmount()) == 0) {
+                    volume = volume.add(order.getOriginalAmount());
+                } else{
+                    volume = volume.add(order.getRemainingAmount());
+                }
 
                 if (volume.compareTo(allowedVolume) > 0) {
                     int scale = computePriceScale(exchange, currencyPair);
