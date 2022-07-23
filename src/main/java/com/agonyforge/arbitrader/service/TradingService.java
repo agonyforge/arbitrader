@@ -226,8 +226,8 @@ public class TradingService {
         try {
             longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), tradeVolume.getLongVolume(), Order.OrderType.ASK);
             shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), tradeVolume.getShortVolume(), Order.OrderType.BID);
-        } catch (ExchangeException e) {
-            LOGGER.warn("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
+        } catch (IOException | ExchangeException e) {
+            LOGGER.error("Failed to fetch order books for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
                 spread.getShortExchange().getDefaultExchangeSpecification().getExchangeName(),
                 spread.getCurrencyPair().base,
@@ -456,7 +456,7 @@ public class TradingService {
         try {
             longLimitPrice = getLimitPrice(spread.getLongExchange(), spread.getCurrencyPair(), tradeVolume.getLongVolume(), Order.OrderType.BID);
             shortLimitPrice = getLimitPrice(spread.getShortExchange(), spread.getCurrencyPair(), tradeVolume.getShortVolume(), Order.OrderType.ASK);
-        } catch (ExchangeException e) {
+        } catch (IOException | ExchangeException e) {
             LOGGER.warn("Failed to fetch order books (on active position) for {}/{} and currency {}/{} to compute entry prices: {}",
                 longExchangeName,
                 spread.getShortExchange().getDefaultExchangeSpecification().getExchangeName(),
@@ -941,56 +941,35 @@ public class TradingService {
      * @param orderType Are we buying or selling? Use the bid or ask price?
      * @return The more accurate price for this order.
      */
-    BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) {
+    BigDecimal getLimitPrice(Exchange exchange, CurrencyPair rawCurrencyPair, BigDecimal allowedVolume, Order.OrderType orderType) throws IOException {
         CurrencyPair currencyPair = exchangeService.convertExchangePair(exchange, rawCurrencyPair);
+        OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
+        List<LimitOrder> orders = orderType.equals(Order.OrderType.ASK) ? orderBook.getAsks() : orderBook.getBids();
+        BigDecimal price;
+        BigDecimal volume = BigDecimal.ZERO;
 
-        LOGGER.info("Entering getLimitPrice()");
-        LOGGER.info("{} {} {} allowed volume: {}",
-            exchange.getExchangeSpecification().getExchangeName(),
-            currencyPair,
-            orderType,
-            allowedVolume);
+        // Walk through orders, ordered by price, until we satisfy all the volume we need.
+        // Return the price of the last order we see.
+        //
+        // If we set our limit order at this price (without waiting too long) it is very likely to fill
+        // because we know the exchange has enough currency available to fill it at this or a better price.
+        for (LimitOrder order : orders) {
+            price = order.getLimitPrice();
 
-        try {
-            OrderBook orderBook = exchange.getMarketDataService().getOrderBook(currencyPair);
-            List<LimitOrder> orders = orderType.equals(Order.OrderType.ASK) ? orderBook.getAsks() : orderBook.getBids();
-            BigDecimal price;
-            BigDecimal volume = BigDecimal.ZERO;
-
-            // Walk through orders, ordered by price, until we satisfy all the volume we need.
-            // Return the price of the last order we see.
-            //
-            // If we set our limit order at this price (without waiting too long) it is very likely to fill
-            // because we know the exchange has enough currency available to fill it at this or a better price.
-            for (LimitOrder order : orders) {
-                LOGGER.info("{} order {} original, remaining: {}, {}",
-                    exchange.getExchangeSpecification().getExchangeName(),
-                    order.getId(),
-                    order.getOriginalAmount(),
-                    order.getRemainingAmount());
-                LOGGER.info("vol {} -> allowed {}", volume, allowedVolume);
-
-                price = order.getLimitPrice();
-
-                if (order.getRemainingAmount() == null || BigDecimal.ZERO.compareTo(order.getRemainingAmount()) == 0) {
-                    volume = volume.add(order.getOriginalAmount());
-                } else{
-                    volume = volume.add(order.getRemainingAmount());
-                }
-
-                if (volume.compareTo(allowedVolume) > 0) {
-                    int scale = computePriceScale(exchange, currencyPair);
-
-                    LOGGER.info("SUCCESS: Returning from getLimitPrice()");
-                    return price.setScale(scale, RoundingMode.HALF_EVEN);
-                }
+            if (order.getRemainingAmount() == null || BigDecimal.ZERO.compareTo(order.getRemainingAmount()) == 0) {
+                volume = volume.add(order.getOriginalAmount());
+            } else{
+                volume = volume.add(order.getRemainingAmount());
             }
-        } catch (IOException e) {
-            LOGGER.error("IOE fetching {} {} order volume", exchange.getExchangeSpecification().getExchangeName(), currencyPair, e);
+
+            if (volume.compareTo(allowedVolume) > 0) {
+                int scale = computePriceScale(exchange, currencyPair);
+
+                return price.setScale(scale, RoundingMode.HALF_EVEN);
+            }
         }
 
-        LOGGER.error("FAILURE: Throwing error from getLimitPrice()");
-        throw new RuntimeException("Not enough liquidity on exchange to fulfill required volume!");
+        throw new LiquidityException("Not enough liquidity on exchange to fulfill required volume!");
     }
 
     /**
