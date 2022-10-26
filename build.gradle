@@ -49,7 +49,7 @@ dependencies {
     implementation group: 'org.knowm.xchange', name: 'xchange-stream-coinbasepro', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-cexio', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-poloniex', version: '5.0.9'
-    implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.9'
+    implementation group: 'org.knowm.xchange', name: 'xchange-stream-gemini', version: '5.0.14'
     implementation group: 'org.knowm.xchange', name: 'xchange-bitstamp', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-cobinhood', version: '5.0.9'
     implementation group: 'org.knowm.xchange', name: 'xchange-binance', version: '5.0.9'
