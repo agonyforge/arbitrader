@@ -4,8 +4,8 @@ env:
   parameter-store:
     DOCKER_HUB_USERNAME: "docker-hub-username"
     DOCKER_HUB_PASSWORD: "docker-hub-password"
-    GITHUB_USERNAME: "github-username"
-    GITHUB_TOKEN:    "github-token"
+    GITHUB_USERNAME: "agonyforge-github-packages-username"
+    GITHUB_TOKEN: "agonyforge-github-packages-token"
 
 phases:
   install:
